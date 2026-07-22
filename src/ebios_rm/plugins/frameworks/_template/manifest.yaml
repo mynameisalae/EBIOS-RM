@@ -1,0 +1,8 @@
+id: CHANGE_ME                 # matches the folder name, e.g. HIPAA
+name: "Full display name"
+framework_version: "CHANGE_ME"  # e.g. '2022', 'CSF 2.0', '2016/679'
+legal_nature: >
+  Free text — licensing/publication status of this referential (commercial
+  license, public domain, free reuse, ...), conception §12.2.
+has_legal_impact_provisions: false   # true if any control row sets legal_impact_type, §12.3
+default_suggested: false             # true only for the four defaults, §12.4

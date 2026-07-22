@@ -1,0 +1,10 @@
+# ANSSI — Guide d'hygiène informatique — conception §12.2
+id: ANSSI_hygiene
+name: "Guide d'hygiène informatique (ANSSI)"
+framework_version: "2024"
+legal_nature: >
+  Publication libre de l'ANSSI, texte réel librement réutilisable.
+has_legal_impact_provisions: false
+default_suggested: true
+
+# atelier 4 behavior: normal.

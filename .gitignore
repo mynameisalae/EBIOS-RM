@@ -1,0 +1,33 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+# Runtime databases (mounted as Docker volumes, never committed)
+data/reference/*.db
+data/mission/*.db
+!data/reference/.gitkeep
+!data/mission/.gitkeep
+
+# Secrets
+.env
+*.env.local
+
+# Generated reports (contain client data)
+*.docx
+!docs/**/*.docx
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/

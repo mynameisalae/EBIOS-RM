@@ -1,0 +1,15 @@
+.git/
+.claude/
+.github/
+tests/
+docs/
+data/reference/*.db
+data/mission/*.db
+*.md
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage

@@ -1,0 +1,11 @@
+# NIST (Cybersecurity Framework / SP 800-53) — conception §12.2
+id: NIST
+name: "NIST Cybersecurity Framework / SP 800-53"
+framework_version: "CSF 2.0"
+legal_nature: >
+  Publication du gouvernement américain, domaine public, texte réel
+  librement réutilisable.
+has_legal_impact_provisions: false
+default_suggested: true
+
+# atelier 4 behavior: normal — cadre intrinsèquement technique, aucune scission nécessaire.

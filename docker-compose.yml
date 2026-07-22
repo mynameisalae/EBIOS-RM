@@ -1,0 +1,27 @@
+# Services and volume split per conception §13.3.
+# reference-db-loader runs once (loads ATT&CK + framework plugins, see src/ebios_rm/db/loader.py), then exits.
+# app has read-only access to the reference DB and read-write access to the mission DB.
+
+services:
+  reference-db-loader:
+    build: .
+    command: ["python", "-m", "ebios_rm.db.loader"]
+    volumes:
+      - reference_db_data:/data/reference
+
+  app:
+    build: .
+    depends_on:
+      - reference-db-loader
+    volumes:
+      - reference_db_data:/data/reference:ro
+      - mission_db_data:/data/mission
+    environment:
+      - MODEL_ID
+      - OPENROUTER_API_KEY
+    env_file:
+      - .env
+
+volumes:
+  reference_db_data:
+  mission_db_data:

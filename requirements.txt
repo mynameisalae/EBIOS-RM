@@ -1,0 +1,4 @@
+# Pinned exact versions only — never a floating tag or open constraint (conception §13.1).
+agno==2.6.12
+python-docx==1.2.0
+PyYAML==6.0.2

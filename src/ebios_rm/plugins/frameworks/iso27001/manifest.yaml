@@ -1,0 +1,12 @@
+# ISO 27001 (Annexe A) — conception §12.2
+id: ISO27001
+name: "ISO/IEC 27001 (Annexe A)"
+framework_version: "2022"
+legal_nature: >
+  Norme sous licence commerciale ISO. Le texte réel des contrôles doit être
+  extrait depuis la copie sous licence détenue par l'entreprise — usage
+  strictement interne, jamais redistribué à un client externe.
+has_legal_impact_provisions: false
+default_suggested: true
+
+# atelier 4 behavior: normal — every entry feeds baseline_gaps_considered (§12.2).
