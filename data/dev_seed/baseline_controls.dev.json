@@ -1,0 +1,62 @@
+[
+  {
+    "control_id": "ANSSI-H-21",
+    "framework": "ANSSI_hygiene",
+    "description": "[SAMPLE] Authentifier l'accès distant par un mécanisme à double facteur (MFA).",
+    "category": "authentification",
+    "covers_risk_category": ["initial_access", "credential_access"],
+    "framework_version": "2024",
+    "legal_impact_type": null,
+    "legal_impact_details": null
+  },
+  {
+    "control_id": "ANSSI-H-34",
+    "framework": "ANSSI_hygiene",
+    "description": "[SAMPLE] Réaliser des sauvegardes régulières, dont une copie hors ligne testée.",
+    "category": "continuite",
+    "covers_risk_category": ["impact", "data_destruction"],
+    "framework_version": "2024",
+    "legal_impact_type": null,
+    "legal_impact_details": null
+  },
+  {
+    "control_id": "NIST-PR.AC-1",
+    "framework": "NIST",
+    "description": "[SAMPLE] Les identités et accès sont gérés, vérifiés et révoqués pour les utilisateurs et dispositifs.",
+    "category": "protect",
+    "covers_risk_category": ["credential_access", "privilege_escalation"],
+    "framework_version": "CSF 2.0",
+    "legal_impact_type": null,
+    "legal_impact_details": null
+  },
+  {
+    "control_id": "RGPD-Art32",
+    "framework": "RGPD",
+    "description": "[SAMPLE] Sécurité du traitement : mesures techniques et organisationnelles appropriées au risque (chiffrement, disponibilité, résilience).",
+    "category": "securite_traitement",
+    "covers_risk_category": ["credential_access", "exfiltration"],
+    "framework_version": "2016/679",
+    "legal_impact_type": null,
+    "legal_impact_details": null
+  },
+  {
+    "control_id": "RGPD-Art33",
+    "framework": "RGPD",
+    "description": "[SAMPLE] Notification d'une violation de données à l'autorité de contrôle dans les meilleurs délais.",
+    "category": "notification",
+    "covers_risk_category": [],
+    "framework_version": "2016/679",
+    "legal_impact_type": "mandatory_notification",
+    "legal_impact_details": "[SAMPLE] Notification à l'autorité de contrôle dans un délai de 72 heures après en avoir pris connaissance."
+  },
+  {
+    "control_id": "RGPD-Art83",
+    "framework": "RGPD",
+    "description": "[SAMPLE] Conditions générales des amendes administratives.",
+    "category": "sanction",
+    "covers_risk_category": [],
+    "framework_version": "2016/679",
+    "legal_impact_type": "financial_penalty",
+    "legal_impact_details": "[SAMPLE] Amende administrative jusqu'à 20 000 000 EUR ou 4% du chiffre d'affaires annuel mondial, le montant le plus élevé étant retenu."
+  }
+]

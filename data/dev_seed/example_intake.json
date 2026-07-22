@@ -1,0 +1,20 @@
+{
+  "organisation_nom": "Clinique du Val Fleuri",
+  "secteur_activite": "Santé — établissement de soins privé",
+  "taille_effectif": 420,
+  "perimetre_geographique": ["France"],
+  "systeme_information_resume": "SIH (système d'information hospitalier) hébergé chez un prestataire agréé HDS, postes Windows, messagerie Microsoft 365, PACS d'imagerie, accès distant des médecins par VPN.",
+  "hebergement": "hybride",
+  "teletravail_autorise": true,
+  "acces_distant_moyens": ["VPN"],
+  "edr_av_deploye": null,
+  "sauvegarde_strategie": null,
+  "donnees_personnelles_traitees": true,
+  "categories_donnees_personnelles": ["patients", "données de santé", "salariés"],
+  "incidents_securite_passes": null,
+  "audits_anterieurs": "Audit ANSSI de maturité réalisé en 2023.",
+  "fournisseurs_tiers_critiques": ["Hébergeur HDS", "Éditeur du SIH", "Prestataire de télé-radiologie"],
+  "applicable_frameworks": ["ANSSI_hygiene", "RGPD", "NIST"],
+  "processus_metier_critiques": ["Prise en charge des patients", "Gestion du dossier patient", "Imagerie médicale"],
+  "documents_fournis": null
+}

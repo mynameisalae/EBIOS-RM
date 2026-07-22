@@ -6,7 +6,8 @@ requires-python = ">=3.13,<3.14"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-asyncio_mode = "auto"
+pythonpath = ["src"]
+# asyncio_mode = "auto"  # re-enable when Workshop 4 (async fan-out) adds async tests
 
 [tool.setuptools.packages.find]
 where = ["src"]
