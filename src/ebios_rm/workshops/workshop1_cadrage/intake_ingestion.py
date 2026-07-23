@@ -68,6 +68,8 @@ def _ask_follow_ups(
     so no needless question is posed (conception §11).
     """
     covered = covered_ids or set()
+    if hasattr(human, "bind_facts"):  # conversational interface: give the agent live context
+        human.bind_facts(declaration_facts)
     asked: set[str] = set()
     while True:
         answers = _answers_map(declaration_facts)

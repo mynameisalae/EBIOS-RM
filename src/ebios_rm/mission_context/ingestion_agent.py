@@ -54,18 +54,22 @@ class AgnoIngestionRunner:
     """
 
     def __init__(
-        self, model=None, *, max_attempts: int = 4, base_delay: float = 3.0, batch_size: int = 12
+        self, model=None, *, max_attempts: int = 4, base_delay: float = 3.0, batch_size: int = 12,
+        progress=print,
     ) -> None:
         self._model = model or get_model()
         self._max_attempts = max_attempts
         self._base_delay = base_delay
         self._batch_size = batch_size
+        self._progress = progress  # called with a short status string before each LLM call
 
     def _run(self, prompt: str, *, what: str) -> list[ExtractedAnswer]:
         from agno.agent import Agent  # noqa: PLC0415
 
         last: object = None
         for attempt in range(1, self._max_attempts + 1):
+            if attempt > 1:
+                self._progress(f"   ... nouvel essai {attempt}/{self._max_attempts} ({what})")
             try:
                 agent = Agent(model=self._model, instructions=_SYSTEM,
                               output_schema=ExtractedAnswerBatch, markdown=False)
@@ -85,7 +89,9 @@ class AgnoIngestionRunner:
 
     def extract_questionnaire(self, doc_text: str, questions: list[Question]) -> list[ExtractedAnswer]:
         collected: list[ExtractedAnswer] = []
-        for batch in _chunk(questions, self._batch_size):
+        batches = _chunk(questions, self._batch_size)
+        for i, batch in enumerate(batches, 1):
+            self._progress(f"   lecture du questionnaire, lot {i}/{len(batches)} ({len(batch)} questions)...")
             prompt = (
                 "Voici un questionnaire de contexte REMPLI par le client. Pour chaque question "
                 "ci-dessous, extrais la réponse fournie par le client (found=true et answer), "
@@ -101,7 +107,9 @@ class AgnoIngestionRunner:
         self, doc_text: str, doc_name: str, questions: list[Question]
     ) -> list[ExtractedAnswer]:
         collected: list[ExtractedAnswer] = []
-        for batch in _chunk(questions, self._batch_size):
+        batches = _chunk(questions, self._batch_size)
+        for i, batch in enumerate(batches, 1):
+            self._progress(f"   lecture de {doc_name}, lot {i}/{len(batches)}...")
             prompt = (
                 f"Voici un document justificatif fourni en complément ('{doc_name}'). Extrais-en "
                 "toute information qui répond à l'une des questions ci-dessous (found=true, answer, "

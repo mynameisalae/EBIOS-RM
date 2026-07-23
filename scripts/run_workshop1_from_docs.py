@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from ebios_rm.config import load_settings  # noqa: E402
 from ebios_rm.db.loader import build_reference_db  # noqa: E402
 from ebios_rm.repositories.reference_repository import ReferenceRepository  # noqa: E402
-from ebios_rm.workshops.workshop1_cadrage.human_interface import CLIHumanInterface  # noqa: E402
+from ebios_rm.workshops.workshop1_cadrage.human_interface import ConversationalHumanInterface  # noqa: E402
 from ebios_rm.workshops.workshop1_cadrage.intake_ingestion import complete_intake_from_documents  # noqa: E402
 from ebios_rm.workshops.workshop1_cadrage.workshop import run_workshop1  # noqa: E402
 
@@ -59,7 +59,8 @@ def main(argv: list[str]) -> int:
     reference_repo = ReferenceRepository(
         build_reference_db(":memory:", extra_controls=json.loads(DEV_SEED.read_text(encoding="utf-8")))
     )
-    human = CLIHumanInterface()
+    from ebios_rm.mission_context.conversation import AgnoConversationRunner  # noqa: PLC0415
+    human = ConversationalHumanInterface(AgnoConversationRunner())
 
     from ebios_rm.mission_context.ingestion_agent import AgnoIngestionRunner  # noqa: PLC0415
     from ebios_rm.workshops.workshop1_cadrage.agent import AgnoWorkshop1Runner  # noqa: PLC0415

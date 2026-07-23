@@ -12,8 +12,10 @@ implementation re-prompts until it gets one.
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Callable, Protocol
 
+from ebios_rm.domain.fact import Fact
+from ebios_rm.mission_context.conversation import ConversationRunner
 from ebios_rm.mission_context.ingestion import AnswerFlag
 from ebios_rm.mission_context.priority_matrix import FollowUpQuestion
 from ebios_rm.mission_context.validation import Contradiction
@@ -112,3 +114,66 @@ class CLIHumanInterface:
         if answer.lower() == "skip":
             return None
         return answer
+
+
+class ConversationalHumanInterface(CLIHumanInterface):
+    """Follow-ups become a real conversation: the auditor can answer, ask, or push
+    back in free text, and an agent decides what they meant each turn (conception §2).
+
+    Only ask_followup is made conversational (that is where a static form hurts);
+    confirmations, contradictions, and flag review keep the plain CLI behaviour.
+    """
+
+    def __init__(
+        self,
+        runner: ConversationRunner,
+        *,
+        io_in: Callable[[str], str] = input,
+        io_out: Callable[[str], None] = print,
+    ) -> None:
+        self._runner = runner
+        self._in = lambda text: io_in(text).strip()
+        self._out = io_out
+        self._facts: list[Fact] = []
+
+    # The orchestration binds the growing fact list so the agent has live context.
+    def bind_facts(self, facts: list[Fact]) -> None:
+        self._facts = facts
+
+    def _prompt(self, text: str) -> str:  # keep parent's confirm/contradiction/flag prompts working
+        return self._in(text)
+
+    def ask_followup(self, question: FollowUpQuestion) -> str | SkipRequested:
+        tag = "CRITIQUE (bloquant)" if question.blocking else "IMPORTANT"
+        self._out(f"\n[{tag}] {question.question}")
+        if question.help_text:
+            self._out(f"    ↳ {question.help_text}")
+        self._out("    (répondez, ou posez une question / demandez une clarification)")
+
+        history: list[dict] = []
+        while True:
+            user = self._in("> ")
+            if not user:
+                if question.blocking:
+                    self._out("    Information bloquante — une réponse est requise (§7).")
+                    continue
+                reason = self._in("Motif du skip (obligatoire, §8) : ")
+                if reason:
+                    return SkipRequested(reason)
+                continue
+            if user.lower() == "skip" and not question.blocking:
+                reason = self._in("Motif du skip (obligatoire, §8) : ")
+                if reason:
+                    return SkipRequested(reason)
+                continue
+
+            turn = self._runner.handle_turn(
+                question.question, question.help_text, user, self._facts, history
+            )
+            history.append({"role": "auditeur", "content": user})
+            history.append({"role": "agent", "content": turn.reply, "is_answer": turn.is_answer})
+            if turn.reply:
+                self._out(f"Agent : {turn.reply}")
+            if turn.is_answer:
+                return turn.answer or user
+            # It was a question/clarification/off-topic — keep the conversation going.

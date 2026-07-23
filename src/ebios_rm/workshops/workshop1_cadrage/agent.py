@@ -53,10 +53,11 @@ class Workshop1AgentError(RuntimeError):
 class AgnoWorkshop1Runner:
     """Concrete Workshop1AgentRunner backed by Agno + OpenRouter."""
 
-    def __init__(self, model=None, *, max_attempts: int = 4, base_delay: float = 3.0) -> None:
+    def __init__(self, model=None, *, max_attempts: int = 4, base_delay: float = 3.0, progress=print) -> None:
         self._model = model or get_model()
         self._max_attempts = max_attempts
         self._base_delay = base_delay
+        self._progress = progress
 
     def _agent(self, output_schema):
         from agno.agent import Agent  # noqa: PLC0415 — lazy so tests don't need Agno
@@ -70,8 +71,11 @@ class AgnoWorkshop1Runner:
 
     def _run_structured(self, output_schema: type[T], prompt: str, *, what: str) -> T:
         """Run one structured call, retrying transient failures with backoff (conception §3.2 note)."""
+        self._progress(f"   {what}...")
         last: object = None
         for attempt in range(1, self._max_attempts + 1):
+            if attempt > 1:
+                self._progress(f"   ... nouvel essai {attempt}/{self._max_attempts} ({what})")
             try:
                 response = self._agent(output_schema).run(prompt)
                 content = response.content

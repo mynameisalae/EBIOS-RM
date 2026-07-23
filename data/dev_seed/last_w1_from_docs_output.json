@@ -1,0 +1,239 @@
+{
+  "biens_essentiels": [
+    {
+      "id": "BE_01",
+      "nom": "Dossiers médicaux",
+      "description": "Contient les données de santé et les résultats d'examens des patients.",
+      "nature": "Information",
+      "processus_metier_associes": [
+        "Prise en charge des patients",
+        "Gestion du dossier médical"
+      ],
+      "origin": "extraction",
+      "derived_from_fact_fields": [
+        "informations_sensibles",
+        "processus_metier_critiques",
+        "categories_donnees_personnelles"
+      ]
+    },
+    {
+      "id": "BE_02",
+      "nom": "Imagerie médicale",
+      "description": "Données d'imagerie médicale liées aux examens des patients.",
+      "nature": "Information",
+      "processus_metier_associes": [
+        "Imagerie médicale"
+      ],
+      "origin": "extraction",
+      "derived_from_fact_fields": [
+        "informations_sensibles",
+        "processus_metier_critiques"
+      ]
+    },
+    {
+      "id": "BE_03",
+      "nom": "Continuité de la prise en charge médicale",
+      "description": "Capacité à assurer les soins aux patients sans interruption.",
+      "nature": "Processus",
+      "processus_metier_associes": [
+        "Prise en charge des patients"
+      ],
+      "origin": "extraction",
+      "derived_from_fact_fields": [
+        "processus_metier_critiques"
+      ]
+    }
+  ],
+  "biens_supports": [
+    {
+      "id": "BS_01",
+      "nom": "Système d'Information Hospitalier (SIH)",
+      "description": "Système centralisé pour la gestion des soins, hébergé chez un prestataire HDS.",
+      "type_support": "Système d'information",
+      "biens_essentiels_supportes": [
+        "BE_01",
+        "BE_03"
+      ],
+      "origin": "extraction",
+      "derived_from_fact_fields": [
+        "perimetre_inclus",
+        "systeme_information_resume",
+        "applications_principales",
+        "fournisseurs_cloud",
+        "localisation_donnees"
+      ]
+    },
+    {
+      "id": "BS_02",
+      "nom": "Système d'imagerie (PACS)",
+      "description": "Système de gestion et de visualisation des images médicales.",
+      "type_support": "Système d'information",
+      "biens_essentiels_supportes": [
+        "BE_02"
+      ],
+      "origin": "extraction",
+      "derived_from_fact_fields": [
+        "perimetre_inclus",
+        "systeme_information_resume",
+        "applications_principales"
+      ]
+    },
+    {
+      "id": "BS_03",
+      "nom": "Infrastructure réseau et accès distants (VPN)",
+      "description": "Moyens de connexion pour les médecins et personnels administratifs.",
+      "type_support": "Réseau / Accès",
+      "biens_essentiels_supportes": [
+        "BE_01",
+        "BE_02",
+        "BE_03"
+      ],
+      "origin": "extraction",
+      "derived_from_fact_fields": [
+        "perimetre_inclus",
+        "teletravail_autorise",
+        "acces_distant_moyens"
+      ]
+    }
+  ],
+  "evenements_redoutes": [
+    {
+      "id": "ER_01",
+      "description": "Fuite de données de santé des patients",
+      "bien_essentiel_id": "BE_01",
+      "categorie_impact": "vie_privee_personnes_concernees",
+      "gravite": "Critique",
+      "origin": "assessment",
+      "derived_from_fact_fields": [
+        "objectifs_etude",
+        "informations_sensibles",
+        "volumes_personnes"
+      ],
+      "legal_impacts": [
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "Sanctions pour violation des données de santé (données sensibles)",
+          "evidence_mission_context": "Objectifs de l'audit : Se mettre en conformité HDS et réduire le risque de fuite de données patients. Catégories : Patients (données de santé).",
+          "framework": "RGPD"
+        },
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "[SAMPLE] Notification à l'autorité de contrôle dans un délai de 72 heures après en avoir pris connaissance.",
+          "evidence_mission_context": "Informations sensibles : Dossiers médicaux, résultats d'examens, données RH.",
+          "framework": "RGPD"
+        },
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "[SAMPLE] Amende administrative jusqu'à 20 000 000 EUR ou 4% du chiffre d'affaires annuel mondial, le montant le plus élevé étant retenu.",
+          "evidence_mission_context": "Catégories : Patients (données de santé), salariés, prospects.",
+          "framework": "RGPD"
+        }
+      ]
+    },
+    {
+      "id": "ER_02",
+      "description": "Indisponibilité du SIH (Arrêt de service)",
+      "bien_essentiel_id": "BE_03",
+      "categorie_impact": "fonctionnement",
+      "gravite": "Critique",
+      "origin": "assessment",
+      "derived_from_fact_fields": [
+        "processus_metier_critiques",
+        "impact_arret"
+      ],
+      "legal_impacts": [
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "Contraintes de disponibilité liées à la certification HDS",
+          "evidence_mission_context": "Impact d'un arrêt : Report de soins, risque pour la sécurité des patients.",
+          "framework": "HDS"
+        },
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "[SAMPLE] Notification à l'autorité de contrôle dans un délai de 72 heures après en avoir pris connaissance.",
+          "evidence_mission_context": "Processus critiques : Prise en charge des patients, gestion du dossier médical, imagerie médicale.",
+          "framework": "RGPD"
+        }
+      ]
+    },
+    {
+      "id": "ER_03",
+      "description": "Cyberattaque par rançongiciel (Ransomware)",
+      "bien_essentiel_id": "BE_01",
+      "categorie_impact": "fonctionnement",
+      "gravite": "Critique",
+      "origin": "assessment",
+      "derived_from_fact_fields": [
+        "incidents_securite_passes",
+        "impact_arret"
+      ],
+      "legal_impacts": [
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "[SAMPLE] Notification à l'autorité de contrôle dans un délai de 72 heures après en avoir pris connaissance.",
+          "evidence_mission_context": "Informations sensibles : Dossiers médicaux, résultats d'examens, données RH.",
+          "framework": "RGPD"
+        },
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "[SAMPLE] Amende administrative jusqu'à 20 000 000 EUR ou 4% du chiffre d'affaires annuel mondial, le montant le plus élevé étant retenu.",
+          "evidence_mission_context": "Informations sensibles : Dossiers médicaux, résultats d'examens, données RH.",
+          "framework": "RGPD"
+        }
+      ]
+    }
+  ],
+  "baseline_scope_decisions": [
+    {
+      "category": "ANSSI_hygiene",
+      "decision": "covered",
+      "justification": "Référentiel déclaré et évalué (2 contrôles)."
+    },
+    {
+      "category": "RGPD",
+      "decision": "covered",
+      "justification": "Référentiel déclaré et évalué (3 contrôles)."
+    },
+    {
+      "category": "NIST",
+      "decision": "covered",
+      "justification": "Référentiel déclaré et évalué (1 contrôles)."
+    },
+    {
+      "category": "HDS",
+      "decision": "excluded",
+      "justification": "Aucun contrôle chargé pour ce référentiel — à compléter via le plugin correspondant avant exploitation (conception §12.5)."
+    }
+  ],
+  "baseline_gaps_full": [
+    {
+      "gap_id": "BG-29324de7",
+      "framework": "ANSSI_hygiene",
+      "control_id": "ANSSI-H-21",
+      "weakness": "L'authentification multi-facteur n'est pas généralisée sur l'ensemble des accès distants puisque les médecins utilisent un VPN simple.",
+      "risk_categories": [
+        "initial_access",
+        "credential_access"
+      ],
+      "origin": "assessment",
+      "evidence_quote": "VPN avec double authentification pour les administratifs, VPN simple pour les médecins."
+    },
+    {
+      "gap_id": "BG-9551411f",
+      "framework": "NIST",
+      "control_id": "NIST-PR.AC-1",
+      "weakness": "L'authentification multi-facteurs n'est pas appliquée au Système d'Information Hospitalier (SIH).",
+      "risk_categories": [
+        "credential_access",
+        "privilege_escalation"
+      ],
+      "origin": "assessment",
+      "evidence_quote": "MFA sur la messagerie et le VPN administratif, mais pas encore sur le SIH."
+    }
+  ],
+  "unverified_controls": [
+    "RGPD-Art32",
+    "RGPD-Art33",
+    "RGPD-Art83"
+  ]
+}
