@@ -8,9 +8,13 @@ from ebios_rm.mission_context.ingestion import (
     questionnaire_answers_to_facts,
     supporting_answers_to_facts,
 )
+from ebios_rm.mission_context.mission_context import assemble_from_facts
+from ebios_rm.orchestrator import mission_state
+from ebios_rm.repositories.mission_repository import MissionRepository, connect
 from ebios_rm.workshops.workshop1_cadrage.intake_ingestion import (
     apply_flags,
     complete_intake_from_facts,
+    resume_intake,
 )
 
 
@@ -88,3 +92,57 @@ def test_complete_intake_from_facts_runs_followups_and_validates():
     assert mc.value("edr_av_deploye") == "Defender"           # doc-only value confirmed
     # A critical field like processus_metier_critiques was missing -> it was asked.
     assert "processus_metier_critiques" in human.asked
+
+
+# --- incremental checkpointing + resume (persistence, phase A) ---
+
+def _identity_facts():
+    facts, _ = questionnaire_answers_to_facts([
+        ExtractedAnswer(question_id="organisation_nom", found=True, answer="Horizon"),
+        ExtractedAnswer(question_id="secteur_activite", found=True, answer="Santé"),
+        ExtractedAnswer(question_id="applicable_frameworks", found=True, answer="RGPD"),
+    ], "questionnaire.pdf")
+    return facts
+
+
+def test_checkpoint_fires_after_each_answer():
+    calls: list[int] = []
+    complete_intake_from_facts(_identity_facts(), [], ScriptedHuman(),
+                               checkpoint=lambda facts: calls.append(len(facts)))
+    assert len(calls) >= 2                 # at least the post-validation save + follow-up answers
+    assert calls == sorted(calls)          # fact set only grows
+
+
+def test_resume_skips_already_answered_questions():
+    facts = _identity_facts()
+    facts.append(next(iter(questionnaire_answers_to_facts(
+        [ExtractedAnswer(question_id="edr_av_deploye", found=True, answer="CrowdStrike")], "q")[0])))
+    human = ScriptedHuman()
+    resume_intake(facts, human)
+    assert "organisation_nom" not in human.asked   # identity already saved
+    assert "edr_av_deploye" not in human.asked      # already answered
+    assert "sauvegarde_strategie" in human.asked    # still missing -> asked
+
+
+def test_mid_intake_crash_reopen_and_continue(tmp_path):
+    db = tmp_path / "mission.db"
+    # First session: save a partial intake, then "crash" (close the connection).
+    conn = connect(db)
+    repo = MissionRepository(conn)
+    mid = repo.create_mission("Horizon", ["RGPD"])
+    mission_state.checkpoint_mission_context(repo, mid, assemble_from_facts(_identity_facts()))
+    conn.close()
+
+    # New session: reopen the file and continue from the checkpoint.
+    conn2 = connect(db)
+    repo2 = MissionRepository(conn2)
+    saved = mission_state.load_mission_context(repo2, mid)
+    human = ScriptedHuman()
+    mc = resume_intake(saved.facts, human,
+                       checkpoint=lambda f: mission_state.checkpoint_mission_context(
+                           repo2, mid, assemble_from_facts(f)))
+
+    assert mc.organisation_nom == "Horizon"            # kept across the crash
+    assert "organisation_nom" not in human.asked        # not re-asked
+    assert mc.get("sauvegarde_strategie") is not None    # remaining questions completed
+    conn2.close()

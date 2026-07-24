@@ -10,6 +10,7 @@ goes through the HumanInterface; nothing is assumed or auto-resolved.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Callable
 
 from ebios_rm.domain.enums import Confidence, FactStatus, Origin
 from ebios_rm.domain.fact import Fact
@@ -64,79 +65,78 @@ def apply_flags(
     return out
 
 
-def _ask_follow_ups(
-    declaration_facts: list[Fact], human: HumanInterface, covered_ids: set[str] | None = None
-) -> None:
-    """Ask catalog follow-ups for still-missing fields, re-evaluating conditionals as answers arrive.
+# A checkpoint is called with the current fact set after every captured answer, so
+# a mid-intake crash resumes at the next unanswered question (persistence, phase A).
+Checkpoint = Callable[[list[Fact]], None]
 
-    ``covered_ids`` are fields already supplied by a supporting document (extraction);
-    they are never re-asked — the auditor confirms them through validation instead,
-    so no needless question is posed (conception §11).
+
+def _noop_checkpoint(_facts: list[Fact]) -> None:
+    pass
+
+
+def _append_outcome(facts: list[Fact], field_name: str, outcome) -> None:
+    if isinstance(outcome, SkipRequested):
+        facts.append(Fact(
+            field_name=field_name, value=None, origin=Origin.DECLARATION,
+            confidence=Confidence.LOW, status=FactStatus.SKIPPED, justification=outcome.reason,
+        ))
+    else:
+        facts.append(Fact.declaration(field_name, outcome))
+
+
+def _ask_follow_ups(facts: list[Fact], human: HumanInterface, checkpoint: Checkpoint) -> None:
+    """Ask catalog follow-ups for still-missing fields (conception §7, §11).
+
+    Fields already present (from the questionnaire or a supporting document) are
+    seen as answered by the catalog matrix and never re-asked. Every answer is
+    checkpointed so the intake resumes at the next gap after a crash.
     """
-    covered = covered_ids or set()
     if hasattr(human, "bind_facts"):  # conversational interface: give the agent live context
-        human.bind_facts(declaration_facts)
+        human.bind_facts(facts)
     asked: set[str] = set()
     while True:
-        answers = _answers_map(declaration_facts)
-        answers.update({cid: True for cid in covered})  # count doc-provided fields as answered
-        pending = [
-            q for q in catalog_follow_up_questions(answers)
-            if q.field_name not in asked
-        ]
+        pending = [q for q in catalog_follow_up_questions(_answers_map(facts)) if q.field_name not in asked]
         if not pending:
             break
         for question in pending:
             asked.add(question.field_name)
-            outcome = human.ask_followup(question)
-            if isinstance(outcome, SkipRequested):
-                declaration_facts.append(Fact(
-                    field_name=question.field_name, value=None, origin=Origin.DECLARATION,
-                    confidence=Confidence.LOW, status=FactStatus.SKIPPED, justification=outcome.reason,
-                ))
-            else:
-                declaration_facts.append(Fact.declaration(question.field_name, outcome))
+            _append_outcome(facts, question.field_name, human.ask_followup(question))
+            checkpoint(facts)
 
 
 def _run_expert_review(
-    mission_context: MissionContext, reviewer: AuditorReviewRunner, human: HumanInterface
-) -> MissionContext:
+    facts: list[Fact], reviewer: AuditorReviewRunner, human: HumanInterface, checkpoint: Checkpoint
+) -> None:
     """Dynamic professional follow-ups on top of the catalog (conception §2).
 
-    Keeps probing while the auditor-agent still has something worth asking — that
-    is the normal end condition, reached when a round proposes nothing new. The
-    MAX_ROUNDS / MAX_TOTAL_QUESTIONS ceilings only exist to stop a runaway model
-    that keeps rewording the same concern. Reuses ask_followup entirely — answer
-    capture, insufficient-detection, escape hatch, pushback all apply unchanged,
-    since a dynamic question is just a FollowUpQuestion.
+    Keeps probing while the auditor-agent still has something worth asking — the
+    normal end condition, reached when a round proposes nothing new. MAX_ROUNDS /
+    MAX_TOTAL_QUESTIONS are runaway backstops only. Reuses ask_followup entirely,
+    and checkpoints each answer.
     """
-    facts = list(mission_context.facts)
-    asked: set[str] = set()
+    asked = {f.field_name for f in facts if f.field_name.startswith("AUD-")}  # already asked before a resume
     for round_number in range(1, MAX_ROUNDS + 1):
-        proposals = reviewer.review(mission_context, round_number)
-        # Nothing left worth asking: the intended way this loop ends.
+        proposals = reviewer.review(assemble_from_facts(facts), round_number)
         new = [p for p in proposals if to_followup_question(p).field_name not in asked]
         if not new:
             break
-
         for proposal in new:
             if len(asked) >= MAX_TOTAL_QUESTIONS:
-                break
+                return
             fq = to_followup_question(proposal)
             asked.add(fq.field_name)
-            outcome = human.ask_followup(fq)
-            if isinstance(outcome, SkipRequested):
-                facts.append(Fact(
-                    field_name=fq.field_name, value=None, origin=Origin.DECLARATION,
-                    confidence=Confidence.LOW, status=FactStatus.SKIPPED, justification=outcome.reason,
-                ))
-            else:
-                facts.append(Fact.declaration(fq.field_name, outcome))
+            _append_outcome(facts, fq.field_name, human.ask_followup(fq))
+            checkpoint(facts)
 
-        mission_context = assemble_from_facts(facts)  # next round sees this round's answers
-        if len(asked) >= MAX_TOTAL_QUESTIONS:
-            break
-    return mission_context
+
+def _follow_and_review(
+    facts: list[Fact], human: HumanInterface,
+    auditor_reviewer: AuditorReviewRunner | None, checkpoint: Checkpoint,
+) -> MissionContext:
+    _ask_follow_ups(facts, human, checkpoint)
+    if auditor_reviewer is not None:
+        _run_expert_review(facts, auditor_reviewer, human, checkpoint)
+    return assemble_from_facts(facts)
 
 
 def complete_intake_from_facts(
@@ -144,35 +144,45 @@ def complete_intake_from_facts(
     extraction_facts: list[Fact],
     human: HumanInterface,
     auditor_reviewer: AuditorReviewRunner | None = None,
+    checkpoint: Checkpoint = _noop_checkpoint,
 ) -> MissionContext:
-    """Follow-ups + three-case validation + assembly, over the catalog (conception §7, §11).
+    """Three-case validation, then catalog follow-ups + expert review, over one fact set (§7, §11).
 
-    ``auditor_reviewer``, when given, adds a dynamic expert-follow-up pass after the
-    catalog and validation are done — real audit-style questions grounded in what
-    was actually said, not limited to the fixed catalog (conception §2).
+    Validation runs first so document facts, confirmations and contradiction
+    resolutions land in the working set before the long Q&A; every subsequent
+    answer is checkpointed for crash-safe resume.
     """
-    covered_by_documents = {f.field_name for f in extraction_facts}
-    _ask_follow_ups(declaration_facts, human, covered_ids=covered_by_documents)
-
     result = validate(declaration_facts, extraction_facts)
-    final_facts: list[Fact] = list(result.verified) + list(result.declaration_only)
+    working: list[Fact] = list(result.verified) + list(result.declaration_only)
 
     for extr in result.document_only:
         if human.confirm_document_only(extr.field_name, extr.value, extr.source_quote or ""):
-            final_facts.append(extr.model_copy(update={"status": FactStatus.APPROVED, "validated_by": "auditor"}))
+            working.append(extr.model_copy(update={"status": FactStatus.APPROVED, "validated_by": "auditor"}))
 
     for contradiction in result.contradictions:
         resolved = human.resolve_contradiction(contradiction)
-        final_facts.append(Fact(
+        working.append(Fact(
             field_name=contradiction.field_name, value=resolved, origin=Origin.DECLARATION,
             confidence=Confidence.HIGH, status=FactStatus.APPROVED, validated_by="auditor",
             justification="Résolution de contradiction par l'auditeur (§11).",
         ))
 
-    mission_context = assemble_from_facts(final_facts)
-    if auditor_reviewer is not None:
-        mission_context = _run_expert_review(mission_context, auditor_reviewer, human)
-    return mission_context
+    checkpoint(working)  # ingestion + validation done, saved before the interactive Q&A
+    return _follow_and_review(working, human, auditor_reviewer, checkpoint)
+
+
+def resume_intake(
+    saved_facts: list[Fact],
+    human: HumanInterface,
+    auditor_reviewer: AuditorReviewRunner | None = None,
+    checkpoint: Checkpoint = _noop_checkpoint,
+) -> MissionContext:
+    """Continue a partially-completed intake from its checkpointed facts (persistence, phase A).
+
+    Ingestion and validation are already reflected in ``saved_facts``; catalog
+    follow-ups skip whatever is already answered and resume at the first gap.
+    """
+    return _follow_and_review(list(saved_facts), human, auditor_reviewer, checkpoint)
 
 
 def complete_intake_from_documents(
@@ -181,6 +191,7 @@ def complete_intake_from_documents(
     ingestion_runner: IngestionRunner,
     human: HumanInterface,
     auditor_reviewer: AuditorReviewRunner | None = None,
+    checkpoint: Checkpoint = _noop_checkpoint,
 ) -> MissionContext:
     """Full document-ingestion intake: filled questionnaire + supporting docs -> Mission Context."""
     questions = list(all_questions())
@@ -196,4 +207,6 @@ def complete_intake_from_documents(
         s_answers = ingestion_runner.extract_supporting(read_document(sp_path), sp_path.name, questions)
         extraction_facts.extend(supporting_answers_to_facts(s_answers, sp_path.name))
 
-    return complete_intake_from_facts(declaration_facts, extraction_facts, human, auditor_reviewer)
+    return complete_intake_from_facts(
+        declaration_facts, extraction_facts, human, auditor_reviewer, checkpoint
+    )
