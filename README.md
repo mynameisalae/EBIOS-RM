@@ -89,6 +89,18 @@ the questions you can, at any prompt:
 - when it later asks *"Approuvez-vous ce résultat ?"*, answer `oui` / `non`
   (a rejection requires a reason).
 
+### If you reject the result
+
+Your reason is recorded in the decision log **and fed back to the agent**: it
+offers to re-run Workshop 1 taking your remark into account, and the new attempt
+is told explicitly what to fix. Reasons accumulate, so a second redo still sees
+the first remark. Each attempt is kept as its own version — nothing is
+overwritten, and only an approved version is marked complete.
+
+After 3 versions the rollback cap (conception §12.6) kicks in: a further redo
+requires typing `CONFIRMER`. Declining at any point keeps the last version,
+stored as *not approved*.
+
 ### Stop and continue later
 
 Everything is saved to a SQLite file (`data/mission/mission.db` by default). You

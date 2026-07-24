@@ -57,13 +57,23 @@ def _print_missions(repo: MissionRepository) -> None:
         print(f"{m.mission_id:34}  {m.status:14}  {m.updated_at[:19]:20}  {m.name}")
 
 
-def _run_workshop(repo: MissionRepository, mission_id: str, mission_context, reference_repo: ReferenceRepository):
+def _prior_rejection_reasons(repo: MissionRepository, mission_id: str) -> list[str]:
+    """Reject reasons already logged, so a redo (even after --resume) carries full feedback."""
+    return [d.justification_given for d in repo.decisions(mission_id)
+            if d.stage == "workshop_1" and d.action_taken == "rejected"]
+
+
+def _run_workshop(repo, mission_id, mission_context, reference_repo, revision_notes=None):
     """Run the workshop and save its output. Not complete yet — no auditor decision recorded."""
     from ebios_rm.workshops.workshop1_cadrage.agent import AgnoWorkshop1Runner  # noqa: PLC0415
     from ebios_rm.workshops.workshop1_cadrage.workshop import run_workshop1  # noqa: PLC0415
 
     print("\n=== Phase 2 : atelier 1 ===")
-    output = run_workshop1(mission_context, AgnoWorkshop1Runner(), reference_repo)
+    if revision_notes:
+        print("Reprise en tenant compte des remarques de l'auditeur :")
+        for note in revision_notes:
+            print(f"   - {note}")
+    output = run_workshop1(mission_context, AgnoWorkshop1Runner(), reference_repo, revision_notes)
     mission_state.save_w1_output(repo, mission_id, output)
     # Deliberately NOT "completed": the auditor has not ruled on it yet (§2). A crash
     # or quit between here and approval must not read as done on --resume.
@@ -71,8 +81,8 @@ def _run_workshop(repo: MissionRepository, mission_id: str, mission_context, ref
     return output
 
 
-def _review_and_approve(repo: MissionRepository, mission_id: str, mission_context, output) -> int:
-    """Clarification + the final approval gate. The only path that marks a workshop complete."""
+def _review_and_approve(repo, mission_id, mission_context, output):
+    """Clarification + the final approval gate. Returns (approved, reason)."""
     from ebios_rm.mission_context.clarification import clarification_repl  # noqa: PLC0415
     from ebios_rm.mission_context.clarification_agent import AgnoClarificationRunner  # noqa: PLC0415
     from ebios_rm.workshops.workshop1_cadrage.human_interface import approve_workshop  # noqa: PLC0415
@@ -90,21 +100,64 @@ def _review_and_approve(repo: MissionRepository, mission_id: str, mission_contex
         if version:
             repo.set_version_status(mission_id, mission_state.WORKSHOP_1, version.version_number, "approved")
         print(f"Atelier 1 approuvé. Mission {mission_id} sauvegardée.")
-        return 0
-    repo.log_decision(mission_id, stage="workshop_1", action="rejected", justification=reason)
-    repo.set_status(mission_id, "w1_rejected")
-    if version:
-        repo.set_version_status(mission_id, mission_state.WORKSHOP_1, version.version_number, "rejected")
-    print(f"Atelier 1 non approuvé : {reason}")
-    print("La reprise avec correction (redo) sera ajoutée en phase B.")
-    return 1
+    else:
+        repo.log_decision(mission_id, stage="workshop_1", action="rejected", justification=reason)
+        repo.set_status(mission_id, "w1_rejected")
+        if version:
+            repo.set_version_status(mission_id, mission_state.WORKSHOP_1, version.version_number, "rejected")
+        print(f"Atelier 1 non approuvé : {reason}")
+    return approved, reason
+
+
+def _reinforced_confirm(io_in=input, io_out=print) -> bool:
+    """Rollback cap reached (conception §12.6) — require an explicit typed confirmation to go further."""
+    io_out(f"\nPlafond de {mission_state.ROLLBACK_CAP} versions atteint pour l'atelier 1 (§12.6).")
+    io_out("Une nouvelle reprise est inhabituelle. Tapez CONFIRMER pour relancer malgré tout,")
+    io_out("ou toute autre saisie pour arrêter et conserver la dernière version.")
+    return io_in("> ").strip() == "CONFIRMER"
+
+
+def _ask_yes(question: str, io_in=input, io_out=print) -> bool:
+    while True:
+        answer = io_in(f"{question} [oui/non] : ").strip().casefold()
+        if answer in {"oui", "o", "yes", "y"}:
+            return True
+        if answer in {"non", "n", "no"}:
+            return False
+        io_out("    Répondez 'oui' ou 'non'.")
+
+
+def _approval_loop(repo, mission_id, mission_context, reference_repo, output) -> int:
+    """Review the given output, and on rejection loop into redo (conception §12.6).
+
+    Each rejection's reason is fed into the agent's next attempt so the redo
+    addresses it; prior reasons are reloaded from the decision log so this stays
+    correct across a --resume. Bounded by the rollback cap — going past it needs a
+    reinforced confirmation.
+    """
+    while True:
+        approved, _reason = _review_and_approve(repo, mission_id, mission_context, output)
+        if approved:
+            return 0
+
+        if not mission_state.can_redo(repo, mission_id, mission_state.WORKSHOP_1):
+            if not _reinforced_confirm():
+                print("Dernière version conservée (non approuvée).")
+                return 1
+        elif not _ask_yes("Relancer l'atelier 1 en tenant compte de ce motif ?"):
+            print("Dernière version conservée (non approuvée).")
+            return 1
+
+        notes = _prior_rejection_reasons(repo, mission_id)  # includes the reason just logged
+        output = _run_workshop(repo, mission_id, mission_context, reference_repo, notes)
 
 
 def _run_workshop_and_finish(
     repo: MissionRepository, mission_id: str, mission_context, reference_repo: ReferenceRepository
 ) -> int:
-    output = _run_workshop(repo, mission_id, mission_context, reference_repo)
-    return _review_and_approve(repo, mission_id, mission_context, output)
+    notes = _prior_rejection_reasons(repo, mission_id)
+    output = _run_workshop(repo, mission_id, mission_context, reference_repo, notes)
+    return _approval_loop(repo, mission_id, mission_context, reference_repo, output)
 
 
 def _checkpoint(repo: MissionRepository, mission_id: str):
@@ -183,11 +236,11 @@ def _resume_mission(repo: MissionRepository, reference_repo: ReferenceRepository
         _finish_intake(repo, mission_id, mission_context)
 
     if mission.status in {"w1_awaiting_approval", "w1_rejected"}:
-        # The workshop already ran (output exists) but is NOT complete — no LLM rerun,
-        # go straight back to clarification + the approval gate that was interrupted.
+        # The workshop already ran (output exists) but is NOT complete — no LLM rerun
+        # up front; resume at the approval gate, then redo only if the auditor rejects.
         existing = mission_state.load_w1_output(repo, mission_id)
         print(f"Atelier 1 exécuté mais non finalisé (statut : {mission.status}) — reprise de la validation.")
-        return _review_and_approve(repo, mission_id, mission_context, existing)
+        return _approval_loop(repo, mission_id, mission_context, reference_repo, existing)
 
     return _run_workshop_and_finish(repo, mission_id, mission_context, reference_repo)
 

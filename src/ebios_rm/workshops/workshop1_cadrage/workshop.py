@@ -57,9 +57,13 @@ def run_workshop1(
     mission_context: MissionContext,
     runner: Workshop1AgentRunner,
     reference_repo: ReferenceRepository,
+    revision_notes: list[str] | None = None,
 ) -> Workshop1Output:
-    """Run Workshop 1 over a completed Mission Context and emit w1_output (conception §15)."""
-    proposal = runner.propose_cadrage(mission_context)
+    """Run Workshop 1 over a completed Mission Context and emit w1_output (conception §15).
+
+    revision_notes, when given, are the auditor's rejection reasons from earlier
+    versions, passed to the agent so the redo addresses them (conception §12.6)."""
+    proposal = runner.propose_cadrage(mission_context, revision_notes)
 
     controls_by_framework: dict[str, list[BaselineControl]] = {
         fw: reference_repo.get_baseline_controls(fw) for fw in mission_context.applicable_frameworks

@@ -108,8 +108,10 @@ class FakeRunner:
 
     def __init__(self, gap_control_id: str = "ANSSI-H-21") -> None:
         self.gap_control_id = gap_control_id
+        self.revision_notes_seen: list[str] | None = None
 
-    def propose_cadrage(self, mission_context: MissionContext) -> CadrageProposal:
+    def propose_cadrage(self, mission_context: MissionContext, revision_notes=None) -> CadrageProposal:
+        self.revision_notes_seen = revision_notes
         return CadrageProposal(
             biens_essentiels=[
                 EssentialAsset(

@@ -57,14 +57,23 @@ def _mission_context_block(mc: MissionContext) -> str:
     )
 
 
-def cadrage_prompt(mc: MissionContext) -> str:
+def cadrage_prompt(mc: MissionContext, revision_notes: list[str] | None = None) -> str:
+    revision = ""
+    if revision_notes:
+        joined = "\n".join(f"- {note}" for note in revision_notes if note and note.strip())
+        if joined:
+            revision = (
+                "\n\nREMARQUES DE L'AUDITEUR SUR LA OU LES VERSIONS PRÉCÉDENTES (à corriger "
+                "impérativement dans cette nouvelle proposition) :\n" + joined + "\n"
+            )
     return (
         "À partir du Mission Context suivant (composé uniquement de faits validés), "
         "propose les biens essentiels, les biens supports, et les événements redoutés "
         "avec leur gravité et catégorie d'impact. Pour chaque élément, renseigne "
         "derived_from_fact_fields avec les field_name des faits utilisés. N'invente aucun "
-        "bien ni événement qui ne découle pas d'un fait.\n\n"
-        f"MISSION CONTEXT:\n{_mission_context_block(mc)}"
+        "bien ni événement qui ne découle pas d'un fait."
+        + revision
+        + f"\n\nMISSION CONTEXT:\n{_mission_context_block(mc)}"
     )
 
 

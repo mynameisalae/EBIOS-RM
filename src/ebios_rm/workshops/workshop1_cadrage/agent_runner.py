@@ -47,8 +47,13 @@ class LegalImpactBatch(BaseModel):
 class Workshop1AgentRunner(Protocol):
     """Everything Workshop 1 asks the model to do (conception §15, §15.1)."""
 
-    def propose_cadrage(self, mission_context: MissionContext) -> CadrageProposal:
-        """Propose essential/support assets and feared events with gravity + impact category."""
+    def propose_cadrage(
+        self, mission_context: MissionContext, revision_notes: list[str] | None = None
+    ) -> CadrageProposal:
+        """Propose essential/support assets and feared events with gravity + impact category.
+
+        revision_notes carries the auditor's rejection reasons from prior versions so
+        the redo addresses them explicitly (conception §12.6, redo path)."""
         ...
 
     def assess_controls(

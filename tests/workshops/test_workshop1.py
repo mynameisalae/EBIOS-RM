@@ -94,6 +94,27 @@ def test_gravite_is_one_of_the_four_fixed_values(reference_repo):
     assert all(e.gravite in set(Gravite) for e in out.evenements_redoutes)
 
 
+# --- reject -> redo: the auditor's reason reaches the agent (phase B, §12.6) ---
+
+def test_revision_notes_are_passed_to_the_agent(reference_repo):
+    human = ScriptedHuman(answers={"edr_av_deploye": "Defender", "sauvegarde_strategie": "quotidienne"})
+    mc = complete_intake_from_facts(_ingested_facts(), [], human)
+    fake = FakeRunner()
+    run_workshop1(mc, fake, reference_repo, revision_notes=["gravité de la fuite sous-évaluée"])
+    assert fake.revision_notes_seen == ["gravité de la fuite sous-évaluée"]
+
+
+def test_cadrage_prompt_injects_revision_notes_only_on_redo():
+    from ebios_rm.mission_context.mission_context import MissionContext
+    from ebios_rm.workshops.workshop1_cadrage.prompts import cadrage_prompt
+
+    mc = MissionContext(organisation_nom="X", secteur_activite="Santé", applicable_frameworks=["RGPD"])
+    assert "REMARQUES DE L'AUDITEUR" not in cadrage_prompt(mc)                    # first run: no notes
+    assert "REMARQUES DE L'AUDITEUR" not in cadrage_prompt(mc, [])                # empty: none
+    with_notes = cadrage_prompt(mc, ["revoir la gravité de l'événement de fuite"])
+    assert "revoir la gravité de l'événement de fuite" in with_notes             # redo: injected
+
+
 # --- assessment unit: evidence discipline ---
 
 def test_gap_without_evidence_is_downgraded_to_insufficient(reference_repo):

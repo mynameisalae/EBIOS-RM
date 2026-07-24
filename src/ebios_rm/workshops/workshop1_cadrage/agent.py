@@ -80,9 +80,11 @@ class AgnoWorkshop1Runner:
         except StructuredCallFailed as exc:
             raise Workshop1AgentError(str(exc)) from exc
 
-    def propose_cadrage(self, mission_context: MissionContext) -> CadrageProposal:
+    def propose_cadrage(
+        self, mission_context: MissionContext, revision_notes: list[str] | None = None
+    ) -> CadrageProposal:
         return self._run_structured(
-            CadrageProposal, prompts.cadrage_prompt(mission_context), what="cadrage"
+            CadrageProposal, prompts.cadrage_prompt(mission_context, revision_notes), what="cadrage"
         )
 
     def assess_controls(
