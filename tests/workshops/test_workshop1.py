@@ -8,19 +8,32 @@ legal-impact attachment, and the never-empty scope decisions.
 from fakes import FakeRunner, ScriptedHuman
 
 from ebios_rm.domain.enums import Gravite
+from ebios_rm.mission_context.ingestion import ExtractedAnswer, questionnaire_answers_to_facts
 from ebios_rm.workshops.workshop1_cadrage.assessment import assess_framework
+from ebios_rm.workshops.workshop1_cadrage.intake_ingestion import complete_intake_from_facts
 from ebios_rm.workshops.workshop1_cadrage.models import BaselineGap
-from ebios_rm.workshops.workshop1_cadrage.workshop import complete_intake, run_workshop1
+from ebios_rm.workshops.workshop1_cadrage.workshop import run_workshop1
+
+
+def _ingested_facts():
+    facts, _ = questionnaire_answers_to_facts([
+        ExtractedAnswer(question_id="organisation_nom", found=True, answer="Clinique Test"),
+        ExtractedAnswer(question_id="secteur_activite", found=True, answer="Santé"),
+        ExtractedAnswer(question_id="applicable_frameworks", found=True,
+                        answer="ANSSI_hygiene, RGPD, NIST"),
+        ExtractedAnswer(question_id="acces_distant_moyens", found=True, answer="VPN"),
+    ], "questionnaire.pdf")
+    return facts
 
 
 # --- Phase 1: intake completion ---
 
-def test_complete_intake_asks_followups_and_records_skip(example_form):
+def test_intake_asks_followups_and_records_skip():
     human = ScriptedHuman(
         answers={"edr_av_deploye": "Microsoft Defender for Endpoint"},
         skips={"sauvegarde_strategie": "Information non disponible côté client pour l'instant"},
     )
-    mc = complete_intake(example_form, extraction_facts=[], human=human)
+    mc = complete_intake_from_facts(_ingested_facts(), [], human)
 
     assert "edr_av_deploye" in human.asked and "sauvegarde_strategie" in human.asked
     assert mc.value("edr_av_deploye") == "Microsoft Defender for Endpoint"
@@ -30,19 +43,19 @@ def test_complete_intake_asks_followups_and_records_skip(example_form):
 
 # --- Phase 2: workshop run ---
 
-def _run(example_form, reference_repo):
+def _run(reference_repo):
     human = ScriptedHuman(answers={"edr_av_deploye": "Defender", "sauvegarde_strategie": "quotidienne hors ligne"})
-    mc = complete_intake(example_form, extraction_facts=[], human=human)
+    mc = complete_intake_from_facts(_ingested_facts(), [], human)
     return run_workshop1(mc, FakeRunner(), reference_repo)
 
 
-def test_scope_decisions_never_empty(example_form, reference_repo):
-    out = _run(example_form, reference_repo)
+def test_scope_decisions_never_empty(reference_repo):
+    out = _run(reference_repo)
     assert out.baseline_scope_decisions  # fiche de test §15
 
 
-def test_gap_produced_with_stable_id_and_risk_categories(example_form, reference_repo):
-    out = _run(example_form, reference_repo)
+def test_gap_produced_with_stable_id_and_risk_categories(reference_repo):
+    out = _run(reference_repo)
     gaps = {g.control_id: g for g in out.baseline_gaps_full}
     assert "ANSSI-H-21" in gaps
     g = gaps["ANSSI-H-21"]
@@ -52,23 +65,23 @@ def test_gap_produced_with_stable_id_and_risk_categories(example_form, reference
     assert g.gap_id.startswith("BG-")
 
 
-def test_workshop4_handoff_is_stripped_and_excludes_empty_risk_categories(example_form, reference_repo):
-    out = _run(example_form, reference_repo)
+def test_workshop4_handoff_is_stripped_and_excludes_empty_risk_categories(reference_repo):
+    out = _run(reference_repo)
     for g4 in out.baseline_gaps_for_w4():
         # Stripped of framework/control_id (§12.3, §18): only these fields exist.
         assert set(g4.model_dump().keys()) == {"gap_id", "weakness", "risk_categories"}
         assert g4.risk_categories  # empty-risk gaps (legal-only) never handed to W4
 
 
-def test_insufficient_controls_stay_unverified(example_form, reference_repo):
-    out = _run(example_form, reference_repo)
+def test_insufficient_controls_stay_unverified(reference_repo):
+    out = _run(reference_repo)
     # The fake marks every non-ANSSI-H-21 control insufficient -> tracked, not invented into gaps.
     assert out.unverified_controls
     assert "ANSSI-H-21" not in out.unverified_controls
 
 
-def test_legal_impact_attached_to_feared_event(example_form, reference_repo):
-    out = _run(example_form, reference_repo)
+def test_legal_impact_attached_to_feared_event(reference_repo):
+    out = _run(reference_repo)
     event = out.evenements_redoutes[0]
     assert event.legal_impacts, "a legal provision should be attached with evidence (§15.1)"
     li = event.legal_impacts[0]
@@ -76,8 +89,8 @@ def test_legal_impact_attached_to_feared_event(example_form, reference_repo):
     assert li.evidence_mission_context  # double-citation discipline
 
 
-def test_gravite_is_one_of_the_four_fixed_values(example_form, reference_repo):
-    out = _run(example_form, reference_repo)
+def test_gravite_is_one_of_the_four_fixed_values(reference_repo):
+    out = _run(reference_repo)
     assert all(e.gravite in set(Gravite) for e in out.evenements_redoutes)
 
 

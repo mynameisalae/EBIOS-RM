@@ -36,6 +36,19 @@ class ClarificationRunner(Protocol):
         ...
 
 
+# Phrases that end the clarification loop without spending an LLM call.
+# ponytail: literal matches only; an empty line always works as the fallback.
+_STOP_PHRASES = {
+    "stop", "fin", "rien", "non", "no", "quit", "exit", "continue", "continuer",
+    "no question", "pas de question", "aucune question", "non merci", "c'est bon",
+}
+
+
+def _is_stop(text: str) -> bool:
+    t = text.strip().casefold().rstrip(".!")
+    return t in _STOP_PHRASES
+
+
 def clarification_repl(
     runner: ClarificationRunner,
     mission_context: MissionContext,
@@ -53,7 +66,7 @@ def clarification_repl(
     transcript: list[tuple[str, ClarificationAnswer]] = []
     while True:
         question = io_in("Votre question : ").strip()
-        if not question:
+        if not question or _is_stop(question):
             break
         result = runner.answer(question, mission_context, workshop_output)
         transcript.append((question, result))

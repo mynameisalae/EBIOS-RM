@@ -116,13 +116,54 @@ class CLIHumanInterface:
         return answer
 
 
+def approve_workshop(
+    label: str,
+    *,
+    io_in: Callable[[str], str] = input,
+    io_out: Callable[[str], None] = print,
+) -> tuple[bool, str]:
+    """Final human gate on a workshop result (conception §2, §8).
+
+    The auditor has the last word on the whole atelier, not only field by field.
+    A rejection requires a non-empty reason. Returns (approved, reason).
+
+    ponytail: decision is returned, not persisted — writing it to workshop_versions
+    (approved/superseded) and redoing the workshop on reject needs mission
+    persistence, which is not built yet.
+    """
+    io_out(f"\n=== Validation de {label} ===")
+    while True:
+        choice = io_in("Approuvez-vous ce résultat ? [oui / non] : ").strip().casefold()
+        if choice in {"oui", "o", "yes", "y"}:
+            return True, ""
+        if choice in {"non", "n", "no"}:
+            while True:
+                reason = io_in("Motif du refus (obligatoire, §8) : ").strip()
+                if reason:
+                    io_out(f"Résultat NON APPROUVÉ — motif enregistré : {reason}")
+                    io_out("La reprise de l'atelier nécessitera la persistance de mission (à venir).")
+                    return False, reason
+                io_out("    Un motif non vide est obligatoire (§8).")
+        io_out("    Répondez 'oui' ou 'non' — une décision explicite est requise (§2).")
+
+
 class ConversationalHumanInterface(CLIHumanInterface):
     """Follow-ups become a real conversation: the auditor can answer, ask, or push
     back in free text, and an agent decides what they meant each turn (conception §2).
 
-    Only ask_followup is made conversational (that is where a static form hurts);
-    confirmations, contradictions, and flag review keep the plain CLI behaviour.
+    Follow-ups and flag review are conversational; confirmations and contradictions
+    keep the plain CLI behaviour.
     """
+
+    # Dialogue turns kept across questions so the agent knows what was already
+    # discussed. Capped: a long raw transcript bloats the prompt and makes the
+    # model paraphrase past turns loosely. Facts themselves come from self._facts,
+    # never from this transcript.
+    HISTORY_TURNS = 10
+
+    # After this many consecutive non-answers on one question, tell the auditor
+    # about the '!' override so the agent can never trap them in a loop.
+    MAX_PUSHBACKS = 3
 
     def __init__(
         self,
@@ -135,6 +176,7 @@ class ConversationalHumanInterface(CLIHumanInterface):
         self._in = lambda text: io_in(text).strip()
         self._out = io_out
         self._facts: list[Fact] = []
+        self._history: list[dict] = []
 
     # The orchestration binds the growing fact list so the agent has live context.
     def bind_facts(self, facts: list[Fact]) -> None:
@@ -143,6 +185,21 @@ class ConversationalHumanInterface(CLIHumanInterface):
     def _prompt(self, text: str) -> str:  # keep parent's confirm/contradiction/flag prompts working
         return self._in(text)
 
+    def _converse(self, question: str, explanation: str, user: str) -> tuple[bool, str]:
+        """One agent turn. Returns (is_answer, captured_value). Records into session history.
+
+        Intent is read from the model's own classification (TurnResult.intent), not
+        inferred from the reply text.
+        """
+        turn = self._runner.handle_turn(
+            question, explanation, user, self._facts, self._history[-self.HISTORY_TURNS:]
+        )
+        self._history.append({"role": "auditeur", "content": user})
+        self._history.append({"role": "agent", "content": turn.reply, "intent": turn.intent})
+        if turn.reply:
+            self._out(f"Agent : {turn.reply}")
+        return turn.is_answer, (turn.answer or user)
+
     def ask_followup(self, question: FollowUpQuestion) -> str | SkipRequested:
         tag = "CRITIQUE (bloquant)" if question.blocking else "IMPORTANT"
         self._out(f"\n[{tag}] {question.question}")
@@ -150,7 +207,7 @@ class ConversationalHumanInterface(CLIHumanInterface):
             self._out(f"    ↳ {question.help_text}")
         self._out("    (répondez, ou posez une question / demandez une clarification)")
 
-        history: list[dict] = []
+        pushbacks = 0
         while True:
             user = self._in("> ")
             if not user:
@@ -166,14 +223,38 @@ class ConversationalHumanInterface(CLIHumanInterface):
                 if reason:
                     return SkipRequested(reason)
                 continue
+            # Escape hatch: the auditor always outranks the agent (§2). Without this,
+            # a model that keeps asking for detail traps a CRITICAL question forever,
+            # since blank re-prompts and skip is forbidden.
+            if user.startswith("!"):
+                forced = user[1:].strip()
+                if forced:
+                    self._out("    Réponse enregistrée telle quelle, à votre demande.")
+                    return forced
+                continue
 
-            turn = self._runner.handle_turn(
-                question.question, question.help_text, user, self._facts, history
+            is_answer, value = self._converse(question.question, question.help_text, user)
+            if is_answer:
+                return value
+            pushbacks += 1
+            if pushbacks == self.MAX_PUSHBACKS:
+                self._out("    (l'agent insiste : préfixez '!' pour enregistrer votre réponse telle quelle)")
+
+    def review_flag(self, flag: AnswerFlag) -> object | None:
+        label = "INCOHÉRENTE" if flag.kind == "implausible" else "À CLARIFIER"
+        self._out(f"\n[RÉPONSE {label}] Question : {flag.question}")
+        self._out(f"    Réponse fournie : {flag.answer!r}")
+        self._out(f"    Signalement de l'agent : {flag.reason}")
+        self._out("    (corrigez, posez une question, [Entrée] pour conserver, 'skip' pour écarter)")
+
+        while True:
+            user = self._in("> ")
+            if not user:
+                return flag.answer
+            if user.lower() == "skip":
+                return None
+            is_answer, value = self._converse(
+                flag.question, f"Réponse actuelle jugée {flag.kind} : {flag.reason}", user
             )
-            history.append({"role": "auditeur", "content": user})
-            history.append({"role": "agent", "content": turn.reply, "is_answer": turn.is_answer})
-            if turn.reply:
-                self._out(f"Agent : {turn.reply}")
-            if turn.is_answer:
-                return turn.answer or user
-            # It was a question/clarification/off-topic — keep the conversation going.
+            if is_answer:
+                return value

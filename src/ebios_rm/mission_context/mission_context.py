@@ -3,17 +3,16 @@
 No workshop ever operates on a raw PDF, DOCX, or the raw form. Everything flows
 through this pipeline:
 
-    intake form + supplied documents
+    filled questionnaire + supplied documents
         -> extraction (source_quote mandatory)
         -> validation (identical / document-only / contradiction)
         -> Mission Context (one object, entirely composed of validated Facts)
         -> Workshop 1
 
-This module owns the two pure ends of that pipeline — turning the form into
-declaration Facts, and assembling the final validated Fact set into a
-MissionContext. The interactive middle (confirmation, contradiction resolution,
-follow-up questions) is driven by the workshop orchestration through the
-HumanInterface, because those are the auditor's decisions (§2).
+This module owns the pure end of that pipeline: assembling the final validated
+Fact set into a MissionContext. The interactive middle (confirmation,
+contradiction resolution, follow-up questions) is driven by intake_ingestion
+through the HumanInterface, because those are the auditor's decisions (§2).
 """
 
 from __future__ import annotations
@@ -22,24 +21,6 @@ from pydantic import BaseModel, Field
 
 from ebios_rm.domain.enums import FactStatus
 from ebios_rm.domain.fact import Fact
-from ebios_rm.mission_context.intake_form import FIELD_SPECS, OrgContextForm
-from ebios_rm.mission_context.priority_matrix import _is_empty
-
-
-def intake_to_facts(form: OrgContextForm) -> list[Fact]:
-    """Turn every non-empty intake field into a Fact of origin 'declaration' (conception §11.1, §4).
-
-    Empty fields are deliberately NOT turned into Facts here — they are candidates
-    for the priority matrix (§7), which decides whether to raise them as follow-up
-    questions. The AI never invents a value for them (§2).
-    """
-    facts: list[Fact] = []
-    for spec in FIELD_SPECS:
-        value = getattr(form, spec.name)
-        if _is_empty(value):
-            continue
-        facts.append(Fact.declaration(spec.name, value))
-    return facts
 
 
 class MissionContext(BaseModel):
@@ -86,10 +67,9 @@ def _parse_frameworks(value: object) -> list[str]:
 
 
 def assemble_from_facts(facts: list[Fact]) -> MissionContext:
-    """Build a MissionContext purely from a validated Fact set keyed by question id.
+    """Build a MissionContext from a validated Fact set keyed by questionnaire id.
 
-    Used by the document-ingestion path, where there is no OrgContextForm — the
-    identity fields are read from the Facts themselves (conception §11, §11.1).
+    The identity fields are read from the Facts themselves (conception §11, §11.1).
     """
     values = {f.field_name: f.value for f in facts if f.value not in (None, "")}
     documents = _parse_frameworks(values.get("documents_fournis"))  # reuse the list normaliser
@@ -99,20 +79,4 @@ def assemble_from_facts(facts: list[Fact]) -> MissionContext:
         applicable_frameworks=_parse_frameworks(values.get("applicable_frameworks")) or list(_DEFAULT_FRAMEWORKS),
         facts=facts,
         documents_fournis=documents,
-    )
-
-
-def assemble(form: OrgContextForm, facts: list[Fact]) -> MissionContext:
-    """Build the MissionContext from a final, human-validated Fact set (conception §11).
-
-    Callers must have resolved every contradiction and confirmed every extraction
-    before calling this — see workshop orchestration. This function does not
-    resolve anything; it only consolidates.
-    """
-    return MissionContext(
-        organisation_nom=form.organisation_nom,
-        secteur_activite=form.secteur_activite,
-        applicable_frameworks=list(form.applicable_frameworks),
-        facts=facts,
-        documents_fournis=list(form.documents_fournis or []),
     )

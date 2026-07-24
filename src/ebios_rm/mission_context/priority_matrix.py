@@ -15,7 +15,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ebios_rm.domain.enums import PriorityLevel
-from ebios_rm.mission_context.intake_form import FIELD_SPECS, FieldSpec, OrgContextForm
 
 
 def _is_empty(value: object) -> bool:
@@ -48,39 +47,6 @@ class FollowUpQuestion:
         """Critical questions block the workshop; Important ones can be skipped with a justification."""
         return self.priority is PriorityLevel.CRITICAL
 
-
-def _should_ask(spec: FieldSpec, form: OrgContextForm) -> bool:
-    if not spec.askable:
-        return False
-    if spec.depends_on_true is not None and getattr(form, spec.depends_on_true) is not True:
-        # Conditional field whose trigger is not set — not applicable, so never asked.
-        return False
-    return _is_empty(getattr(form, spec.name))
-
-
-def follow_up_questions(form: OrgContextForm) -> list[FollowUpQuestion]:
-    """Return the questions to raise for still-empty fields, Critical first (conception §7).
-
-    A field already answered in the form — or confirmed by a document, once its
-    value has landed on the form — is never asked again ("aucune question inutile
-    posée si l'évidence est déjà disponible", §11).
-    """
-    questions = [
-        FollowUpQuestion(spec.name, spec.question, spec.priority, spec.help_text)
-        for spec in FIELD_SPECS
-        if _should_ask(spec, form)
-    ]
-    # Critical before Important; stable within a level (declaration order).
-    questions.sort(key=lambda q: 0 if q.priority is PriorityLevel.CRITICAL else 1)
-    return questions
-
-
-def blocking_questions(form: OrgContextForm) -> list[FollowUpQuestion]:
-    """Only the Critical questions that must be answered before the workshop can proceed."""
-    return [q for q in follow_up_questions(form) if q.blocking]
-
-
-# --- Catalog-based follow-ups (used by the document-ingestion path) ---
 
 _AFFIRMATIVE = {"oui", "yes", "true", "vrai", "o", "y", "1"}
 

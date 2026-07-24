@@ -1,91 +1,25 @@
-"""Workshop 1 orchestration (conception §11, §15) — the deterministic conductor.
+"""Workshop 1 execution (conception §15) — the deterministic conductor.
 
-Two phases:
+Runs the agent to propose assets/feared events, assesses the security baseline
+per declared framework (evidence enforced in assessment.py), attaches legal
+impacts (§15.1), and emits the validated w1_output.
 
-1. complete_intake: build the Mission Context from the intake form + optional
-   extracted document Facts, driving every human decision through the
-   HumanInterface — follow-up questions for missing fields (priority matrix, §7),
-   simple confirmation of document-only values, and mandatory human resolution of
-   contradictions (§11). Nothing is assumed; nothing auto-resolved.
-
-2. run_workshop1: run the agent to propose assets/feared events, assess the
-   security baseline per declared framework (evidence enforced in assessment.py),
-   attach legal impacts (§15.1), and emit the validated w1_output.
+The Mission Context it consumes is built beforehand by intake_ingestion.
 
 The agent only proposes; acceptance is code-enforced or auditor-driven (§2).
 """
 
 from __future__ import annotations
 
-from ebios_rm.domain.enums import Confidence, FactStatus, Origin
-from ebios_rm.domain.fact import Fact
 from ebios_rm.domain.feared_event import FearedEvent, LegalImpactEntry
-from ebios_rm.mission_context.intake_form import OrgContextForm
-from ebios_rm.mission_context.mission_context import MissionContext, assemble, intake_to_facts
-from ebios_rm.mission_context.priority_matrix import follow_up_questions
-from ebios_rm.mission_context.validation import validate
+from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.repositories.reference_repository import BaselineControl, ReferenceRepository
 from ebios_rm.workshops.workshop1_cadrage.agent_runner import (
     LegalImpactAssignment,
     Workshop1AgentRunner,
 )
 from ebios_rm.workshops.workshop1_cadrage.assessment import assess_framework, scope_decisions
-from ebios_rm.workshops.workshop1_cadrage.human_interface import HumanInterface, SkipRequested
 from ebios_rm.workshops.workshop1_cadrage.models import BaselineGap, Workshop1Output
-
-
-# --- Phase 1: intake -> Mission Context ---
-
-def complete_intake(
-    form: OrgContextForm,
-    extraction_facts: list[Fact],
-    human: HumanInterface,
-) -> MissionContext:
-    """Turn the form + optional extracted Facts into a validated Mission Context (conception §11)."""
-    declaration_facts = intake_to_facts(form)
-
-    # Follow-up questions for still-empty fields (Critical block, Important skippable, §7).
-    for question in follow_up_questions(form):
-        outcome = human.ask_followup(question)
-        if isinstance(outcome, SkipRequested):
-            declaration_facts.append(
-                Fact(
-                    field_name=question.field_name,
-                    value=None,
-                    origin=Origin.DECLARATION,
-                    confidence=Confidence.LOW,
-                    status=FactStatus.SKIPPED,
-                    justification=outcome.reason,
-                )
-            )
-        else:
-            declaration_facts.append(Fact.declaration(question.field_name, outcome))
-
-    # Three-case validation against any extracted document Facts (§11).
-    result = validate(declaration_facts, extraction_facts)
-    final_facts: list[Fact] = list(result.verified) + list(result.declaration_only)
-
-    # Document-only values: propose for simple confirmation, no needless question (§11).
-    for extr in result.document_only:
-        if human.confirm_document_only(extr.field_name, extr.value, extr.source_quote or ""):
-            final_facts.append(extr.model_copy(update={"status": FactStatus.APPROVED, "validated_by": "auditor"}))
-
-    # Contradictions: mandatory human resolution, never automatic (§11).
-    for contradiction in result.contradictions:
-        resolved_value = human.resolve_contradiction(contradiction)
-        final_facts.append(
-            Fact(
-                field_name=contradiction.field_name,
-                value=resolved_value,
-                origin=Origin.DECLARATION,
-                confidence=Confidence.HIGH,
-                status=FactStatus.APPROVED,
-                validated_by="auditor",
-                justification="Résolution de contradiction par l'auditeur (§11).",
-            )
-        )
-
-    return assemble(form, final_facts)
 
 
 # --- Phase 2: Mission Context -> w1_output ---
@@ -154,15 +88,3 @@ def run_workshop1(
         baseline_gaps_full=gaps_full,
         unverified_controls=unverified_controls,
     )
-
-
-def run(
-    form: OrgContextForm,
-    extraction_facts: list[Fact],
-    runner: Workshop1AgentRunner,
-    reference_repo: ReferenceRepository,
-    human: HumanInterface,
-) -> Workshop1Output:
-    """Full Workshop 1: complete the intake, then run the workshop (conception §11, §15)."""
-    mission_context = complete_intake(form, extraction_facts, human)
-    return run_workshop1(mission_context, runner, reference_repo)

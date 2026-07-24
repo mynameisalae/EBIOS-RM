@@ -64,9 +64,12 @@ def main(argv: list[str]) -> int:
 
     from ebios_rm.mission_context.ingestion_agent import AgnoIngestionRunner  # noqa: PLC0415
     from ebios_rm.workshops.workshop1_cadrage.agent import AgnoWorkshop1Runner  # noqa: PLC0415
+    from ebios_rm.workshops.workshop1_cadrage.auditor_review import AgnoAuditorReviewRunner  # noqa: PLC0415
 
     print("\n=== Phase 1 : ingestion des documents (l'agent lit, vous décidez) ===")
-    mission_context = complete_intake_from_documents(intake_doc, supporting, AgnoIngestionRunner(), human)
+    mission_context = complete_intake_from_documents(
+        intake_doc, supporting, AgnoIngestionRunner(), human, AgnoAuditorReviewRunner()
+    )
     print(f"\nMission Context : {len(mission_context.facts)} faits validés.")
 
     print("\n=== Phase 2 : atelier 1 ===")
@@ -78,8 +81,15 @@ def main(argv: list[str]) -> int:
     # Two-way clarification: you can now ask the agent about the mission / the result.
     from ebios_rm.mission_context.clarification import clarification_repl  # noqa: PLC0415
     from ebios_rm.mission_context.clarification_agent import AgnoClarificationRunner  # noqa: PLC0415
+    from ebios_rm.workshops.workshop1_cadrage.human_interface import approve_workshop  # noqa: PLC0415
 
     clarification_repl(AgnoClarificationRunner(), mission_context, output)
+
+    approved, reason = approve_workshop("l'atelier 1")
+    if not approved:
+        print(f"Atelier 1 non approuvé : {reason}")
+        return 1
+    print("Atelier 1 approuvé.")
     return 0
 
 

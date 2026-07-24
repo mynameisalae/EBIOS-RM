@@ -161,3 +161,15 @@ class FakeRunner:
                 evidence_mission_context="donnees_personnelles_traitees = True (données de santé)",
             )
         ]
+
+
+class FakeAuditorReviewRunner:
+    """An AuditorReviewRunner returning scripted proposals per round — no LLM involved."""
+
+    def __init__(self, proposals_by_round: dict[int, list] | None = None) -> None:
+        self.proposals_by_round = proposals_by_round or {}
+        self.rounds_seen: list[int] = []
+
+    def review(self, mission_context, round_number):
+        self.rounds_seen.append(round_number)
+        return list(self.proposals_by_round.get(round_number, []))

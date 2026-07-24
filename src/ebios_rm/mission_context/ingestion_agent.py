@@ -10,8 +10,8 @@ importable without it.
 from __future__ import annotations
 
 import json
-import time
 
+from ebios_rm.agent_runtime import run_structured
 from ebios_rm.config import get_model
 from ebios_rm.mission_context.ingestion import ExtractedAnswer, ExtractedAnswerBatch
 from ebios_rm.mission_context.questionnaire import Question
@@ -66,26 +66,14 @@ class AgnoIngestionRunner:
     def _run(self, prompt: str, *, what: str) -> list[ExtractedAnswer]:
         from agno.agent import Agent  # noqa: PLC0415
 
-        last: object = None
-        for attempt in range(1, self._max_attempts + 1):
-            if attempt > 1:
-                self._progress(f"   ... nouvel essai {attempt}/{self._max_attempts} ({what})")
-            try:
-                agent = Agent(model=self._model, instructions=_SYSTEM,
-                              output_schema=ExtractedAnswerBatch, markdown=False)
-                content = agent.run(prompt).content
-            except Exception as exc:  # noqa: BLE001
-                last = exc
-            else:
-                if isinstance(content, ExtractedAnswerBatch):
-                    return content.answers
-                last = content
-            if attempt < self._max_attempts:
-                time.sleep(self._base_delay * attempt)
-        raise RuntimeError(
-            f"Ingestion did not return structured answers for {what} after "
-            f"{self._max_attempts} attempts. Last: {str(last)[:200]!r}"
+        batch = run_structured(
+            lambda: Agent(model=self._model, instructions=_SYSTEM,
+                          output_schema=ExtractedAnswerBatch, markdown=False),
+            prompt, ExtractedAnswerBatch,
+            what=what,
+            max_attempts=self._max_attempts, base_delay=self._base_delay, progress=self._progress,
         )
+        return batch.answers
 
     def extract_questionnaire(self, doc_text: str, questions: list[Question]) -> list[ExtractedAnswer]:
         collected: list[ExtractedAnswer] = []

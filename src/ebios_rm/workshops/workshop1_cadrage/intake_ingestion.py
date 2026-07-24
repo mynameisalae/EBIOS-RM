@@ -14,6 +14,12 @@ from pathlib import Path
 from ebios_rm.domain.enums import Confidence, FactStatus, Origin
 from ebios_rm.domain.fact import Fact
 from ebios_rm.mission_context.document_reader import read_document
+from ebios_rm.workshops.workshop1_cadrage.auditor_review import (
+    MAX_ROUNDS,
+    MAX_TOTAL_QUESTIONS,
+    AuditorReviewRunner,
+    to_followup_question,
+)
 from ebios_rm.mission_context.ingestion import (
     AnswerFlag,
     IngestionRunner,
@@ -92,12 +98,59 @@ def _ask_follow_ups(
                 declaration_facts.append(Fact.declaration(question.field_name, outcome))
 
 
+def _run_expert_review(
+    mission_context: MissionContext, reviewer: AuditorReviewRunner, human: HumanInterface
+) -> MissionContext:
+    """Dynamic professional follow-ups on top of the catalog (conception §2).
+
+    Keeps probing while the auditor-agent still has something worth asking — that
+    is the normal end condition, reached when a round proposes nothing new. The
+    MAX_ROUNDS / MAX_TOTAL_QUESTIONS ceilings only exist to stop a runaway model
+    that keeps rewording the same concern. Reuses ask_followup entirely — answer
+    capture, insufficient-detection, escape hatch, pushback all apply unchanged,
+    since a dynamic question is just a FollowUpQuestion.
+    """
+    facts = list(mission_context.facts)
+    asked: set[str] = set()
+    for round_number in range(1, MAX_ROUNDS + 1):
+        proposals = reviewer.review(mission_context, round_number)
+        # Nothing left worth asking: the intended way this loop ends.
+        new = [p for p in proposals if to_followup_question(p).field_name not in asked]
+        if not new:
+            break
+
+        for proposal in new:
+            if len(asked) >= MAX_TOTAL_QUESTIONS:
+                break
+            fq = to_followup_question(proposal)
+            asked.add(fq.field_name)
+            outcome = human.ask_followup(fq)
+            if isinstance(outcome, SkipRequested):
+                facts.append(Fact(
+                    field_name=fq.field_name, value=None, origin=Origin.DECLARATION,
+                    confidence=Confidence.LOW, status=FactStatus.SKIPPED, justification=outcome.reason,
+                ))
+            else:
+                facts.append(Fact.declaration(fq.field_name, outcome))
+
+        mission_context = assemble_from_facts(facts)  # next round sees this round's answers
+        if len(asked) >= MAX_TOTAL_QUESTIONS:
+            break
+    return mission_context
+
+
 def complete_intake_from_facts(
     declaration_facts: list[Fact],
     extraction_facts: list[Fact],
     human: HumanInterface,
+    auditor_reviewer: AuditorReviewRunner | None = None,
 ) -> MissionContext:
-    """Follow-ups + three-case validation + assembly, over the catalog (conception §7, §11)."""
+    """Follow-ups + three-case validation + assembly, over the catalog (conception §7, §11).
+
+    ``auditor_reviewer``, when given, adds a dynamic expert-follow-up pass after the
+    catalog and validation are done — real audit-style questions grounded in what
+    was actually said, not limited to the fixed catalog (conception §2).
+    """
     covered_by_documents = {f.field_name for f in extraction_facts}
     _ask_follow_ups(declaration_facts, human, covered_ids=covered_by_documents)
 
@@ -116,7 +169,10 @@ def complete_intake_from_facts(
             justification="Résolution de contradiction par l'auditeur (§11).",
         ))
 
-    return assemble_from_facts(final_facts)
+    mission_context = assemble_from_facts(final_facts)
+    if auditor_reviewer is not None:
+        mission_context = _run_expert_review(mission_context, auditor_reviewer, human)
+    return mission_context
 
 
 def complete_intake_from_documents(
@@ -124,6 +180,7 @@ def complete_intake_from_documents(
     supporting_doc_paths: list[str | Path],
     ingestion_runner: IngestionRunner,
     human: HumanInterface,
+    auditor_reviewer: AuditorReviewRunner | None = None,
 ) -> MissionContext:
     """Full document-ingestion intake: filled questionnaire + supporting docs -> Mission Context."""
     questions = list(all_questions())
@@ -139,4 +196,4 @@ def complete_intake_from_documents(
         s_answers = ingestion_runner.extract_supporting(read_document(sp_path), sp_path.name, questions)
         extraction_facts.extend(supporting_answers_to_facts(s_answers, sp_path.name))
 
-    return complete_intake_from_facts(declaration_facts, extraction_facts, human)
+    return complete_intake_from_facts(declaration_facts, extraction_facts, human, auditor_reviewer)

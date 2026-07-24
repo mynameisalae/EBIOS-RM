@@ -10,7 +10,6 @@ from pathlib import Path
 import pytest
 
 from ebios_rm.db.loader import build_reference_db
-from ebios_rm.mission_context.intake_form import OrgContextForm
 from ebios_rm.repositories.reference_repository import BaselineControl, ReferenceRepository
 
 DEV_SEED = Path(__file__).resolve().parents[1] / "data" / "dev_seed" / "baseline_controls.dev.json"
@@ -31,27 +30,3 @@ def reference_conn(dev_controls) -> sqlite3.Connection:
 @pytest.fixture
 def reference_repo(reference_conn) -> ReferenceRepository:
     return ReferenceRepository(reference_conn)
-
-
-@pytest.fixture
-def example_form() -> OrgContextForm:
-    return OrgContextForm(
-        organisation_nom="Clinique Test",
-        secteur_activite="Santé",
-        taille_effectif=100,
-        perimetre_geographique=["France"],
-        systeme_information_resume="SIH hébergé, accès distant VPN.",
-        hebergement="hybride",
-        teletravail_autorise=True,
-        acces_distant_moyens=["VPN"],
-        edr_av_deploye=None,           # empty -> Important follow-up
-        sauvegarde_strategie=None,     # empty -> Important follow-up
-        donnees_personnelles_traitees=True,
-        categories_donnees_personnelles=["patients"],
-        incidents_securite_passes=None,
-        audits_anterieurs=None,
-        fournisseurs_tiers_critiques=["Hébergeur HDS"],
-        applicable_frameworks=["ANSSI_hygiene", "RGPD", "NIST"],
-        processus_metier_critiques=["Prise en charge des patients"],
-        documents_fournis=None,
-    )

@@ -15,11 +15,11 @@ evaluation-by-evidence discipline, which is enforced in assessment.py.
 
 from __future__ import annotations
 
-import time
 from typing import TypeVar
 
 from pydantic import BaseModel
 
+from ebios_rm.agent_runtime import StructuredCallFailed, run_structured
 from ebios_rm.config import get_model
 from ebios_rm.domain.feared_event import FearedEvent
 from ebios_rm.mission_context.mission_context import MissionContext
@@ -71,26 +71,14 @@ class AgnoWorkshop1Runner:
 
     def _run_structured(self, output_schema: type[T], prompt: str, *, what: str) -> T:
         """Run one structured call, retrying transient failures with backoff (conception §3.2 note)."""
-        self._progress(f"   {what}...")
-        last: object = None
-        for attempt in range(1, self._max_attempts + 1):
-            if attempt > 1:
-                self._progress(f"   ... nouvel essai {attempt}/{self._max_attempts} ({what})")
-            try:
-                response = self._agent(output_schema).run(prompt)
-                content = response.content
-            except Exception as exc:  # noqa: BLE001 — Agno/network errors are heterogeneous
-                last = exc
-            else:
-                if isinstance(content, output_schema):
-                    return content
-                last = content  # a raw string (API error / parse failure) — retry
-            if attempt < self._max_attempts:
-                time.sleep(self._base_delay * attempt)
-        raise Workshop1AgentError(
-            f"Model did not return {output_schema.__name__} for {what} after "
-            f"{self._max_attempts} attempts. Last result: {str(last)[:300]!r}"
-        )
+        try:
+            return run_structured(
+                lambda: self._agent(output_schema), prompt, output_schema,
+                what=what,
+                max_attempts=self._max_attempts, base_delay=self._base_delay, progress=self._progress,
+            )
+        except StructuredCallFailed as exc:
+            raise Workshop1AgentError(str(exc)) from exc
 
     def propose_cadrage(self, mission_context: MissionContext) -> CadrageProposal:
         return self._run_structured(

@@ -6,16 +6,21 @@ baseline against the declared frameworks, and runs the dedicated legal-impact
 assessment (§15.1), independent of baseline gaps.
 
 Public entry points:
-    complete_intake(form, extraction_facts, human) -> MissionContext
+    complete_intake_from_documents(intake_doc, supporting_docs, ingestion_runner,
+                                   human, auditor_reviewer) -> MissionContext
     run_workshop1(mission_context, runner, reference_repo) -> Workshop1Output
-    run(form, extraction_facts, runner, reference_repo, human) -> Workshop1Output
 """
 
-from ebios_rm.workshops.workshop1_cadrage.models import Workshop1Output
-from ebios_rm.workshops.workshop1_cadrage.workshop import (
-    complete_intake,
-    run,
-    run_workshop1,
+from ebios_rm.workshops.workshop1_cadrage.intake_ingestion import (
+    complete_intake_from_documents,
+    complete_intake_from_facts,
 )
+from ebios_rm.workshops.workshop1_cadrage.models import Workshop1Output
+from ebios_rm.workshops.workshop1_cadrage.workshop import run_workshop1
 
-__all__ = ["Workshop1Output", "complete_intake", "run", "run_workshop1"]
+__all__ = [
+    "Workshop1Output",
+    "complete_intake_from_documents",
+    "complete_intake_from_facts",
+    "run_workshop1",
+]

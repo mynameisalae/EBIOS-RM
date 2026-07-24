@@ -10,21 +10,31 @@ auditor still decides; the agent never invents a value.
 from __future__ import annotations
 
 import json
-import time
-from typing import Protocol
+from typing import Literal, Protocol
 
 from pydantic import BaseModel
 
+from ebios_rm.agent_runtime import StructuredCallFailed, facts_as_json, run_structured
 from ebios_rm.config import get_model
 from ebios_rm.domain.fact import Fact
 
 
 class TurnResult(BaseModel):
-    """What the agent made of one auditor input."""
+    """What the agent made of one auditor input.
 
-    is_answer: bool          # True = the input answers the current question
-    answer: str = ""         # the captured/normalized answer when is_answer
+    ``intent`` is stated by the model rather than inferred from the reply text:
+    'answer' = the question is answered and the loop may advance;
+    'question' = the auditor asked something / needs an explanation;
+    'insufficient' = they replied, but too vaguely to record.
+    """
+
+    intent: Literal["answer", "question", "insufficient"]
+    answer: str = ""         # the captured/normalized answer when intent == 'answer'
     reply: str = ""          # message to show the auditor (explanation, answer, or note)
+
+    @property
+    def is_answer(self) -> bool:
+        return self.intent == "answer"
 
 
 class ConversationRunner(Protocol):
@@ -45,24 +55,27 @@ d'une mission. Tu es intelligent et conversationnel, pas un formulaire figé.
 
 À chaque tour, l'auditeur écrit quelque chose pendant qu'une question précise lui
 est posée. Décide ce qu'il veut :
-- Si c'est une RÉPONSE à la question courante : is_answer=true, answer = la valeur
-  normalisée et claire, reply = éventuelle courte remarque (ex. si la réponse
-  semble incohérente ou trop vague, signale-le brièvement — mais tu la retiens
-  quand même, c'est l'auditeur qui tranche).
-- Si l'auditeur POSE une question, demande une clarification, ou dit « que veux-tu
-  dire » : is_answer=false, reply = ta réponse utile. Explique la question dans un
-  langage simple, ou réponds à partir des faits déjà connus de la mission. Si
-  l'information n'est pas connue, dis-le — n'invente jamais.
-- Si c'est hors sujet ou incompréhensible : is_answer=false, reply = ramène
-  poliment l'auditeur à la question courante.
+Choisis intent parmi exactement trois valeurs :
+- intent="answer" : l'auditeur a RÉPONDU de façon exploitable. answer = la valeur
+  normalisée et claire. reply = éventuelle courte remarque (jamais une demande).
+- intent="insufficient" : il a répondu, mais trop vaguement (« oui », « non », un
+  mot isolé) alors que la question attend un détail (un produit, des règles, une
+  fréquence). reply = demande précisément ce qui manque. N'enregistre rien.
+- intent="question" : il POSE une question, demande une clarification, dit « que
+  veux-tu dire », ou écrit quelque chose d'incompréhensible / hors sujet. reply =
+  ta réponse utile : explique la question en langage simple, ou réponds à partir
+  des faits déjà connus. Si l'information n'est pas connue, dis-le — n'invente jamais.
+
+RÈGLE ABSOLUE : si ton reply pose une question ou réclame une précision, intent
+n'est JAMAIS "answer". Ne jamais enregistrer une réponse et demander un complément
+dans le même tour.
 
 Réponds en français, concis, au format structuré demandé.
 """
 
 
 def _facts_block(facts: list[Fact]) -> str:
-    known = {f.field_name: f.value for f in facts if f.value not in (None, "")}
-    return json.dumps(known, ensure_ascii=False)
+    return facts_as_json(facts)
 
 
 class AgnoConversationRunner:
@@ -75,7 +88,6 @@ class AgnoConversationRunner:
     def handle_turn(self, question, explanation, user_input, facts, history) -> TurnResult:
         from agno.agent import Agent  # noqa: PLC0415
 
-        self._progress("   (l'agent réfléchit...)")
         prompt = (
             f"QUESTION COURANTE : {question}\n"
             f"EXPLICATION DE LA QUESTION : {explanation}\n"
@@ -83,20 +95,15 @@ class AgnoConversationRunner:
             f"ÉCHANGE RÉCENT : {json.dumps(history[-6:], ensure_ascii=False)}\n\n"
             f"L'AUDITEUR ÉCRIT : {user_input}"
         )
-        last: object = None
-        for attempt in range(1, self._max_attempts + 1):
-            try:
-                agent = Agent(model=self._model, instructions=_SYSTEM,
-                              output_schema=TurnResult, markdown=False)
-                content = agent.run(prompt).content
-            except Exception as exc:  # noqa: BLE001
-                last = exc
-            else:
-                if isinstance(content, TurnResult):
-                    return content
-                last = content
-            if attempt < self._max_attempts:
-                time.sleep(self._base_delay * attempt)
-        # Agent unreachable: treat the raw input as the answer rather than block the auditor.
-        return TurnResult(is_answer=True, answer=user_input,
-                          reply=f"(assistant indisponible, réponse enregistrée telle quelle : {str(last)[:80]})")
+        try:
+            return run_structured(
+                lambda: Agent(model=self._model, instructions=_SYSTEM,
+                              output_schema=TurnResult, markdown=False),
+                prompt, TurnResult,
+                what="l'agent réfléchit",
+                max_attempts=self._max_attempts, base_delay=self._base_delay, progress=self._progress,
+            )
+        except StructuredCallFailed as exc:
+            # Agent unreachable: treat the raw input as the answer rather than block the auditor.
+            return TurnResult(intent="answer", answer=user_input,
+                              reply=f"(assistant indisponible, réponse enregistrée telle quelle : {str(exc)[:80]})")

@@ -9,8 +9,8 @@ Agno is imported lazily so the deterministic core stays importable without it.
 from __future__ import annotations
 
 import json
-import time
 
+from ebios_rm.agent_runtime import StructuredCallFailed, facts_as_json, run_structured
 from ebios_rm.config import get_model
 from ebios_rm.mission_context.clarification import ClarificationAnswer
 from ebios_rm.mission_context.mission_context import MissionContext
@@ -32,27 +32,25 @@ Règles absolues :
 
 
 def _facts_block(mc: MissionContext) -> str:
-    return json.dumps(
+    header = json.dumps(
         {
             "organisation_nom": mc.organisation_nom,
             "secteur_activite": mc.secteur_activite,
             "applicable_frameworks": mc.applicable_frameworks,
-            "facts": [
-                {"field_name": f.field_name, "value": f.value, "origin": f.origin.value}
-                for f in mc.facts
-            ],
         },
         ensure_ascii=False, indent=2,
     )
+    return f"{header}\nfacts: {facts_as_json(mc.facts, with_origin=True)}"
 
 
 class AgnoClarificationRunner:
     """Concrete ClarificationRunner backed by Agno + OpenRouter."""
 
-    def __init__(self, model=None, *, max_attempts: int = 4, base_delay: float = 3.0) -> None:
+    def __init__(self, model=None, *, max_attempts: int = 4, base_delay: float = 3.0, progress=print) -> None:
         self._model = model or get_model()
         self._max_attempts = max_attempts
         self._base_delay = base_delay
+        self._progress = progress
 
     def answer(
         self,
@@ -72,22 +70,17 @@ class AgnoClarificationRunner:
             f"CONTEXTE DE LA MISSION:\n{_facts_block(mission_context)}{output_block}"
         )
 
-        last: object = None
-        for attempt in range(1, self._max_attempts + 1):
-            try:
-                agent = Agent(model=self._model, instructions=_SYSTEM,
-                              output_schema=ClarificationAnswer, markdown=False)
-                content = agent.run(prompt).content
-            except Exception as exc:  # noqa: BLE001
-                last = exc
-            else:
-                if isinstance(content, ClarificationAnswer):
-                    return content
-                last = content
-            if attempt < self._max_attempts:
-                time.sleep(self._base_delay * attempt)
-        # A failed clarification is not an audit output — degrade to an explicit non-answer.
-        return ClarificationAnswer(
-            answered=False,
-            answer=f"La demande de clarification n'a pas abouti techniquement (dernier retour : {str(last)[:150]}).",
-        )
+        try:
+            return run_structured(
+                lambda: Agent(model=self._model, instructions=_SYSTEM,
+                              output_schema=ClarificationAnswer, markdown=False),
+                prompt, ClarificationAnswer,
+                what="recherche dans le contexte",
+                max_attempts=self._max_attempts, base_delay=self._base_delay, progress=self._progress,
+            )
+        except StructuredCallFailed as exc:
+            # A failed clarification is not an audit output — degrade to an explicit non-answer.
+            return ClarificationAnswer(
+                answered=False,
+                answer=f"La demande de clarification n'a pas abouti techniquement ({str(exc)[:150]}).",
+            )
