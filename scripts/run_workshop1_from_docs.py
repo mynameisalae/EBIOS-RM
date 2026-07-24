@@ -57,36 +57,54 @@ def _print_missions(repo: MissionRepository) -> None:
         print(f"{m.mission_id:34}  {m.status:14}  {m.updated_at[:19]:20}  {m.name}")
 
 
-def _run_workshop_and_finish(
-    repo: MissionRepository, mission_id: str, mission_context, reference_repo: ReferenceRepository
-) -> int:
-    from ebios_rm.mission_context.clarification import clarification_repl  # noqa: PLC0415
-    from ebios_rm.mission_context.clarification_agent import AgnoClarificationRunner  # noqa: PLC0415
+def _run_workshop(repo: MissionRepository, mission_id: str, mission_context, reference_repo: ReferenceRepository):
+    """Run the workshop and save its output. Not complete yet — no auditor decision recorded."""
     from ebios_rm.workshops.workshop1_cadrage.agent import AgnoWorkshop1Runner  # noqa: PLC0415
-    from ebios_rm.workshops.workshop1_cadrage.human_interface import approve_workshop  # noqa: PLC0415
     from ebios_rm.workshops.workshop1_cadrage.workshop import run_workshop1  # noqa: PLC0415
 
     print("\n=== Phase 2 : atelier 1 ===")
     output = run_workshop1(mission_context, AgnoWorkshop1Runner(), reference_repo)
     mission_state.save_w1_output(repo, mission_id, output)
-    repo.set_status(mission_id, "w1_completed")
+    # Deliberately NOT "completed": the auditor has not ruled on it yet (§2). A crash
+    # or quit between here and approval must not read as done on --resume.
+    repo.set_status(mission_id, "w1_awaiting_approval")
+    return output
+
+
+def _review_and_approve(repo: MissionRepository, mission_id: str, mission_context, output) -> int:
+    """Clarification + the final approval gate. The only path that marks a workshop complete."""
+    from ebios_rm.mission_context.clarification import clarification_repl  # noqa: PLC0415
+    from ebios_rm.mission_context.clarification_agent import AgnoClarificationRunner  # noqa: PLC0415
+    from ebios_rm.workshops.workshop1_cadrage.human_interface import approve_workshop  # noqa: PLC0415
 
     print("\n=== w1_output ===")
     print(json.dumps(output.model_dump(mode="json"), ensure_ascii=False, indent=2))
 
     clarification_repl(AgnoClarificationRunner(), mission_context, output)
 
+    version = repo.latest_output(mission_id, mission_state.WORKSHOP_1)
     approved, reason = approve_workshop("l'atelier 1")
     if approved:
         repo.log_decision(mission_id, stage="workshop_1", action="approved", justification="Approuvé par l'auditeur")
         repo.set_status(mission_id, "w1_approved")
+        if version:
+            repo.set_version_status(mission_id, mission_state.WORKSHOP_1, version.version_number, "approved")
         print(f"Atelier 1 approuvé. Mission {mission_id} sauvegardée.")
         return 0
     repo.log_decision(mission_id, stage="workshop_1", action="rejected", justification=reason)
     repo.set_status(mission_id, "w1_rejected")
+    if version:
+        repo.set_version_status(mission_id, mission_state.WORKSHOP_1, version.version_number, "rejected")
     print(f"Atelier 1 non approuvé : {reason}")
     print("La reprise avec correction (redo) sera ajoutée en phase B.")
     return 1
+
+
+def _run_workshop_and_finish(
+    repo: MissionRepository, mission_id: str, mission_context, reference_repo: ReferenceRepository
+) -> int:
+    output = _run_workshop(repo, mission_id, mission_context, reference_repo)
+    return _review_and_approve(repo, mission_id, mission_context, output)
 
 
 def _checkpoint(repo: MissionRepository, mission_id: str):
@@ -142,9 +160,10 @@ def _resume_mission(repo: MissionRepository, reference_repo: ReferenceRepository
         return 2
     print(f"Contexte rechargé : {len(saved.facts)} faits déjà saisis.")
 
-    existing = mission_state.load_w1_output(repo, mission_id)
-    if existing is not None:
-        print("Atelier 1 déjà exécuté. Résultat sauvegardé :")
+    if mission.status == "w1_approved":
+        # The only status that means genuinely complete (§2 — auditor had the last word).
+        existing = mission_state.load_w1_output(repo, mission_id)
+        print("Atelier 1 déjà approuvé. Résultat sauvegardé :")
         print(json.dumps(existing.model_dump(mode="json"), ensure_ascii=False, indent=2))
         return 0
 
@@ -162,6 +181,13 @@ def _resume_mission(repo: MissionRepository, reference_repo: ReferenceRepository
             saved.facts, human, AgnoAuditorReviewRunner(), checkpoint=_checkpoint(repo, mission_id)
         )
         _finish_intake(repo, mission_id, mission_context)
+
+    if mission.status in {"w1_awaiting_approval", "w1_rejected"}:
+        # The workshop already ran (output exists) but is NOT complete — no LLM rerun,
+        # go straight back to clarification + the approval gate that was interrupted.
+        existing = mission_state.load_w1_output(repo, mission_id)
+        print(f"Atelier 1 exécuté mais non finalisé (statut : {mission.status}) — reprise de la validation.")
+        return _review_and_approve(repo, mission_id, mission_context, existing)
 
     return _run_workshop_and_finish(repo, mission_id, mission_context, reference_repo)
 

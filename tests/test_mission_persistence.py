@@ -94,3 +94,29 @@ def test_persists_across_reconnect(tmp_path):
     loaded = mission_state.load_mission_context(MissionRepository(conn2), mid)
     assert loaded.organisation_nom == "Survivor"
     conn2.close()
+
+
+def test_saved_output_is_not_approved_by_default(repo):
+    # A workshop that ran but has no auditor decision yet must never read as complete.
+    mid = repo.create_mission("M", ["RGPD"])
+    repo.save_output(mid, 1, {"x": 1}, status="current")
+    latest = repo.latest_output(mid, 1)
+    assert latest.status != "approved"
+
+
+def test_set_version_status_marks_completion_explicitly(repo):
+    mid = repo.create_mission("M", ["RGPD"])
+    repo.save_output(mid, 1, {"x": 1}, status="current")
+    version = repo.latest_output(mid, 1)
+    repo.set_version_status(mid, 1, version.version_number, "approved")
+    assert repo.latest_output(mid, 1).status == "approved"
+
+
+def test_rejected_version_is_distinguishable_from_approved(repo):
+    mid = repo.create_mission("M", ["RGPD"])
+    repo.save_output(mid, 1, {"x": 1}, status="current")
+    version = repo.latest_output(mid, 1)
+    repo.set_version_status(mid, 1, version.version_number, "rejected")
+    latest = repo.latest_output(mid, 1)
+    assert latest.status == "rejected"
+    assert latest.status != "approved"
