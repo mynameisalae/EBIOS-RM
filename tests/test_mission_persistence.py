@@ -120,3 +120,42 @@ def test_rejected_version_is_distinguishable_from_approved(repo):
     latest = repo.latest_output(mid, 1)
     assert latest.status == "rejected"
     assert latest.status != "approved"
+
+
+def test_token_sink_records_calls_against_the_mission(repo):
+    # The sink installed by the CLI routes every LLM call's tokens to the mission.
+    from ebios_rm.agent_runtime import set_token_sink
+
+    mid = repo.create_mission("M", ["RGPD"])
+    set_token_sink(lambda i, o, model: repo.log_tokens(
+        mid, input_tokens=i, output_tokens=o, model_used=model))
+    try:
+        from ebios_rm import agent_runtime
+
+        class _Metrics:
+            input_tokens, output_tokens = 120, 45
+
+        class _Response:
+            metrics = _Metrics()
+            model = "gemma-test"
+
+        agent_runtime._record_tokens(_Response())
+        agent_runtime._record_tokens(_Response())
+    finally:
+        set_token_sink(None)
+
+    assert repo.token_totals(mid) == {"input_tokens": 240, "output_tokens": 90, "llm_calls": 2}
+
+
+def test_token_accounting_never_breaks_a_run(repo):
+    from ebios_rm import agent_runtime
+    from ebios_rm.agent_runtime import set_token_sink
+
+    mid = repo.create_mission("M", ["RGPD"])
+    set_token_sink(lambda i, o, m: repo.log_tokens(mid, input_tokens=i, output_tokens=o, model_used=m))
+    try:
+        agent_runtime._record_tokens(object())        # no metrics attribute
+        agent_runtime._record_tokens(None)            # nothing at all
+    finally:
+        set_token_sink(None)
+    assert repo.token_totals(mid)["llm_calls"] == 0   # ignored, no exception

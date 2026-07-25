@@ -92,12 +92,13 @@ class AgnoWorkshop1Runner:
         mission_context: MissionContext,
         framework: str,
         controls: list[BaselineControl],
+        revision_notes: list[str] | None = None,
     ) -> list[ControlAssessmentProposal]:
         if not controls:
             return []
         batch = self._run_structured(
             ControlAssessmentBatch,
-            prompts.controls_prompt(mission_context, framework, controls),
+            prompts.controls_prompt(mission_context, framework, controls, revision_notes),
             what=f"baseline assessment ({framework})",
         )
         return batch.assessments
@@ -107,12 +108,13 @@ class AgnoWorkshop1Runner:
         mission_context: MissionContext,
         events: list[FearedEvent],
         provisions: list[BaselineControl],
+        revision_notes: list[str] | None = None,
     ) -> list[LegalImpactAssignment]:
         if not events or not provisions:
             return []
         batch = self._run_structured(
             LegalImpactBatch,
-            prompts.legal_impacts_prompt(mission_context, events, provisions),
+            prompts.legal_impacts_prompt(mission_context, events, provisions, revision_notes),
             what="legal-impact assessment",
         )
         return batch.impacts

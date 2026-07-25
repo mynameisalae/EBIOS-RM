@@ -137,7 +137,7 @@ class FakeRunner:
             ],
         )
 
-    def assess_controls(self, mission_context, framework, controls):
+    def assess_controls(self, mission_context, framework, controls, revision_notes=None):
         out: list[ControlAssessmentProposal] = []
         for c in controls:
             if c.control_id == self.gap_control_id:
@@ -153,7 +153,7 @@ class FakeRunner:
                 ))
         return out
 
-    def assess_legal_impacts(self, mission_context, events, provisions):
+    def assess_legal_impacts(self, mission_context, events, provisions, revision_notes=None):
         if not events or not provisions:
             return []
         return [

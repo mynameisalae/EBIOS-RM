@@ -37,7 +37,7 @@ def repo():
 
 def _stub_run_workshop(cli, repo, mission_id):
     """Mimic a real run: save a new version (so the cap counter grows), return a marker output."""
-    def run(_repo, _mid, _mc, _ref, revision_notes=None):
+    def run(_repo, _mid, _mc, _ref, revision_notes=None, blocks=None, previous=None):
         repo.save_output(mission_id, mission_state.WORKSHOP_1, {"note_count": len(revision_notes or [])})
         return object()
     cli._run_workshop = run
@@ -47,7 +47,7 @@ def test_reject_twice_then_approve_runs_three_times(cli, repo, monkeypatch):
     mid = repo.create_mission("M", ["RGPD"])
     runs = {"n": 0}
 
-    def run(_repo, _mid, _mc, _ref, revision_notes=None):
+    def run(_repo, _mid, _mc, _ref, revision_notes=None, blocks=None, previous=None):
         runs["n"] += 1
         repo.save_output(mid, mission_state.WORKSHOP_1, {})
         return object()
@@ -55,7 +55,8 @@ def test_reject_twice_then_approve_runs_three_times(cli, repo, monkeypatch):
     verdicts = iter([(False, "trop vague"), (False, "gravité"), (True, "")])
     monkeypatch.setattr(cli, "_run_workshop", run)
     monkeypatch.setattr(cli, "_review_and_approve", lambda *a: next(verdicts))
-    monkeypatch.setattr(cli, "_ask_yes", lambda *a, **k: True)
+    monkeypatch.setattr(cli, "_ask_choice", lambda *a, **k: "r")  # always choose: rerun the agent
+    monkeypatch.setattr(cli, "_ask_blocks", lambda *a, **k: None)  # redo everything
 
     first = cli._run_workshop(repo, mid, None, None)
     rc = cli._approval_loop(repo, mid, None, None, first)
@@ -67,14 +68,15 @@ def test_cap_then_declining_reinforced_confirm_stops(cli, repo, monkeypatch):
     mid = repo.create_mission("M", ["RGPD"])
     runs = {"n": 0}
 
-    def run(_repo, _mid, _mc, _ref, revision_notes=None):
+    def run(_repo, _mid, _mc, _ref, revision_notes=None, blocks=None, previous=None):
         runs["n"] += 1
         repo.save_output(mid, mission_state.WORKSHOP_1, {})
         return object()
 
     monkeypatch.setattr(cli, "_run_workshop", run)
     monkeypatch.setattr(cli, "_review_and_approve", lambda *a: (False, "toujours rejeté"))
-    monkeypatch.setattr(cli, "_ask_yes", lambda *a, **k: True)          # always wants another redo
+    monkeypatch.setattr(cli, "_ask_choice", lambda *a, **k: "r")  # always choose: rerun the agent
+    monkeypatch.setattr(cli, "_ask_blocks", lambda *a, **k: None)  # redo everything          # always wants another redo
     monkeypatch.setattr(cli, "_reinforced_confirm", lambda *a, **k: False)  # but declines past the cap
 
     first = cli._run_workshop(repo, mid, None, None)
@@ -87,7 +89,7 @@ def test_reinforced_confirm_allows_going_past_the_cap(cli, repo, monkeypatch):
     mid = repo.create_mission("M", ["RGPD"])
     runs = {"n": 0}
 
-    def run(_repo, _mid, _mc, _ref, revision_notes=None):
+    def run(_repo, _mid, _mc, _ref, revision_notes=None, blocks=None, previous=None):
         runs["n"] += 1
         repo.save_output(mid, mission_state.WORKSHOP_1, {})
         return object()
@@ -96,7 +98,8 @@ def test_reinforced_confirm_allows_going_past_the_cap(cli, repo, monkeypatch):
     verdicts = iter([(False, "x")] * 4 + [(True, "")])
     monkeypatch.setattr(cli, "_run_workshop", run)
     monkeypatch.setattr(cli, "_review_and_approve", lambda *a: next(verdicts))
-    monkeypatch.setattr(cli, "_ask_yes", lambda *a, **k: True)
+    monkeypatch.setattr(cli, "_ask_choice", lambda *a, **k: "r")  # always choose: rerun the agent
+    monkeypatch.setattr(cli, "_ask_blocks", lambda *a, **k: None)  # redo everything
     monkeypatch.setattr(cli, "_reinforced_confirm", lambda *a, **k: True)  # confirm past the cap
 
     first = cli._run_workshop(repo, mid, None, None)
@@ -110,7 +113,7 @@ def test_redo_notes_accumulate_from_the_decision_log(cli, repo, monkeypatch):
     mid = repo.create_mission("M", ["RGPD"])
     seen: list[list[str]] = []
 
-    def run(_repo, _mid, _mc, _ref, revision_notes=None):
+    def run(_repo, _mid, _mc, _ref, revision_notes=None, blocks=None, previous=None):
         seen.append(list(revision_notes or []))
         repo.save_output(mid, mission_state.WORKSHOP_1, {})
         return object()
@@ -125,7 +128,8 @@ def test_redo_notes_accumulate_from_the_decision_log(cli, repo, monkeypatch):
 
     monkeypatch.setattr(cli, "_run_workshop", run)
     monkeypatch.setattr(cli, "_review_and_approve", review)
-    monkeypatch.setattr(cli, "_ask_yes", lambda *a, **k: True)
+    monkeypatch.setattr(cli, "_ask_choice", lambda *a, **k: "r")  # always choose: rerun the agent
+    monkeypatch.setattr(cli, "_ask_blocks", lambda *a, **k: None)  # redo everything
 
     first = cli._run_workshop(repo, mid, None, None, cli._prior_rejection_reasons(repo, mid))
     assert cli._approval_loop(repo, mid, None, None, first) == 0

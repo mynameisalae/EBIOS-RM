@@ -81,14 +81,28 @@ def assess_framework(
     return FrameworkAssessment(gaps=gaps, insufficient=insufficient)
 
 
+def frameworks_without_controls(
+    declared_frameworks: list[str], reference_repo
+) -> list[str]:
+    """Declared frameworks that have no baseline control loaded (conception §2, §12.5).
+
+    Such a framework cannot be assessed at all: the AI must never invent referential
+    text nor assume coverage. The caller stops the workshop until a human either
+    loads the controls or explicitly withdraws the framework — silent continuation
+    would produce a report claiming coverage that was never evaluated.
+    """
+    return [fw for fw in declared_frameworks if not reference_repo.get_baseline_controls(fw)]
+
+
 def scope_decisions(
     declared_frameworks: list[str],
     controls_by_framework: dict[str, list[BaselineControl]],
 ) -> list[BaselineScopeDecision]:
     """Every declared framework is explicitly covered or excluded — never omitted (conception §15 step 6).
 
-    Guarantees a non-empty list (fiche de test §15): a framework with no controls
-    loaded is explicitly excluded with a justification rather than silently dropped.
+    Guarantees a non-empty list (fiche de test §15). A framework reaching here with
+    no controls was explicitly withdrawn by the auditor (the workshop refuses to run
+    otherwise, see frameworks_without_controls), so it is recorded as excluded.
     """
     decisions: list[BaselineScopeDecision] = []
     for framework in declared_frameworks:
@@ -107,8 +121,8 @@ def scope_decisions(
                     category=framework,
                     decision="excluded",
                     justification=(
-                        "Aucun contrôle chargé pour ce référentiel — à compléter via le plugin "
-                        "correspondant avant exploitation (conception §12.5)."
+                        "Aucun contrôle chargé pour ce référentiel — exclusion validée par "
+                        "l'auditeur (conception §12.5)."
                     ),
                 )
             )

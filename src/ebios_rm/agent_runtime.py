@@ -28,6 +28,39 @@ class StructuredCallFailed(RuntimeError):
     """
 
 
+# Every LLM call in the project goes through run_structured, so token accounting is
+# wired here once. The sink is set by the CLI to persist per mission; unset (default)
+# it is a no-op, keeping the library usable without a database.
+TokenSink = Callable[[int, int, str], None]
+_token_sink: TokenSink | None = None
+
+
+def set_token_sink(sink: TokenSink | None) -> None:
+    """Route token counts (input, output, model) of every call to ``sink``."""
+    global _token_sink
+    _token_sink = sink
+
+
+def _record_tokens(response: object) -> None:
+    """Report this call's token usage; never let accounting break a run."""
+    if _token_sink is None:
+        return
+    try:
+        metrics = getattr(response, "metrics", None)
+        if metrics is None:
+            return
+        model = getattr(getattr(response, "model", None), "id", None) or str(
+            getattr(response, "model", "") or "unknown"
+        )
+        _token_sink(
+            int(getattr(metrics, "input_tokens", 0) or 0),
+            int(getattr(metrics, "output_tokens", 0) or 0),
+            model,
+        )
+    except Exception:  # noqa: BLE001 — telemetry must never break the audit run
+        pass
+
+
 def run_structured(
     agent_factory: Callable[[], object],
     prompt: str,
@@ -41,7 +74,8 @@ def run_structured(
     """Run one structured call, retrying transient failures with backoff.
 
     ``agent_factory`` builds a fresh Agno Agent per attempt (they are cheap and
-    not safely reusable across failures).
+    not safely reusable across failures). Token usage of every attempt — including
+    failed ones, which are paid for too — goes to the configured sink.
     """
     progress(f"   {what}...")
     last: object = None
@@ -49,7 +83,9 @@ def run_structured(
         if attempt > 1:
             progress(f"   ... nouvel essai {attempt}/{max_attempts} ({what})")
         try:
-            content = agent_factory().run(prompt).content
+            response = agent_factory().run(prompt)
+            _record_tokens(response)
+            content = response.content
         except Exception as exc:  # noqa: BLE001 — Agno/network errors are heterogeneous
             last = exc
         else:

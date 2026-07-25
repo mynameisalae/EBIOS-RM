@@ -97,6 +97,9 @@ class Workshop1Output(BaseModel):
     # Controls whose verdict was insufficient / unproven — stay 'unverified' until the
     # auditor answers, never silently reclassified (conception §15 step 2).
     unverified_controls: list[str] = Field(default_factory=list)
+    # Corrections the auditor made directly on this output, each with its
+    # justification and provenance (conception §2, §8) — read by the report agent.
+    human_edits: list[dict] = Field(default_factory=list)
 
     def baseline_gaps_for_w4(self) -> list[BaselineGapForW4]:
         """Gaps handed to Workshop 4: framework/control_id stripped, and entries with an

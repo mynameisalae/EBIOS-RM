@@ -61,6 +61,7 @@ class Workshop1AgentRunner(Protocol):
         mission_context: MissionContext,
         framework: str,
         controls: list[BaselineControl],
+        revision_notes: list[str] | None = None,
     ) -> list[ControlAssessmentProposal]:
         """Draft an evidence-cited verdict for each baseline control of a framework."""
         ...
@@ -70,6 +71,7 @@ class Workshop1AgentRunner(Protocol):
         mission_context: MissionContext,
         events: list[FearedEvent],
         provisions: list[BaselineControl],
+        revision_notes: list[str] | None = None,
     ) -> list[LegalImpactAssignment]:
         """Flag which declared legal provisions are relevant to which feared events."""
         ...

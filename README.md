@@ -91,15 +91,40 @@ the questions you can, at any prompt:
 
 ### If you reject the result
 
-Your reason is recorded in the decision log **and fed back to the agent**: it
-offers to re-run Workshop 1 taking your remark into account, and the new attempt
-is told explicitly what to fix. Reasons accumulate, so a second redo still sees
-the first remark. Each attempt is kept as its own version — nothing is
-overwritten, and only an approved version is marked complete.
+Your reason is recorded in the decision log, then you choose:
 
-After 3 versions the rollback cap (conception §12.6) kicks in: a further redo
-requires typing `CONFIRMER`. Declining at any point keeps the last version,
-stored as *not approved*.
+- **`c` — correct it yourself.** Give the field path
+  (`evenements_redoutes.0.gravite`), the new value, and a justification (required).
+  No LLM call; the change is saved as a new version carrying an edit trail
+  (what changed, from what, by whom, why) that the report will show.
+- **`r` — let the agent redo it.** You pick *which parts* to regenerate —
+  assets/feared events, baseline gaps, legal impacts, or all — and only those are
+  re-run. The rest is kept **verbatim**, so rejecting a wrong gravité never
+  reshuffles assets you were happy with. Your reason is passed to the agent as an
+  explicit instruction, and reasons accumulate across attempts.
+- **`q` — stop.** The last version is kept, stored as *not approved*.
+
+Every attempt is its own version; nothing is overwritten, and only an approved
+version counts as complete. After 3 versions the rollback cap (conception §12.6)
+requires typing `CONFIRMER` to go further.
+
+### Missing referential controls
+
+If a declared framework has no controls loaded, the run **stops** before the
+workshop: the agent must never invent referential text or assume coverage. Either
+fill that plugin's `controls.json`, rebuild the reference DB and `--resume`, or
+explicitly withdraw the framework with a reason (logged as a decision).
+
+### Token usage
+
+Every LLM call's tokens are recorded per mission.
+
+```bash
+python scripts/mission_tokens.py                 # all missions
+python scripts/mission_tokens.py <mission_id>    # one mission, broken down by model
+```
+
+Cost is reported as `0`: only tokens are counted, no pricing table is baked in.
 
 ### Stop and continue later
 

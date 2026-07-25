@@ -57,15 +57,21 @@ def _mission_context_block(mc: MissionContext) -> str:
     )
 
 
+def _revision_block(revision_notes: list[str] | None) -> str:
+    """The auditor's rejection reasons, injected only on a redo (conception §12.6)."""
+    if not revision_notes:
+        return ""
+    joined = "\n".join(f"- {note}" for note in revision_notes if note and note.strip())
+    if not joined:
+        return ""
+    return (
+        "\n\nREMARQUES DE L'AUDITEUR SUR LA OU LES VERSIONS PRÉCÉDENTES (à corriger "
+        "impérativement dans cette nouvelle proposition) :\n" + joined + "\n"
+    )
+
+
 def cadrage_prompt(mc: MissionContext, revision_notes: list[str] | None = None) -> str:
-    revision = ""
-    if revision_notes:
-        joined = "\n".join(f"- {note}" for note in revision_notes if note and note.strip())
-        if joined:
-            revision = (
-                "\n\nREMARQUES DE L'AUDITEUR SUR LA OU LES VERSIONS PRÉCÉDENTES (à corriger "
-                "impérativement dans cette nouvelle proposition) :\n" + joined + "\n"
-            )
+    revision = _revision_block(revision_notes)
     return (
         "À partir du Mission Context suivant (composé uniquement de faits validés), "
         "propose les biens essentiels, les biens supports, et les événements redoutés "
@@ -77,7 +83,8 @@ def cadrage_prompt(mc: MissionContext, revision_notes: list[str] | None = None) 
     )
 
 
-def controls_prompt(mc: MissionContext, framework: str, controls: list[BaselineControl]) -> str:
+def controls_prompt(mc: MissionContext, framework: str, controls: list[BaselineControl],
+                    revision_notes: list[str] | None = None) -> str:
     control_list = json.dumps(
         [{"control_id": c.control_id, "description": c.description, "category": c.category} for c in controls],
         ensure_ascii=False,
@@ -89,14 +96,16 @@ def controls_prompt(mc: MissionContext, framework: str, controls: list[BaselineC
         "'insufficient_information'. Un verdict 'compliant' ou 'gap' DOIT citer, dans "
         "evidence_quote, le passage précis du Mission Context qui le justifie ; sans "
         "preuve, utilise 'insufficient_information'. Pour un 'gap', renseigne weakness "
-        "(l'écart constaté, formulé sans référence au référentiel).\n\n"
-        f"CONTRÔLES:\n{control_list}\n\n"
+        "(l'écart constaté, formulé sans référence au référentiel)."
+        + _revision_block(revision_notes)
+        + f"\n\nCONTRÔLES:\n{control_list}\n\n"
         f"MISSION CONTEXT:\n{_mission_context_block(mc)}"
     )
 
 
 def legal_impacts_prompt(
-    mc: MissionContext, events: list[FearedEvent], provisions: list[BaselineControl]
+    mc: MissionContext, events: list[FearedEvent], provisions: list[BaselineControl],
+    revision_notes: list[str] | None = None,
 ) -> str:
     events_block = json.dumps(
         [{"id": e.id, "description": e.description} for e in events], ensure_ascii=False, indent=2
@@ -113,8 +122,9 @@ def legal_impacts_prompt(
         "Pour chaque événement redouté, indique quelles dispositions légales ci-dessous "
         "sont pertinentes, et pour chacune cite le fait précis du Mission Context qui "
         "établit cette pertinence (evidence_mission_context). N'associe une disposition "
-        "que si un fait la justifie réellement.\n\n"
-        f"ÉVÉNEMENTS REDOUTÉS:\n{events_block}\n\n"
+        "que si un fait la justifie réellement."
+        + _revision_block(revision_notes)
+        + f"\n\nÉVÉNEMENTS REDOUTÉS:\n{events_block}\n\n"
         f"DISPOSITIONS LÉGALES:\n{provisions_block}\n\n"
         f"MISSION CONTEXT:\n{_mission_context_block(mc)}"
     )

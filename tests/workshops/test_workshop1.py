@@ -126,3 +126,107 @@ def test_gap_without_evidence_is_downgraded_to_insufficient(reference_repo):
     result = assess_framework("ANSSI_hygiene", controls, proposals)
     assert result.gaps == []
     assert controls[0].control_id in result.insufficient
+
+
+# --- hard stop: a declared framework with no controls cannot be assessed (§2, §12.5) ---
+
+def test_frameworks_without_controls_detects_unloaded_ones(reference_repo):
+    from ebios_rm.workshops.workshop1_cadrage.assessment import frameworks_without_controls
+
+    missing = frameworks_without_controls(["ANSSI_hygiene", "RGPD", "HDS", "ISO27001"], reference_repo)
+    # The dev seed loads ANSSI/RGPD/NIST only; HDS and ISO27001 have nothing.
+    assert set(missing) == {"HDS", "ISO27001"}
+
+
+def test_no_missing_frameworks_when_all_are_loaded(reference_repo):
+    from ebios_rm.workshops.workshop1_cadrage.assessment import frameworks_without_controls
+
+    assert frameworks_without_controls(["ANSSI_hygiene", "RGPD"], reference_repo) == []
+
+
+# --- partial redo: regenerate only the rejected block(s), keep the rest (§12.6) ---
+
+class _CountingRunner(FakeRunner):
+    """Counts which agent calls actually happen, so a partial redo can be verified."""
+
+    def __init__(self, gravite=None):
+        super().__init__()
+        self.calls = {"cadrage": 0, "controls": 0, "legal": 0}
+        self._gravite = gravite
+
+    def propose_cadrage(self, mission_context, revision_notes=None):
+        self.calls["cadrage"] += 1
+        proposal = super().propose_cadrage(mission_context, revision_notes)
+        if self._gravite:
+            proposal.evenements_redoutes[0].gravite = self._gravite
+            proposal.evenements_redoutes[0].description = "Version régénérée"
+        return proposal
+
+    def assess_controls(self, mission_context, framework, controls, revision_notes=None):
+        self.calls["controls"] += 1
+        return super().assess_controls(mission_context, framework, controls, revision_notes)
+
+    def assess_legal_impacts(self, mission_context, events, provisions, revision_notes=None):
+        self.calls["legal"] += 1
+        return super().assess_legal_impacts(mission_context, events, provisions, revision_notes)
+
+
+def _context():
+    human = ScriptedHuman(answers={"edr_av_deploye": "Defender", "sauvegarde_strategie": "quotidienne"})
+    return complete_intake_from_facts(_ingested_facts(), [], human)
+
+
+def test_redoing_only_cadrage_keeps_baseline_and_skips_its_calls(reference_repo):
+    from ebios_rm.workshops.workshop1_cadrage.workshop import BLOCK_CADRAGE
+
+    mc = _context()
+    first = run_workshop1(mc, _CountingRunner(), reference_repo)
+    runner = _CountingRunner(gravite=Gravite.MINIMALE)
+    second = run_workshop1(mc, runner, reference_repo, ["gravité à revoir"],
+                           blocks={BLOCK_CADRAGE}, previous=first)
+
+    assert runner.calls == {"cadrage": 1, "controls": 0, "legal": 0}   # only the rejected block ran
+    assert second.evenements_redoutes[0].description == "Version régénérée"
+    assert second.baseline_gaps_full == first.baseline_gaps_full        # untouched, verbatim
+    assert second.unverified_controls == first.unverified_controls
+
+
+def test_redoing_only_baseline_keeps_the_assets_the_auditor_liked(reference_repo):
+    from ebios_rm.workshops.workshop1_cadrage.workshop import BLOCK_BASELINE
+
+    mc = _context()
+    first = run_workshop1(mc, _CountingRunner(), reference_repo)
+    runner = _CountingRunner(gravite=Gravite.MINIMALE)  # would change cadrage if it ran
+    second = run_workshop1(mc, runner, reference_repo, ["écart mal formulé"],
+                           blocks={BLOCK_BASELINE}, previous=first)
+
+    assert runner.calls["cadrage"] == 0 and runner.calls["legal"] == 0
+    assert runner.calls["controls"] >= 1
+    assert second.biens_essentiels == first.biens_essentiels            # not reshuffled
+    assert second.evenements_redoutes[0].gravite == first.evenements_redoutes[0].gravite
+
+
+def test_partial_redo_requires_the_previous_output(reference_repo):
+    import pytest
+    from ebios_rm.workshops.workshop1_cadrage.workshop import BLOCK_LEGAL
+
+    with pytest.raises(ValueError):
+        run_workshop1(_context(), _CountingRunner(), reference_repo, blocks={BLOCK_LEGAL})
+
+
+def test_full_redo_regenerates_everything(reference_repo):
+    mc = _context()
+    first = run_workshop1(mc, _CountingRunner(), reference_repo)
+    runner = _CountingRunner()
+    run_workshop1(mc, runner, reference_repo, ["tout revoir"], blocks=None, previous=first)
+    assert runner.calls["cadrage"] == 1 and runner.calls["controls"] >= 1 and runner.calls["legal"] == 1
+
+
+def test_partial_redo_preserves_human_edits(reference_repo):
+    from ebios_rm.workshops.workshop1_cadrage.workshop import BLOCK_BASELINE
+
+    mc = _context()
+    first = run_workshop1(mc, _CountingRunner(), reference_repo)
+    first.human_edits = [{"path": "x", "justification": "correction auditeur"}]
+    second = run_workshop1(mc, _CountingRunner(), reference_repo, blocks={BLOCK_BASELINE}, previous=first)
+    assert second.human_edits == first.human_edits  # the audit trail survives a redo
