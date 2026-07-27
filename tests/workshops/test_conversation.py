@@ -143,3 +143,37 @@ def test_garbage_then_answer():
     hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
 
     assert hi.ask_followup(_q()) == "Aucun EDR déployé"
+
+
+# --- skip must be typed explicitly; a stray Enter is never a decision (§8) ---
+
+def test_blank_line_does_not_start_a_skip():
+    runner = ScriptedTurnRunner({"Defender": TurnResult(intent="answer", answer="Defender")})
+    ask, show, out = _io(["", "Defender"])          # Enter, then a real answer
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    assert hi.ask_followup(_q()) == "Defender"      # blank re-prompted, no skip flow
+    assert any("tapez 'skip'" in line for line in out)
+
+
+def test_typed_skip_still_requires_a_reason():
+    # Empty reason -> the skip is not accepted and the question comes back, so a
+    # mistyped 'skip' is escapable by simply answering.
+    runner = ScriptedTurnRunner({})
+    ask, show, out = _io(["skip", "", "skip", "client injoignable"])
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    result = hi.ask_followup(_q())
+    assert isinstance(result, SkipRequested)
+    assert result.reason == "client injoignable"
+    assert runner.seen == []                        # skip never reaches the LLM
+    assert any("motif non vide est obligatoire" in line for line in out)
+
+
+def test_skip_is_refused_on_a_blocking_question():
+    runner = ScriptedTurnRunner({"Paris": TurnResult(intent="answer", answer="Paris")})
+    ask, show, out = _io(["skip", "Paris"])
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    assert hi.ask_followup(_q(blocking=True)) == "Paris"
+    assert any("ne peut pas être passée" in line for line in out)

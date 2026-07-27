@@ -1,12 +1,43 @@
-# ISO 27001 (Annexe A) — conception §12.2
-id: ISO27001
-name: "ISO/IEC 27001 (Annexe A)"
-framework_version: "2022"
-legal_nature: >
-  Norme sous licence commerciale ISO. Le texte réel des contrôles doit être
-  extrait depuis la copie sous licence détenue par l'entreprise — usage
-  strictement interne, jamais redistribué à un client externe.
-has_legal_impact_provisions: false
-default_suggested: true
 
-# atelier 4 behavior: normal — every entry feeds baseline_gaps_considered (§12.2).
+# ==============================================================================
+# CONFIGURATION DU FRAMEWORK
+# ==============================================================================
+
+# 2. ID TECHNIQUE
+# Ce que ça signifie : L'identifiant technique unique du standard dans la base de données.
+# Pourquoi on le met : Il doit correspondre exactement au nom du dossier physique sur votre PC.
+# Comment l'IA l'utilise : Lors des requêtes SQL, l'IA utilise cet ID comme clé pour lier vos 93 règles du fichier controls.json à ce manifest.
+# Exemple de requête interne de l'IA : SELECT * FROM baseline_controls WHERE framework = 'iso27001';
+id: ISO27001
+# 3. NOM DU FRAMEWORK
+# Ce que ça signifie : Le nom complet officiel qui sera affiché à l'écran.
+# Pourquoi on le met : L'identifiant technique iso27001 est froid et réservé à la machine. L'humain a besoin d'un nom propre et élégant.
+# Comment l'IA l'utilise : Lors de la génération automatique du rapport d'audit final (le livrable Word/PDF que vous donnez au client à la fin de la mission), l'IA va injecter ce nom exact dans les titres de chapitres.
+name: "ISO/IEC 27001:2022 - Annex A"
+
+# 4. VERSION DE LA NORME
+# Ce que ça signifie : La version de la norme.
+# Pourquoi on le met : Les normes évoluent avec le temps. L'ISO 27001 a eu une version majeure en 2013, puis une nouvelle en 2022 (celle de votre licence). Les numéros de règles ont totalement changé entre les deux.
+# Comment l'IA l'utilise : L'IA vérifie la version pour s'assurer qu'elle n'utilise pas des règles obsolètes de 2013 si le client a demandé un audit sur la version 2022.
+framework_version: "2022"
+
+# 5. NATURE JURIDIQUE (TEXTE MULTI-LIGNE)
+# Ce que ça signifie : Le statut juridique de la licence de ce texte.
+# Pourquoi on le met : Pour la traçabilité juridique (Conception §12.2). Cela prouve informatiquement que l'usage de ce texte est légitime (ici, couvert par votre licence d'achat AFNOR).
+# Comment l'IA l'utilise : Ce texte est imprimé dans l'annexe administrative du rapport pour certifier la conformité de l'audit vis-à-vis des droits d'auteur.
+legal_nature: >
+  Copyrighted document licensed by AFNOR for exclusive, non-collective internal use.
+  Transcription of Annex A controls (Clauses 5 to 8) for private risk assessment purposes.
+
+# 6. IMPACT JURIDIQUE / SANCTIONS
+# Ce que ça signifie : Indique si ce standard contient des règles dont le non-respect entraîne des sanctions pénales ou des amendes juridiques directes.
+# Pourquoi on le met : L'ISO 27001 est une norme de bonnes pratiques physiques et techniques, pas une loi. Ne pas l'appliquer n'envoie personne en prison. (À l'inverse, le RGPD aurait cette valeur à true, car une violation du RGPD expose à des amendes de la CNIL).
+# Comment l'IA l'utilise : Lors de l'Atelier 3 (Scénarios stratégiques), si la valeur est false, l'IA évalue les conséquences d'une attaque uniquement sous l'angle opérationnel et financier. Si la valeur avait été true, l'IA aurait automatiquement ajouté un scénario de "Risque juridique / Sanction réglementaire".
+has_legal_impact_provisions: false
+
+# 7. PROPOSITION PAR DÉFAUT
+# Ce que ça signifie : Indique si ce standard doit être proposé par défaut lors d'une nouvelle mission.
+# Pourquoi on le met : L'ISO 27001 est la norme la plus demandée au monde en sécurité.
+# Comment l'IA l'utilise : Lorsque vous lancez le script d'audit dans votre terminal : `python scripts/run_workshop1_from_docs.py`
+# L'IA va lire cette ligne et vous proposer l'ISO 27001 en tête de liste des choix recommandés pour démarrer l'audit du client.
+default_suggested: true

@@ -1,1 +1,137 @@
-[]
+[
+    {
+        "control_id": "RGPD-Art5",
+        "framework": "rgpd",
+        "description": "Principes relatifs au traitement des données : Les données à caractère personnel doivent être traitées de manière à garantir une sécurité appropriée, y compris la protection contre le traitement non autorisé ou illicite et contre la perte, la destruction ou les dégâts d'origine accidentelle, à l'aide de mesures techniques ou organisationnelles appropriées (intégrité et confidentialité).",
+        "category": "principes",
+        "covers_risk_category": [
+            "exfiltration"
+        ],
+        "framework_version": "2016/679",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "RGPD-Art24",
+        "framework": "rgpd",
+        "description": "Responsabilité du responsable du traitement : Compte tenu de la nature, de la portée, du contexte et des finalités du traitement ainsi que des risques, le responsable du traitement met en œuvre des mesures techniques et organisationnelles appropriées pour s'assurer et être en mesure de démontrer que le traitement est effectué conformément au présent règlement.",
+        "category": "gouvernance",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2016/679",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "RGPD-Art25",
+        "framework": "rgpd",
+        "description": "Protection des données dès la conception et par défaut : Tant au moment de la détermination des moyens de traitement qu'au moment du traitement lui-même, mettre en œuvre des mesures techniques et organisationnelles appropriées de manière à intégrer les garanties nécessaires dans le traitement (minimisation, pseudonymisation) afin de protéger les droits des personnes.",
+        "category": "conception",
+        "covers_risk_category": [
+            "initial_access",
+            "exfiltration"
+        ],
+        "framework_version": "2016/679",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "RGPD-Art28",
+        "framework": "rgpd",
+        "description": "Sous-traitant : Lorsqu'un traitement doit être effectué pour le compte d'un responsable du traitement, celui-ci fait uniquement appel à des sous-traitants qui présentent des garanties suffisantes quant à la mise en œuvre de mesures techniques et organisationnelles appropriées.",
+        "category": "sous_traitance",
+        "covers_risk_category": [
+            "initial_access",
+            "exfiltration"
+        ],
+        "framework_version": "2016/679",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "RGPD-Art30",
+        "framework": "rgpd",
+        "description": "Registre des activités de traitement : Chaque responsable du traitement et, le cas échéant, son représentant tiennent un registre des activités de traitement effectuées sous leur responsabilité.",
+        "category": "conformité",
+        "covers_risk_category": [],
+        "framework_version": "2016/679",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "RGPD-Art32",
+        "framework": "rgpd",
+        "description": "Sécurité du traitement : Le responsable du traitement et le sous-traitant mettent en œuvre les mesures techniques et organisationnelles appropriées afin de garantir un niveau de sécurité adapté au risque (pseudonymisation, chiffrement, garantie de confidentialité, d'intégrité, de disponibilité et de résilience, procédures de test régulières).",
+        "category": "sécurité_technique",
+        "covers_risk_category": [
+            "credential_access",
+            "exfiltration",
+            "data_destruction",
+            "impact"
+        ],
+        "framework_version": "2016/679",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "RGPD-Art33",
+        "framework": "rgpd",
+        "description": "Notification d'une violation de données à caractère personnel à l'autorité de contrôle : En cas de violation de données, notifier la violation à l'autorité de contrôle compétente (la CNIL) sans retard injustifié et, si possible, 72 heures au plus tard après en avoir pris connaissance.",
+        "category": "gestion_incident",
+        "covers_risk_category": [],
+        "framework_version": "2016/679",
+        "legal_impact_type": "mandatory_notification",
+        "legal_impact_details": "Notification obligatoire de la violation de données à la CNIL dans un délai maximal de 72 heures après en avoir pris connaissance."
+    },
+    {
+        "control_id": "RGPD-Art34",
+        "framework": "rgpd",
+        "description": "Communication d'une violation de données à caractère personnel à la personne concernée : Lorsqu'une violation de données est susceptible d'engendrer un risque élevé pour les droits et libertés d'une personne physique, communiquer la violation à la personne concernée dans les meilleurs délais.",
+        "category": "gestion_incident",
+        "covers_risk_category": [],
+        "framework_version": "2016/679",
+        "legal_impact_type": "mandatory_notification",
+        "legal_impact_details": "Communication obligatoire et sans retard injustifié de la violation aux personnes concernées si le risque pour leurs droits et libertés est élevé."
+    },
+    {
+        "control_id": "RGPD-Art35",
+        "framework": "rgpd",
+        "description": "Analyse d'impact relative à la protection des données (DPIA / AIPD) : Lorsqu'un type de traitement est susceptible d'engendrer un risque élevé pour les droits et libertés des personnes physiques, effectuer, avant le traitement, une analyse de l'impact des opérations de traitement envisagées sur la protection des données.",
+        "category": "conformité",
+        "covers_risk_category": [],
+        "framework_version": "2016/679",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "RGPD-Art37",
+        "framework": "rgpd",
+        "description": "Désignation d'un délégué à la protection des données (DPO) : Le responsable du traitement et le sous-traitant désignent un délégué à la protection des données dans les cas où le traitement est effectué par une autorité publique ou que les activités de traitement exigent un suivi régulier et systématique à grande échelle.",
+        "category": "gouvernance",
+        "covers_risk_category": [],
+        "framework_version": "2016/679",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "RGPD-Art82",
+        "framework": "rgpd",
+        "description": "Droit à réparation et responsabilité : Toute personne ayant subi un préjudice matériel ou moral du fait d'une violation du présent règlement a le droit d'obtenir du responsable du traitement ou du sous-traitant réparation du préjudice subi devant les tribunaux.",
+        "category": "sanctions",
+        "covers_risk_category": [],
+        "framework_version": "2016/679",
+        "legal_impact_type": "liability",
+        "legal_impact_details": "Responsabilité civile et obligation de réparation pécuniaire intégrale devant les tribunaux judiciaires pour tout préjudice matériel ou moral subi par une personne physique."
+    },
+    {
+        "control_id": "RGPD-Art83",
+        "framework": "rgpd",
+        "description": "Conditions générales pour l'imposition d'amendes administratives : Chaque autorité de contrôle veille à ce que l'imposition d'amendes administratives pour des violations du présent règlement soit effective, proportionnée et dissuasive.",
+        "category": "sanctions",
+        "covers_risk_category": [],
+        "framework_version": "2016/679",
+        "legal_impact_type": "financial_penalty",
+        "legal_impact_details": "Amendes administratives pouvant s'élever jusqu'à 20 000 000 EUR ou, dans le cas d'une entreprise, jusqu'à 4 % du chiffre d'affaires annuel mondial total de l'exercice précédent, le montant le plus élevé étant retenu."
+    }
+]

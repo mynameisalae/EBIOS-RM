@@ -1,1 +1,1220 @@
-[]
+[
+    {
+        "control_id": "NIST-GV.OC-01",
+        "framework": "nist_csf",
+        "description": "The organizational mission is understood and informs cybersecurity risk management.",
+        "category": "govern",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.OC-02",
+        "framework": "nist_csf",
+        "description": "Internal and external stakeholders are understood, and their needs and expectations regarding cybersecurity risk management are understood and considered.",
+        "category": "govern",
+        "covers_risk_category": [],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.OC-03",
+        "framework": "nist_csf",
+        "description": "Legal, regulatory, and contractual requirements regarding cybersecurity - including privacy and civil liberties obligations - are understood and managed.",
+        "category": "govern",
+        "covers_risk_category": [
+            "exfiltration"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.OC-04",
+        "framework": "nist_csf",
+        "description": "Critical objectives, capabilities, and services that stakeholders depend on or expect are determined.",
+        "category": "govern",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.OC-05",
+        "framework": "nist_csf",
+        "description": "The organization's place in the critical infrastructure sector(s) and its broader ecosystem is understood.",
+        "category": "govern",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.RM-01",
+        "framework": "nist_csf",
+        "description": "Cybersecurity risk management objectives are established and agreed to by organizational leadership.",
+        "category": "govern",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.RM-02",
+        "framework": "nist_csf",
+        "description": "Risk appetite and risk tolerance statements are defined, communicated, and used to guide risk decisions.",
+        "category": "govern",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.RM-03",
+        "framework": "nist_csf",
+        "description": "Strategic risk management priorities are established and communicated.",
+        "category": "govern",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.RM-04",
+        "framework": "nist_csf",
+        "description": "A standardized risk assessment methodology is defined and communicated.",
+        "category": "govern",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.RM-05",
+        "framework": "nist_csf",
+        "description": "Strategic risks to the organization are evaluated and monitored to inform resource allocation.",
+        "category": "govern",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.RM-06",
+        "framework": "nist_csf",
+        "description": "An organization-wide cybersecurity risk profile is developed and maintained.",
+        "category": "govern",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.RM-07",
+        "framework": "nist_csf",
+        "description": "Strategic decisions are informed by cybersecurity risk assessments.",
+        "category": "govern",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.RR-01",
+        "framework": "nist_csf",
+        "description": "Organizational leadership is responsible and accountable for cybersecurity risk management.",
+        "category": "govern",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.RR-02",
+        "framework": "nist_csf",
+        "description": "Cybersecurity roles, responsibilities, and authorities are allocated, communicated, and understood.",
+        "category": "govern",
+        "covers_risk_category": [
+            "initial_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.RR-03",
+        "framework": "nist_csf",
+        "description": "Adequate resources are allocated to cybersecurity activities.",
+        "category": "govern",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.RR-04",
+        "framework": "nist_csf",
+        "description": "Cybersecurity performance is evaluated and reported to leadership.",
+        "category": "govern",
+        "covers_risk_category": [],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.PO-01",
+        "framework": "nist_csf",
+        "description": "Cybersecurity policies are established, approved, and communicated.",
+        "category": "govern",
+        "covers_risk_category": [
+            "initial_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.PO-02",
+        "framework": "nist_csf",
+        "description": "Cybersecurity policies are reviewed and updated periodically to reflect changes in risks.",
+        "category": "govern",
+        "covers_risk_category": [
+            "initial_access",
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.OV-01",
+        "framework": "nist_csf",
+        "description": "Cybersecurity risk management performance is reviewed by leadership to ensure alignment with goals.",
+        "category": "govern",
+        "covers_risk_category": [],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.OV-02",
+        "framework": "nist_csf",
+        "description": "The risk management strategy is adjusted based on oversight outcomes.",
+        "category": "govern",
+        "covers_risk_category": [],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.OV-03",
+        "framework": "nist_csf",
+        "description": "The organization's alignment with cybersecurity standards, guidelines, and compliance requirements is assessed.",
+        "category": "govern",
+        "covers_risk_category": [],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.SC-01",
+        "framework": "nist_csf",
+        "description": "A cybersecurity supply chain risk management program is established, approved, and implemented.",
+        "category": "govern",
+        "covers_risk_category": [
+            "initial_access"
+        ],
+        "framework_version": "2022",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.SC-02",
+        "framework": "nist_csf",
+        "description": "Suppliers and third-party partners are identified, categorized, and prioritized based on criticality.",
+        "category": "govern",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.SC-03",
+        "framework": "nist_csf",
+        "description": "Cybersecurity requirements are integrated into contracts and agreements with suppliers.",
+        "category": "govern",
+        "covers_risk_category": [
+            "initial_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.SC-04",
+        "framework": "nist_csf",
+        "description": "Suppliers are monitored to ensure they meet agreed-upon cybersecurity obligations.",
+        "category": "govern",
+        "covers_risk_category": [
+            "initial_access",
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.SC-05",
+        "framework": "nist_csf",
+        "description": "The organization plans for supplier relationship terminations and service transition.",
+        "category": "govern",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.SC-06",
+        "framework": "nist_csf",
+        "description": "Supply chain risks are assessed, recorded, and integrated into organizational risk management.",
+        "category": "govern",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.SC-07",
+        "framework": "nist_csf",
+        "description": "Critical suppliers and third parties are verified through independent audits or assessments.",
+        "category": "govern",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.SC-08",
+        "framework": "nist_csf",
+        "description": "Software, hardware, and services integrity in the supply chain is verified before use.",
+        "category": "govern",
+        "covers_risk_category": [
+            "initial_access",
+            "defense_evasion"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.SC-09",
+        "framework": "nist_csf",
+        "description": "The organization manages risks associated with systems managed or hosted by suppliers.",
+        "category": "govern",
+        "covers_risk_category": [
+            "initial_access",
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-GV.SC-10",
+        "framework": "nist_csf",
+        "description": "Supply chain security practices are integrated into enterprise risk management.",
+        "category": "govern",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.AM-01",
+        "framework": "nist_csf",
+        "description": "Inventories of physical devices managed by the organization are maintained.",
+        "category": "identify",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.AM-02",
+        "framework": "nist_csf",
+        "description": "Inventories of software platforms, services, and applications managed by the organization are maintained.",
+        "category": "identify",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.AM-03",
+        "framework": "nist_csf",
+        "description": "Representations of the organization's authorized network communication and internal and external network data flows are maintained.",
+        "category": "identify",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.AM-04",
+        "framework": "nist_csf",
+        "description": "Inventories of services provided by suppliers are maintained.",
+        "category": "identify",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.AM-05",
+        "framework": "nist_csf",
+        "description": "Assets (hardware, software, data, services, people) are prioritized based on classification, criticality, and organizational mission.",
+        "category": "identify",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.AM-07",
+        "framework": "nist_csf",
+        "description": "Personnel and partners are assigned designated cybersecurity roles and their lifecycle is managed.",
+        "category": "identify",
+        "covers_risk_category": [
+            "initial_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.AM-08",
+        "framework": "nist_csf",
+        "description": "Critical organizational processes and assets that support them are identified and documented.",
+        "category": "identify",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.RA-01",
+        "framework": "nist_csf",
+        "description": "Vulnerabilities in physical and logical assets are identified and recorded.",
+        "category": "identify",
+        "covers_risk_category": [
+            "reconnaissance",
+            "initial_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.RA-02",
+        "framework": "nist_csf",
+        "description": "Cyber threat intelligence is received, analyzed, and integrated to understand active threats.",
+        "category": "identify",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.RA-03",
+        "framework": "nist_csf",
+        "description": "Internal and external cyber threats are identified, monitored, and analyzed.",
+        "category": "identify",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.RA-04",
+        "framework": "nist_csf",
+        "description": "Potential impacts and likelihood of risks materializing are analyzed and calculated.",
+        "category": "identify",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.RA-05",
+        "framework": "nist_csf",
+        "description": "Threats, vulnerabilities, likelihoods, and impacts are used to calculate risk levels.",
+        "category": "identify",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.RA-06",
+        "framework": "nist_csf",
+        "description": "Risk assessment results are prioritized and documented to support strategic decisions.",
+        "category": "identify",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.RA-07",
+        "framework": "nist_csf",
+        "description": "Cybersecurity risks from emerging technologies and changes in the threat landscape are identified and assessed.",
+        "category": "identify",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.IM-01",
+        "framework": "nist_csf",
+        "description": "Improvements to cybersecurity risk management processes are identified and prioritized.",
+        "category": "identify",
+        "covers_risk_category": [],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.IM-02",
+        "framework": "nist_csf",
+        "description": "Action plans to implement cybersecurity process improvements are developed and executed.",
+        "category": "identify",
+        "covers_risk_category": [],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.IM-03",
+        "framework": "nist_csf",
+        "description": "Assessments of the current state of cybersecurity practices are used to drive continuous improvement.",
+        "category": "identify",
+        "covers_risk_category": [],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-ID.IM-04",
+        "framework": "nist_csf",
+        "description": "Feedback from internal and external audits is integrated into continuous improvement plans.",
+        "category": "identify",
+        "covers_risk_category": [],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.AA-01",
+        "framework": "nist_csf",
+        "description": "Identities and credentials for authorized users and devices are managed throughout their lifecycle.",
+        "category": "protect",
+        "covers_risk_category": [
+            "initial_access",
+            "credential_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.AA-02",
+        "framework": "nist_csf",
+        "description": "Physical and logical access permissions are granted, reviewed, modified, and revoked based on least privilege and separation of duties.",
+        "category": "protect",
+        "covers_risk_category": [
+            "privilege_escalation"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.AA-03",
+        "framework": "nist_csf",
+        "description": "Users, devices, and other assets are authenticated before logical or physical access is granted.",
+        "category": "protect",
+        "covers_risk_category": [
+            "initial_access",
+            "credential_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.AA-04",
+        "framework": "nist_csf",
+        "description": "Multi-factor authentication (MFA) is implemented for all administrative and remote logical access.",
+        "category": "protect",
+        "covers_risk_category": [
+            "initial_access",
+            "credential_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.AA-05",
+        "framework": "nist_csf",
+        "description": "Access to administrative and privileged accounts is tightly controlled and monitored.",
+        "category": "protect",
+        "covers_risk_category": [
+            "privilege_escalation"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.AT-01",
+        "framework": "nist_csf",
+        "description": "All personnel are trained upon hire and periodically on basic security hygiene, social engineering, and acceptable use.",
+        "category": "protect",
+        "covers_risk_category": [
+            "initial_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.AT-02",
+        "framework": "nist_csf",
+        "description": "Specialized training is provided to personnel with specific roles and responsibilities (e.g., developers, administrators).",
+        "category": "protect",
+        "covers_risk_category": [
+            "initial_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.DS-01",
+        "framework": "nist_csf",
+        "description": "Data-at-rest is protected using encryption, access controls, and secure storage techniques.",
+        "category": "protect",
+        "covers_risk_category": [
+            "exfiltration"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.DS-02",
+        "framework": "nist_csf",
+        "description": "Data-in-transit is protected using secure cryptographic protocols.",
+        "category": "protect",
+        "covers_risk_category": [
+            "exfiltration",
+            "credential_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.DS-10",
+        "framework": "nist_csf",
+        "description": "Data masking, pseudonymization, and tokenization techniques are applied to minimize sensitive data exposure.",
+        "category": "protect",
+        "covers_risk_category": [
+            "exfiltration"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.DS-11",
+        "framework": "nist_csf",
+        "description": "Hardware and software media containing sensitive data are securely disposed of, wiped, or destroyed.",
+        "category": "protect",
+        "covers_risk_category": [
+            "data_destruction",
+            "exfiltration"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.PS-01",
+        "framework": "nist_csf",
+        "description": "Hardware and software configurations (baselines) are established, documented, and enforced.",
+        "category": "protect",
+        "covers_risk_category": [
+            "execution",
+            "defense_evasion"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.PS-02",
+        "framework": "nist_csf",
+        "description": "Software installation is restricted, controlled, and monitored on all operational assets.",
+        "category": "protect",
+        "covers_risk_category": [
+            "execution",
+            "defense_evasion"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.PS-03",
+        "framework": "nist_csf",
+        "description": "Default configurations, default passwords, and unnecessary accounts are changed or removed.",
+        "category": "protect",
+        "covers_risk_category": [
+            "initial_access",
+            "credential_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.PS-04",
+        "framework": "nist_csf",
+        "description": "System maintenance is performed, logged, and controlled using secure administrative channels.",
+        "category": "protect",
+        "covers_risk_category": [
+            "initial_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.PS-05",
+        "framework": "nist_csf",
+        "description": "Operating systems, applications, and third-party software are patched and updated periodically.",
+        "category": "protect",
+        "covers_risk_category": [
+            "initial_access",
+            "execution"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.PS-06",
+        "framework": "nist_csf",
+        "description": "Network boundaries are protected, and logical networks are segregated based on criticality.",
+        "category": "protect",
+        "covers_risk_category": [
+            "lateral_movement"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.IR-01",
+        "framework": "nist_csf",
+        "description": "Technology infrastructure resilience is designed and built into critical systems to meet availability targets.",
+        "category": "protect",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.IR-02",
+        "framework": "nist_csf",
+        "description": "Critical infrastructure systems are provided with redundant power, networking, and HVAC systems.",
+        "category": "protect",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.IR-03",
+        "framework": "nist_csf",
+        "description": "Critical information, software, and system backups are maintained and protected offline.",
+        "category": "protect",
+        "covers_risk_category": [
+            "data_destruction",
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-PR.IR-04",
+        "framework": "nist_csf",
+        "description": "Backup recovery procedures are regularly tested and validated.",
+        "category": "protect",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-DE.AE-02",
+        "framework": "nist_csf",
+        "description": "Potentially adverse events are analyzed to better understand associated activities and determine anomalies.",
+        "category": "detect",
+        "covers_risk_category": [
+            "reconnaissance",
+            "defense_evasion"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-DE.AE-03",
+        "framework": "nist_csf",
+        "description": "Security events and logs are collected and correlated from multiple sources (SIEM/XDR).",
+        "category": "detect",
+        "covers_risk_category": [
+            "defense_evasion"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-DE.AE-04",
+        "framework": "nist_csf",
+        "description": "The estimated impact and technical scope of adverse events are determined and analyzed.",
+        "category": "detect",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-DE.AE-06",
+        "framework": "nist_csf",
+        "description": "Information on verified adverse events is communicated to authorized security staff and monitoring tools.",
+        "category": "detect",
+        "covers_risk_category": [
+            "defense_evasion"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-DE.AE-07",
+        "framework": "nist_csf",
+        "description": "Cyber threat intelligence and contextual information are integrated into adverse event analysis.",
+        "category": "detect",
+        "covers_risk_category": [
+            "reconnaissance",
+            "defense_evasion"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-DE.AE-08",
+        "framework": "nist_csf",
+        "description": "Cybersecurity incidents are formally declared when adverse events meet the organization's defined criteria.",
+        "category": "detect",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-DE.CM-01",
+        "framework": "nist_csf",
+        "description": "Network boundaries and internal communication paths are monitored to identify anomalous activity.",
+        "category": "detect",
+        "covers_risk_category": [
+            "defense_evasion",
+            "lateral_movement"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-DE.CM-02",
+        "framework": "nist_csf",
+        "description": "Physical environment and premises are monitored to detect unauthorized physical access attempts.",
+        "category": "detect",
+        "covers_risk_category": [
+            "initial_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-DE.CM-03",
+        "framework": "nist_csf",
+        "description": "Personnel and third-party actions on systems are monitored to detect unauthorized activity.",
+        "category": "detect",
+        "covers_risk_category": [
+            "defense_evasion",
+            "exfiltration"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-DE.CM-06",
+        "framework": "nist_csf",
+        "description": "Vulnerability scanning and automated testing are performed continuously to identify system flaws.",
+        "category": "detect",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-DE.CM-09",
+        "framework": "nist_csf",
+        "description": "Malicious code and unauthorized software are detected on endpoints and network boundaries.",
+        "category": "detect",
+        "covers_risk_category": [
+            "execution",
+            "defense_evasion"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.MA-01",
+        "framework": "nist_csf",
+        "description": "An incident response plan is established, maintained, and approved by organizational leadership.",
+        "category": "respond",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.MA-02",
+        "framework": "nist_csf",
+        "description": "Incident response roles and responsibilities are assigned and integrated into business processes.",
+        "category": "respond",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.MA-03",
+        "framework": "nist_csf",
+        "description": "Incident response processes and plans are tested regularly using simulation exercises (tabletops).",
+        "category": "respond",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.MA-04",
+        "framework": "nist_csf",
+        "description": "Incident response tools, communications, and supporting infrastructure are maintained and secured.",
+        "category": "respond",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.MA-05",
+        "framework": "nist_csf",
+        "description": "Incident response procedures are updated based on lessons learned from past incidents and exercises.",
+        "category": "respond",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.AN-01",
+        "framework": "nist_csf",
+        "description": "Declared incidents are analyzed to determine the impact, source, and scope of systems affected.",
+        "category": "respond",
+        "covers_risk_category": [
+            "reconnaissance",
+            "defense_evasion"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.AN-03",
+        "framework": "nist_csf",
+        "description": "Incidents are categorized and prioritized to determine the level of response required.",
+        "category": "respond",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.AN-06",
+        "framework": "nist_csf",
+        "description": "Forensic evidence is collected, preserved, and analyzed following documented procedures.",
+        "category": "respond",
+        "covers_risk_category": [
+            "defense_evasion"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.AN-07",
+        "framework": "nist_csf",
+        "description": "The exact timeline of the attack and methods utilized by the adversary are documented.",
+        "category": "respond",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.AN-08",
+        "framework": "nist_csf",
+        "description": "Incident impact on critical business processes and sensitive data is fully assessed.",
+        "category": "respond",
+        "covers_risk_category": [
+            "reconnaissance",
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.MI-01",
+        "framework": "nist_csf",
+        "description": "Incident containment activities are executed to limit the spread of malicious code or network access.",
+        "category": "respond",
+        "covers_risk_category": [
+            "impact",
+            "lateral_movement"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.MI-02",
+        "framework": "nist_csf",
+        "description": "The root cause of the incident is mitigated and the threat is eradicated from systems (threat eradication).",
+        "category": "respond",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.MI-03",
+        "framework": "nist_csf",
+        "description": "Vulnerabilities exploited during the incident are mitigated or patched to prevent recurrences.",
+        "category": "respond",
+        "covers_risk_category": [
+            "initial_access"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.CO-02",
+        "framework": "nist_csf",
+        "description": "Incident information and updates are coordinated and communicated to internal stakeholders and executives.",
+        "category": "respond",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RS.CO-03",
+        "framework": "nist_csf",
+        "description": "Incident information is coordinated and shared with external stakeholders (customers, authorities, PR) as required.",
+        "category": "respond",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RC.RP-01",
+        "framework": "nist_csf",
+        "description": "Recovery plans and procedures are executed, monitored, and maintained to restore systems and data.",
+        "category": "recover",
+        "covers_risk_category": [
+            "data_destruction",
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RC.CO-01",
+        "framework": "nist_csf",
+        "description": "Recovery progress, timelines, and milestones are communicated to internal stakeholders and leadership.",
+        "category": "recover",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RC.CO-02",
+        "framework": "nist_csf",
+        "description": "Public communications regarding recovery and system restoration are coordinated and managed.",
+        "category": "recover",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RC.CO-03",
+        "framework": "nist_csf",
+        "description": "Restoration and recovery activities are coordinated with third parties and critical suppliers.",
+        "category": "recover",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2022",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "NIST-RC.CO-04",
+        "framework": "nist_csf",
+        "description": "Public updates on incident recovery are properly shared using approved methods and messaging.",
+        "category": "recover",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2.0",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    }
+]

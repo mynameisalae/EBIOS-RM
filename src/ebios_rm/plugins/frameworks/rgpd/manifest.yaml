@@ -1,15 +1,16 @@
 # RGPD (Règlement UE 2016/679) — conception §12.2, §12.3
-id: RGPD
-name: "RGPD (Règlement UE 2016/679)"
-framework_version: "2016/679"
-legal_nature: >
-  Règlement européen, publication publique, texte réel des articles
-  pertinents librement réutilisable.
-has_legal_impact_provisions: true
-default_suggested: true
+
 
 # atelier 4 behavior: scindé (§12.3) — les entrées de sécurité (ex. Art. 32)
 # alimentent baseline_gaps_considered normalement ; les entrées à seule
 # portée juridique (ex. Art. 83, sanctions) reçoivent covers_risk_category
 # vide et legal_impact_type non nul, et sont exclues du filtre de
 # pertinence de l'atelier 4 tout en alimentant l'atelier 1 (§15.1).
+id: RGPD
+name: "Règlement Général sur la Protection des Données (RGPD)"
+framework_version: "2016/679"
+legal_nature: >
+  Official European Regulation (EU 2016/679) entered into force on May 25, 2018.
+  Public domain text, freely reusable. Carrying administrative and penal liabilities.
+has_legal_impact_provisions: true
+default_suggested: true

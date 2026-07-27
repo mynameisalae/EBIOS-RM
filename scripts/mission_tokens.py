@@ -2,6 +2,7 @@
 
     python scripts/mission_tokens.py                 # every mission
     python scripts/mission_tokens.py <mission_id>    # one mission, with its LLM calls
+    python scripts/mission_tokens.py --prune         # delete missions with no work in them
 
 Counts tokens only. Money is deliberately reported as 0: pricing depends on the
 model and changes over time, so no price table is baked in here — plug one into
@@ -68,8 +69,26 @@ def _print_all(repo: MissionRepository) -> int:
     return 0
 
 
+def _prune(repo: MissionRepository) -> int:
+    """Delete missions that hold no work at all (mistyped path, aborted before anything ran)."""
+    removed = 0
+    for m in repo.list_missions():
+        has_output = repo.latest_output(m.mission_id, 0) or repo.latest_output(m.mission_id, 1)
+        if has_output or repo.token_totals(m.mission_id)["llm_calls"]:
+            continue
+        repo._conn.execute("DELETE FROM decision_log WHERE mission_id = ?", (m.mission_id,))
+        repo._conn.execute("DELETE FROM missions WHERE mission_id = ?", (m.mission_id,))
+        removed += 1
+        print(f"Supprimée : {m.mission_id}  {m.name}")
+    repo._conn.commit()
+    print(f"{removed} mission(s) vide(s) supprimée(s).")
+    return 0
+
+
 def main(argv: list[str]) -> int:
     repo = MissionRepository(connect(load_settings().mission_db_path))
+    if len(argv) > 1 and argv[1] == "--prune":
+        return _prune(repo)
     return _print_one(repo, argv[1]) if len(argv) > 1 else _print_all(repo)
 
 

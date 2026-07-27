@@ -51,8 +51,11 @@ class ReferenceRepository:
 
     def get_baseline_controls(self, framework: str) -> list[BaselineControl]:
         """All control rows for a declared framework (conception §15 step 1)."""
+        # Case-insensitive: the framework name comes from a human-filled questionnaire,
+        # so "rgpd" and "RGPD" must reach the same controls rather than silently
+        # matching nothing (which would read as an unloaded framework).
         cur = self._conn.execute(
-            "SELECT * FROM baseline_controls WHERE framework = ? ORDER BY control_id",
+            "SELECT * FROM baseline_controls WHERE framework = ? COLLATE NOCASE ORDER BY control_id",
             (framework,),
         )
         return [_row_to_control(r) for r in cur.fetchall()]
@@ -65,7 +68,7 @@ class ReferenceRepository:
         """
         if not applicable_frameworks:
             return []
-        placeholders = ",".join("?" for _ in applicable_frameworks)
+        placeholders = ",".join("? COLLATE NOCASE" for _ in applicable_frameworks)
         cur = self._conn.execute(
             f"SELECT * FROM baseline_controls "
             f"WHERE legal_impact_type IS NOT NULL AND framework IN ({placeholders}) "

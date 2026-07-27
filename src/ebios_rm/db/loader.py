@@ -32,12 +32,18 @@ _CONTROL_COLUMNS = (
 )
 
 
-def _insert_controls(conn: sqlite3.Connection, controls: list[dict], source: str) -> int:
+def _insert_controls(
+    conn: sqlite3.Connection, controls: list[dict], source: str, framework: str | None = None
+) -> int:
+    """Insert control rows. ``framework`` (the plugin's manifest id) overrides whatever
+    each row declares: the manifest is the single source of truth for the framework
+    name, so a control file written with a different spelling cannot silently produce
+    a framework nobody declared."""
     inserted = 0
     for c in controls:
         row = (
             c["control_id"],
-            c["framework"],
+            framework or c["framework"],
             c["description"],
             c["category"],
             json.dumps(c.get("covers_risk_category", [])),
@@ -63,20 +69,23 @@ def build_reference_db(
     db_path: str | Path,
     *,
     extra_controls: list[dict] | None = None,
+    include_plugins: bool = True,
 ) -> sqlite3.Connection:
     """Create (or rebuild) the reference DB and return an open connection.
 
-    ``extra_controls`` lets local dev inject a clearly-labelled sample control
-    set (see data/dev_seed/) without touching the real plugin folders, which stay
-    empty until verified/licensed referential text is added.
+    ``extra_controls`` lets local dev inject a clearly-labelled sample control set
+    (see data/dev_seed/). ``include_plugins=False`` skips the real referential text
+    entirely, so tests run against a fixed, known control set rather than whatever
+    the plugins currently hold.
     """
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(path))
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
 
-    for plugin in discover_frameworks():
-        _insert_controls(conn, plugin.controls, source=f"plugin:{plugin.id}")
+    if include_plugins:
+        for plugin in discover_frameworks():
+            _insert_controls(conn, plugin.controls, source=f"plugin:{plugin.id}", framework=plugin.id)
     if extra_controls:
         _insert_controls(conn, extra_controls, source="extra_controls")
 

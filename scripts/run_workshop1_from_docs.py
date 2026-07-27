@@ -43,9 +43,18 @@ DEV_SEED = Path(__file__).resolve().parents[1] / "data" / "dev_seed" / "baseline
 
 
 def _reference_repo() -> ReferenceRepository:
-    return ReferenceRepository(
-        build_reference_db(":memory:", extra_controls=json.loads(DEV_SEED.read_text(encoding="utf-8")))
-    )
+    """Reference DB built from the framework plugins (the real referential text).
+
+    Built in memory each run so a plugin edit takes effect immediately; the dev
+    sample controls are only used when no plugin carries any control yet.
+    """
+    conn = build_reference_db(":memory:")
+    if conn.execute("SELECT COUNT(*) FROM baseline_controls").fetchone()[0] == 0:
+        print("Aucun contrôle dans les plugins — chargement du jeu d'exemple [SAMPLE].")
+        conn = build_reference_db(
+            ":memory:", extra_controls=json.loads(DEV_SEED.read_text(encoding="utf-8"))
+        )
+    return ReferenceRepository(conn)
 
 
 def _print_missions(repo: MissionRepository) -> None:
@@ -356,6 +365,14 @@ def _new_mission(repo: MissionRepository, reference_repo: ReferenceRepository, a
 
     intake_doc = argv[0]
     supporting = argv[1:]
+
+    # Check every document is present and readable BEFORE creating the mission —
+    # otherwise a mistyped path leaves an orphan mission row with no work in it.
+    for path in [intake_doc, *supporting]:
+        if not Path(path).exists():
+            print(f"Document introuvable : {path}")
+            return 2
+
     mission_id = repo.create_mission(name=Path(intake_doc).stem, frameworks=[])
     _install_token_sink(repo, mission_id)
     print(f"Nouvelle mission : {mission_id}\n(reprise possible à tout moment : --resume {mission_id})")

@@ -22,7 +22,9 @@ def dev_controls() -> list[dict]:
 
 @pytest.fixture
 def reference_conn(dev_controls) -> sqlite3.Connection:
-    conn = build_reference_db(":memory:", extra_controls=dev_controls)
+    # Tests run on the fixed sample set only, never the real plugin controls,
+    # so they stay deterministic as referential text is added.
+    conn = build_reference_db(":memory:", extra_controls=dev_controls, include_plugins=False)
     yield conn
     conn.close()
 

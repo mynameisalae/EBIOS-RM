@@ -205,23 +205,30 @@ class ConversationalHumanInterface(CLIHumanInterface):
         self._out(f"\n[{tag}] {question.question}")
         if question.help_text:
             self._out(f"    ↳ {question.help_text}")
-        self._out("    (répondez, ou posez une question / demandez une clarification)")
+        hint = "posez une question / demandez une clarification"
+        if not question.blocking:
+            hint += ", ou tapez 'skip' pour passer"
+        self._out(f"    (répondez, {hint})")
 
         pushbacks = 0
         while True:
             user = self._in("> ")
+            # A blank line is never a decision: skipping is an explicit act that must
+            # be typed, so a stray Enter cannot start abandoning a question (§8).
             if not user:
                 if question.blocking:
                     self._out("    Information bloquante — une réponse est requise (§7).")
+                else:
+                    self._out("    Répondez, ou tapez 'skip' pour passer cette question.")
+                continue
+            if user.lower() == "skip":
+                if question.blocking:
+                    self._out("    Question bloquante : elle ne peut pas être passée (§7).")
                     continue
                 reason = self._in("Motif du skip (obligatoire, §8) : ")
                 if reason:
                     return SkipRequested(reason)
-                continue
-            if user.lower() == "skip" and not question.blocking:
-                reason = self._in("Motif du skip (obligatoire, §8) : ")
-                if reason:
-                    return SkipRequested(reason)
+                self._out("    Un motif non vide est obligatoire pour passer (§8).")
                 continue
             # Escape hatch: the auditor always outranks the agent (§2). Without this,
             # a model that keeps asking for detail traps a CRITICAL question forever,

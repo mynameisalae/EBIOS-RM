@@ -1,1 +1,534 @@
-[]
+[
+    {
+        "control_id": "ANSSI-H-01",
+        "framework": "anssi_hygiene",
+        "description": "Disposer d'une cartographie précise de l'installation informatique et la maintenir à jour.",
+        "category": "connaître_le_si",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-02",
+        "framework": "anssi_hygiene",
+        "description": "Disposer d'un inventaire exhaustif des comptes privilégiés et le maintenir à jour.",
+        "category": "connaître_le_si",
+        "covers_risk_category": [
+            "reconnaissance",
+            "privilege_escalation"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-03",
+        "framework": "anssi_hygiene",
+        "description": "Rédiger et appliquer des procédures d'arrivée et de départ des utilisateurs (personnel, stagiaires, prestataires).",
+        "category": "connaître_le_si",
+        "covers_risk_category": [
+            "initial_access",
+            "credential_access"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-04",
+        "framework": "anssi_hygiene",
+        "description": "Limiter le nombre d'accès Internet de l'entreprise au strict nécessaire.",
+        "category": "maîtriser_le_réseau",
+        "covers_risk_category": [
+            "initial_access",
+            "exfiltration"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-05",
+        "framework": "anssi_hygiene",
+        "description": "Interdire la connexion d'équipements personnels au système d'information de l'organisation (politique BYOD).",
+        "category": "maîtriser_le_réseau",
+        "covers_risk_category": [
+            "initial_access",
+            "lateral_movement"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-06",
+        "framework": "anssi_hygiene",
+        "description": "Connaître les modalités de mises à jour de l'ensemble des composants logiciels utilisés et se tenir informé des vulnérabilités de ces composants.",
+        "category": "mise_à_jour_du_si",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-07",
+        "framework": "anssi_hygiene",
+        "description": "Définir une politique de mise à jour et l'appliquer strictement.",
+        "category": "mise_à_jour_du_si",
+        "covers_risk_category": [
+            "initial_access",
+            "execution"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-08",
+        "framework": "anssi_hygiene",
+        "description": "Identifier nommément chaque personne ayant accès au système et distinguer les rôles utilisateur et administrateur.",
+        "category": "authentifier_l_utilisateur",
+        "covers_risk_category": [
+            "credential_access",
+            "privilege_escalation"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-09",
+        "framework": "anssi_hygiene",
+        "description": "Définir des règles de choix et de dimensionnement des mots de passe robustes (complexité, longueur, MFA).",
+        "category": "authentifier_l_utilisateur",
+        "covers_risk_category": [
+            "credential_access"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-10",
+        "framework": "anssi_hygiene",
+        "description": "Mettre en place des moyens techniques permettant de faire respecter les règles relatives à l'authentification.",
+        "category": "authentifier_l_utilisateur",
+        "covers_risk_category": [
+            "credential_access",
+            "initial_access"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-11",
+        "framework": "anssi_hygiene",
+        "description": "Ne pas conserver les mots de passe en clair dans des fichiers ou des espaces non sécurisés sur les systèmes informatiques.",
+        "category": "authentifier_l_utilisateur",
+        "covers_risk_category": [
+            "credential_access"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-12",
+        "framework": "anssi_hygiene",
+        "description": "Renouveler systématiquement les éléments d'authentification par défaut (mots de passe, certificats) sur l'ensemble des équipements.",
+        "category": "authentifier_l_utilisateur",
+        "covers_risk_category": [
+            "credential_access",
+            "initial_access"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-13",
+        "framework": "anssi_hygiene",
+        "description": "Privilégier lorsque c'est possible une authentification forte par carte à puce, jeton matériel ou MFA cryptographique.",
+        "category": "authentifier_l_utilisateur",
+        "covers_risk_category": [
+            "credential_access",
+            "initial_access"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-14",
+        "framework": "anssi_hygiene",
+        "description": "Mettre en place un niveau de sécurité homogène sur l'ensemble du parc informatique (durcissement des configurations des OS).",
+        "category": "sécuriser_les_postes",
+        "covers_risk_category": [
+            "execution",
+            "defense_evasion"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-15",
+        "framework": "anssi_hygiene",
+        "description": "Interdire techniquement la connexion des supports amovibles sauf si cela est strictement nécessaire, et désactiver l'exécution automatique (autorun).",
+        "category": "sécuriser_les_postes",
+        "covers_risk_category": [
+            "initial_access",
+            "exfiltration"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-16",
+        "framework": "anssi_hygiene",
+        "description": "Utiliser un outil de gestion de parc informatique centralisé permettant de déployer des politiques de sécurité et les mises à jour.",
+        "category": "sécuriser_les_postes",
+        "covers_risk_category": [
+            "defense_evasion"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-17",
+        "framework": "anssi_hygiene",
+        "description": "Gérer les terminaux nomades (ordinateurs portables, ordiphones) selon une politique de sécurité au moins aussi stricte que celle des postes fixes.",
+        "category": "sécuriser_les_postes",
+        "covers_risk_category": [
+            "initial_access",
+            "lateral_movement"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-18",
+        "framework": "anssi_hygiene",
+        "description": "Interdire dans tous les cas où cela est possible les connexions entrantes d'administration ou d'accès à distance directement sur les postes clients.",
+        "category": "sécuriser_les_postes",
+        "covers_risk_category": [
+            "initial_access",
+            "lateral_movement"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-19",
+        "framework": "anssi_hygiene",
+        "description": "Chiffrer les données sensibles, en particulier sur les postes nomades et les supports potentiellement perdables (USB).",
+        "category": "sécuriser_les_postes",
+        "covers_risk_category": [
+            "exfiltration"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-20",
+        "framework": "anssi_hygiene",
+        "description": "Auditer ou faire auditer fréquemment la configuration de l'annuaire central (Active Directory ou LDAP).",
+        "category": "sécuriser_le_réseau",
+        "covers_risk_category": [
+            "reconnaissance",
+            "privilege_escalation"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-21",
+        "framework": "anssi_hygiene",
+        "description": "Mettre en place des réseaux cloisonnés (VLAN) protégés par des passerelles d'interconnexion spécifiques pour isoler les serveurs critiques.",
+        "category": "sécuriser_le_réseau",
+        "covers_risk_category": [
+            "lateral_movement"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-22",
+        "framework": "anssi_hygiene",
+        "description": "Éviter l'usage d'infrastructures sans fil (Wi-Fi). Si l'usage est requis, cloisonner hermétiquement le réseau d'accès Wi-Fi du reste du SI.",
+        "category": "sécuriser_le_réseau",
+        "covers_risk_category": [
+            "initial_access",
+            "lateral_movement"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-23",
+        "framework": "anssi_hygiene",
+        "description": "Utiliser systématiquement des applications et des protocoles réseau sécurisés et chiffrés (TLS, SSH, IPsec).",
+        "category": "sécuriser_le_réseau",
+        "covers_risk_category": [
+            "credential_access",
+            "exfiltration"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-24",
+        "framework": "anssi_hygiene",
+        "description": "Sécuriser, durcir et filtrer les passerelles d'interconnexion de l'organisation avec l'Internet (Proxy, pare-feu applicatif).",
+        "category": "sécuriser_le_réseau",
+        "covers_risk_category": [
+            "lateral_movement",
+            "exfiltration"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-25",
+        "framework": "anssi_hygiene",
+        "description": "Vérifier qu'aucun équipement du réseau (commutateur, imprimante, automate) ne comporte d'interface d'administration accessible depuis l'Internet.",
+        "category": "sécuriser_le_réseau",
+        "covers_risk_category": [
+            "initial_access",
+            "lateral_movement"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-26",
+        "framework": "anssi_hygiene",
+        "description": "Définir concrètement les objectifs et le périmètre de la supervision des systèmes et des réseaux de l'organisation.",
+        "category": "superviser_auditer_réagir",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-27",
+        "framework": "anssi_hygiene",
+        "description": "Définir les modalités d'analyse des événements journalisés (gestion des logs et détection d'alertes).",
+        "category": "superviser_auditer_réagir",
+        "covers_risk_category": [
+            "reconnaissance",
+            "defense_evasion"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-28",
+        "framework": "anssi_hygiene",
+        "description": "Interdire tout accès à l'Internet et à la messagerie externe depuis les comptes d'administration système.",
+        "category": "sécuriser_l_administration",
+        "covers_risk_category": [
+            "initial_access",
+            "privilege_escalation"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-29",
+        "framework": "anssi_hygiene",
+        "description": "Utiliser un réseau d'administration dédié ou au moins un réseau logiquement séparé et sécurisé pour gérer les équipements.",
+        "category": "sécuriser_l_administration",
+        "covers_risk_category": [
+            "privilege_escalation",
+            "lateral_movement"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-30",
+        "framework": "anssi_hygiene",
+        "description": "Ne pas donner aux utilisateurs de privilèges d'administration locaux sur leurs postes de travail (GPO de restriction).",
+        "category": "sécuriser_les_postes",
+        "covers_risk_category": [
+            "privilege_escalation",
+            "defense_evasion"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-31",
+        "framework": "anssi_hygiene",
+        "description": "N'autoriser l'accès à distance au réseau d'entreprise que depuis des postes sécurisés par l'organisation et via VPN avec authentification forte.",
+        "category": "sécuriser_les_postes",
+        "covers_risk_category": [
+            "initial_access",
+            "lateral_movement"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-32",
+        "framework": "anssi_hygiene",
+        "description": "Utiliser impérativement des mécanismes robustes de contrôle d'accès physique aux locaux sensibles (serveurs, brassage).",
+        "category": "physique",
+        "covers_risk_category": [
+            "initial_access"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-33",
+        "framework": "anssi_hygiene",
+        "description": "Protéger rigoureusement les clés physiques, badges d'accès aux locaux et codes d'alarme anti-intrusion.",
+        "category": "physique",
+        "covers_risk_category": [
+            "initial_access"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-34",
+        "framework": "anssi_hygiene",
+        "description": "Ne pas laisser de prises d'accès au réseau Ethernet interne accessibles sans contrôle dans les endroits ouverts au public.",
+        "category": "physique",
+        "covers_risk_category": [
+            "initial_access",
+            "lateral_movement"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-35",
+        "framework": "anssi_hygiene",
+        "description": "Définir les règles d'utilisation sécurisée des imprimantes réseau et des photocopieuses multifonctions.",
+        "category": "postes",
+        "covers_risk_category": [
+            "exfiltration"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-36",
+        "framework": "anssi_hygiene",
+        "description": "Disposer d'un plan de reprise et de continuité d'activité (PCA/PRA) informatique, décrivant la stratégie de sauvegarde hors ligne.",
+        "category": "continuite",
+        "covers_risk_category": [
+            "impact",
+            "data_destruction"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-37",
+        "framework": "anssi_hygiene",
+        "description": "Mettre en place une chaîne d'alerte et de réaction connue de tous les intervenants (procédures de réponse aux incidents).",
+        "category": "superviser_auditer_réagir",
+        "covers_risk_category": [
+            "impact"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-38",
+        "framework": "anssi_hygiene",
+        "description": "Ne jamais se contenter de traiter l'infection d'une machine sans tenter de savoir comment le code s'est installé et propagé.",
+        "category": "superviser_auditer_réagir",
+        "covers_risk_category": [
+            "reconnaissance",
+            "defense_evasion"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-39",
+        "framework": "anssi_hygiene",
+        "description": "Sensibiliser régulièrement les utilisateurs et la direction aux règles d'hygiène informatique élémentaires (phishing, mots de passe).",
+        "category": "gouvernance",
+        "covers_risk_category": [
+            "initial_access"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-40",
+        "framework": "anssi_hygiene",
+        "description": "Faire réaliser des audits de sécurité techniques et organisationnels périodiques (au minimum tous les ans) suivis par la direction.",
+        "category": "superviser_auditer_réagir",
+        "covers_risk_category": [
+            "reconnaissance"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-41",
+        "framework": "anssi_hygiene",
+        "description": "Gérer les terminaux mobiles et nomades selon une politique stricte contrôlée par un outil de Mobile Device Management (MDM).",
+        "category": "sécuriser_les_postes",
+        "covers_risk_category": [
+            "initial_access",
+            "lateral_movement"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    },
+    {
+        "control_id": "ANSSI-H-42",
+        "framework": "anssi_hygiene",
+        "description": "Privilégier l'usage de produits de sécurité et de prestataires de services qualifiés par l'ANSSI (liste de confiance Visa de sécurité).",
+        "category": "gouvernance",
+        "covers_risk_category": [
+            "initial_access",
+            "defense_evasion"
+        ],
+        "framework_version": "2024",
+        "legal_impact_type": null,
+        "legal_impact_details": null
+    }
+]
