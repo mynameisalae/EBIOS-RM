@@ -93,4 +93,7 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv))
+    try:
+        raise SystemExit(main(sys.argv))
+    except (KeyboardInterrupt, EOFError):
+        raise SystemExit(130) from None

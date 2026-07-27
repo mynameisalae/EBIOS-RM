@@ -45,6 +45,10 @@ DEV_SEED = Path(__file__).resolve().parents[1] / "data" / "dev_seed" / "baseline
 # a 248-control referential can leave a long tail, and a wall of text is skipped.
 MAX_UNVERIFIED_SHOWN = 8
 
+# Set as soon as a mission is created or resumed, so an interrupt can tell the
+# auditor exactly how to come back to it.
+_active_mission_id: str | None = None
+
 
 def _reference_repo() -> ReferenceRepository:
     """Reference DB built from the framework plugins (the real referential text).
@@ -478,7 +482,9 @@ def _new_mission(repo: MissionRepository, reference_repo: ReferenceRepository, a
             print(f"Document introuvable : {path}")
             return 2
 
+    global _active_mission_id
     mission_id = repo.create_mission(name=Path(intake_doc).stem, frameworks=[])
+    _active_mission_id = mission_id
     _install_token_sink(repo, mission_id)
     print(f"Nouvelle mission : {mission_id}\n(reprise possible à tout moment : --resume {mission_id})")
 
@@ -497,6 +503,8 @@ def _resume_mission(repo: MissionRepository, reference_repo: ReferenceRepository
     if mission is None:
         print(f"Mission introuvable : {mission_id}")
         return 2
+    global _active_mission_id
+    _active_mission_id = mission_id
     print(f"Reprise de la mission {mission_id} — statut : {mission.status}")
     _install_token_sink(repo, mission_id)
 
@@ -571,5 +579,22 @@ def main(argv: list[str]) -> int:
     return _new_mission(repo, _reference_repo(), argv[1:])
 
 
+def _interrupted() -> int:
+    """Ctrl+C is a normal way to stop: progress is checkpointed, so say how to come back."""
+    print("\n\n─────────────────────────────────────────────────────────────")
+    print("  Mission mise en pause.")
+    if _active_mission_id:
+        print(f"  Tout ce qui a été saisi est sauvegardé (mission {_active_mission_id}).")
+        print("\n  Pour reprendre là où vous vous êtes arrêté :")
+        print(f"    python scripts/run_workshop1_from_docs.py --resume {_active_mission_id}")
+    print("\n  Liste des missions :")
+    print("    python scripts/run_workshop1_from_docs.py --list")
+    print("─────────────────────────────────────────────────────────────")
+    return 130  # conventional exit code for SIGINT
+
+
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv))
+    try:
+        raise SystemExit(main(sys.argv))
+    except (KeyboardInterrupt, EOFError):
+        raise SystemExit(_interrupted()) from None
