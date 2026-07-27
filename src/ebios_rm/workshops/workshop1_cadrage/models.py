@@ -53,16 +53,41 @@ class BaselineScopeDecision(BaseModel):
     justification: str  # non-empty (§8); mandatory when 'excluded'
 
 
-class BaselineGap(BaseModel):
-    """A baseline gap with full provenance — kept in baseline_gaps_full (conception §15, §20.3)."""
+class ControlReference(BaseModel):
+    """One referential control that demands this weakness be fixed (conception §15 step 9)."""
 
-    gap_id: str
     framework: str
     control_id: str
+
+
+class BaselineGap(BaseModel):
+    """One real weakness, with every declared framework that requires it (conception §15, §20.3).
+
+    The weakness is the entity; the referentials are metadata on it. ISO 27001, NIST
+    and ANSSI all demanding MFA produce a single gap listing the three controls —
+    not three near-identical findings padding the report and making workshop 4 fan
+    out three agents onto the same problem.
+    """
+
+    gap_id: str
     weakness: str
+    controls: list[ControlReference] = Field(default_factory=list)
     risk_categories: list[str] = Field(default_factory=list)  # from covers_risk_category (§12.3)
     origin: Origin = Origin.ASSESSMENT
     evidence_quote: str = ""
+
+    @property
+    def frameworks(self) -> list[str]:
+        """Declared referentials covering this weakness, in first-seen order."""
+        seen: list[str] = []
+        for c in self.controls:
+            if c.framework not in seen:
+                seen.append(c.framework)
+        return seen
+
+    @property
+    def control_ids(self) -> list[str]:
+        return [c.control_id for c in self.controls]
 
     @staticmethod
     def make_gap_id(framework: str, control_id: str, weakness: str) -> str:

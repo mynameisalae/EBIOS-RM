@@ -57,6 +57,7 @@ def test_reject_twice_then_approve_runs_three_times(cli, repo, monkeypatch):
     monkeypatch.setattr(cli, "_review_and_approve", lambda *a: next(verdicts))
     monkeypatch.setattr(cli, "_ask_choice", lambda *a, **k: "r")  # always choose: rerun the agent
     monkeypatch.setattr(cli, "_ask_blocks", lambda *a, **k: None)  # redo everything
+    monkeypatch.setattr(cli, "_consolidate_gaps", lambda _r, _m, out, **k: out)
 
     first = cli._run_workshop(repo, mid, None, None)
     rc = cli._approval_loop(repo, mid, None, None, first)
@@ -76,7 +77,8 @@ def test_cap_then_declining_reinforced_confirm_stops(cli, repo, monkeypatch):
     monkeypatch.setattr(cli, "_run_workshop", run)
     monkeypatch.setattr(cli, "_review_and_approve", lambda *a: (False, "toujours rejeté"))
     monkeypatch.setattr(cli, "_ask_choice", lambda *a, **k: "r")  # always choose: rerun the agent
-    monkeypatch.setattr(cli, "_ask_blocks", lambda *a, **k: None)  # redo everything          # always wants another redo
+    monkeypatch.setattr(cli, "_ask_blocks", lambda *a, **k: None)  # redo everything
+    monkeypatch.setattr(cli, "_consolidate_gaps", lambda _r, _m, out, **k: out)          # always wants another redo
     monkeypatch.setattr(cli, "_reinforced_confirm", lambda *a, **k: False)  # but declines past the cap
 
     first = cli._run_workshop(repo, mid, None, None)
@@ -100,6 +102,7 @@ def test_reinforced_confirm_allows_going_past_the_cap(cli, repo, monkeypatch):
     monkeypatch.setattr(cli, "_review_and_approve", lambda *a: next(verdicts))
     monkeypatch.setattr(cli, "_ask_choice", lambda *a, **k: "r")  # always choose: rerun the agent
     monkeypatch.setattr(cli, "_ask_blocks", lambda *a, **k: None)  # redo everything
+    monkeypatch.setattr(cli, "_consolidate_gaps", lambda _r, _m, out, **k: out)
     monkeypatch.setattr(cli, "_reinforced_confirm", lambda *a, **k: True)  # confirm past the cap
 
     first = cli._run_workshop(repo, mid, None, None)
@@ -130,6 +133,7 @@ def test_redo_notes_accumulate_from_the_decision_log(cli, repo, monkeypatch):
     monkeypatch.setattr(cli, "_review_and_approve", review)
     monkeypatch.setattr(cli, "_ask_choice", lambda *a, **k: "r")  # always choose: rerun the agent
     monkeypatch.setattr(cli, "_ask_blocks", lambda *a, **k: None)  # redo everything
+    monkeypatch.setattr(cli, "_consolidate_gaps", lambda _r, _m, out, **k: out)
 
     first = cli._run_workshop(repo, mid, None, None, cli._prior_rejection_reasons(repo, mid))
     assert cli._approval_loop(repo, mid, None, None, first) == 0

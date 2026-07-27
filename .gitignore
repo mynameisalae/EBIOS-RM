@@ -17,6 +17,13 @@ data/mission/*.db
 .env
 *.env.local
 
+# Licensed referential text — never redistributed (conception §12.2).
+# ISO 27001 Annex A is copyrighted (AFNOR licence, internal use only), so its
+# control text stays local. The manifest is kept: it declares the framework
+# without reproducing any licensed content. Freely reusable referentials
+# (ANSSI, NIST, RGPD) are committed normally.
+src/ebios_rm/plugins/frameworks/iso27001/controls.json
+
 # Generated reports (contain client data)
 *.docx
 !docs/**/*.docx

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from ebios_rm.repositories.reference_repository import BaselineControl
 from ebios_rm.workshops.workshop1_cadrage.models import (
     BaselineGap,
+    ControlReference,
     BaselineScopeDecision,
     ControlAssessmentProposal,
 )
@@ -68,8 +69,7 @@ def assess_framework(
             gaps.append(
                 BaselineGap(
                     gap_id=BaselineGap.make_gap_id(framework, control.control_id, weakness),
-                    framework=framework,
-                    control_id=control.control_id,
+                    controls=[ControlReference(framework=framework, control_id=control.control_id)],
                     weakness=weakness,
                     risk_categories=list(control.covers_risk_category),  # empty for legal-only rows (§12.3)
                     evidence_quote=proposal.evidence_quote.strip(),

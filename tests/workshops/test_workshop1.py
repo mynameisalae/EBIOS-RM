@@ -56,10 +56,11 @@ def test_scope_decisions_never_empty(reference_repo):
 
 def test_gap_produced_with_stable_id_and_risk_categories(reference_repo):
     out = _run(reference_repo)
-    gaps = {g.control_id: g for g in out.baseline_gaps_full}
+    gaps = {c.control_id: g for g in out.baseline_gaps_full for c in g.controls}
     assert "ANSSI-H-21" in gaps
     g = gaps["ANSSI-H-21"]
     assert g.risk_categories  # carried from covers_risk_category
+    assert g.frameworks == ["ANSSI_hygiene"]
     # gap_id is a stable content hash, not a counter.
     assert g.gap_id == BaselineGap.make_gap_id("ANSSI_hygiene", "ANSSI-H-21", g.weakness)
     assert g.gap_id.startswith("BG-")

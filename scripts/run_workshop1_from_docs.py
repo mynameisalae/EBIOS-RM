@@ -147,6 +147,57 @@ def _run_workshop(repo, mission_id, mission_context, reference_repo, revision_no
     return output
 
 
+def _consolidate_gaps(repo, mission_id, output, runner=None, io_in=input, io_out=print):
+    """One entry per real weakness, listing every framework requiring it (§15 step 9).
+
+    The model proposes the groups; the auditor confirms them in one pass. Nothing is
+    consolidated automatically — a wrongly grouped pair would silently drop a finding.
+    """
+    from ebios_rm.workshops.workshop1_cadrage.gap_dedup import (  # noqa: PLC0415
+        AgnoGapConsolidationRunner, consolidate, valid_groups,
+    )
+
+    gaps = output.baseline_gaps_full
+    if len(gaps) < 2:
+        return output
+
+    runner = runner or AgnoGapConsolidationRunner()
+    groups = valid_groups(runner.propose_groups(gaps), gaps)
+    if not groups:
+        return output
+
+    by_id = {g.gap_id: g for g in gaps}
+    io_out(f"\n=== Écarts décrivant la même faiblesse ({len(groups)} groupe(s)) ===")
+    for index, group in enumerate(groups, 1):
+        io_out(f"\n[{index}] {group.merged_weakness or by_id[group.gap_ids[0]].weakness}")
+        if group.reason:
+            io_out(f"    ({group.reason})")
+        for gap_id in group.gap_ids:
+            gap = by_id[gap_id]
+            refs = ", ".join(f"{c.framework}/{c.control_id}" for c in gap.controls)
+            io_out(f"    - {refs} : {gap.weakness}")
+
+    io_out("\n[Entrée] pour tout regrouper, ou les numéros à NE PAS regrouper (ex. 2,3) :")
+    refused = {p.strip() for p in io_in("> ").split(",") if p.strip().isdigit()}
+    accepted = [g for i, g in enumerate(groups, 1) if str(i) not in refused]
+    if not accepted:
+        io_out("Aucun regroupement appliqué.")
+        return output
+
+    reason = ""
+    while not reason:
+        reason = io_in("Justification du regroupement (obligatoire, §8) : ").strip()
+
+    updated = output.model_copy(update={
+        "baseline_gaps_full": consolidate(gaps, accepted)
+    })
+    repo.log_decision(mission_id, stage="workshop_1",
+                      action=f"gaps_consolidated:{len(accepted)}", justification=reason)
+    mission_state.save_w1_output(repo, mission_id, updated)
+    io_out(f"{len(gaps)} écart(s) -> {len(updated.baseline_gaps_full)} après regroupement.")
+    return updated
+
+
 def _review_and_approve(repo, mission_id, mission_context, output):
     """Clarification + the final approval gate. Returns (approved, reason)."""
     from ebios_rm.mission_context.clarification import clarification_repl  # noqa: PLC0415
@@ -291,6 +342,10 @@ def _approval_loop(repo, mission_id, mission_context, reference_repo, output) ->
     reinforced confirmation.
     """
     while True:
+        # Duplicates are resolved before the output is judged: the auditor should
+        # approve the consolidated list, not one padded with the same weakness
+        # repeated once per referential (§15 step 9).
+        output = _consolidate_gaps(repo, mission_id, output)
         approved, _reason = _review_and_approve(repo, mission_id, mission_context, output)
         if approved:
             return 0

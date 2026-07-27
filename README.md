@@ -108,6 +108,26 @@ Every attempt is its own version; nothing is overwritten, and only an approved
 version counts as complete. After 3 versions the rollback cap (conception §12.6)
 requires typing `CONFIRMER` to go further.
 
+### Same weakness, several referentials
+
+ISO 27001, NIST and ANSSI often demand the same thing, so one real weakness would
+otherwise appear as three near-identical findings. Before the result is shown for
+approval, the agent proposes which gaps describe **one** weakness; you confirm in
+a single pass (`[Entrée]` accepts all, or name the groups to leave separate).
+
+A confirmed group becomes one entry listing every control that requires the fix:
+
+```
+Pas de MFA sur les accès distants
+   ISO27001       A.5.15
+   NIST           PR.AA-05
+   ANSSI_hygiene  ANSSI-H-21
+```
+
+Nothing is grouped automatically — a wrongly merged pair would silently drop a
+finding (§15 step 9). Workshop 4 then analyses each weakness once instead of once
+per referential.
+
 ### Missing referential controls
 
 If a declared framework has no controls loaded, the run **stops** before the
