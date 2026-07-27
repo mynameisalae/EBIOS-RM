@@ -78,7 +78,10 @@ def test_insufficient_controls_stay_unverified(reference_repo):
     out = _run(reference_repo)
     # The fake marks every non-ANSSI-H-21 control insufficient -> tracked, not invented into gaps.
     assert out.unverified_controls
-    assert "ANSSI-H-21" not in out.unverified_controls
+    ids = [u.control_id for u in out.unverified_controls]
+    assert "ANSSI-H-21" not in ids
+    # Each one says why it could not be concluded (§15 step 2).
+    assert all(u.reason and u.reason_label for u in out.unverified_controls)
 
 
 def test_legal_impact_attached_to_feared_event(reference_repo):
@@ -119,14 +122,18 @@ def test_cadrage_prompt_injects_revision_notes_only_on_redo():
 # --- assessment unit: evidence discipline ---
 
 def test_gap_without_evidence_is_downgraded_to_insufficient(reference_repo):
-    from ebios_rm.workshops.workshop1_cadrage.models import ControlAssessmentProposal
+    from ebios_rm.workshops.workshop1_cadrage.models import (
+        REASON_NO_EVIDENCE_CITED, ControlAssessmentProposal,
+    )
 
     controls = reference_repo.get_baseline_controls("ANSSI_hygiene")
     # Claim a gap but cite no evidence -> must not become a gap.
     proposals = [ControlAssessmentProposal(control_id=controls[0].control_id, verdict="gap", evidence_quote="")]
     result = assess_framework("ANSSI_hygiene", controls, proposals)
     assert result.gaps == []
-    assert controls[0].control_id in result.insufficient
+    assert [u.control_id for u in result.insufficient] == [controls[0].control_id]
+    assert result.insufficient[0].reason == REASON_NO_EVIDENCE_CITED   # prompt problem, not missing info
+    assert result.insufficient[0].description                          # what was being checked
 
 
 # --- hard stop: a declared framework with no controls cannot be assessed (§2, §12.5) ---
@@ -231,3 +238,41 @@ def test_partial_redo_preserves_human_edits(reference_repo):
     first.human_edits = [{"path": "x", "justification": "correction auditeur"}]
     second = run_workshop1(mc, _CountingRunner(), reference_repo, blocks={BLOCK_BASELINE}, previous=first)
     assert second.human_edits == first.human_edits  # the audit trail survives a redo
+
+
+# --- unverified controls carry WHY, and the causes are not interchangeable (§15 step 2) ---
+
+def test_each_cause_is_recorded_distinctly(reference_repo):
+    from ebios_rm.workshops.workshop1_cadrage.models import (
+        REASON_INVALID_VERDICT, REASON_NO_EVIDENCE_CITED, REASON_NO_INFORMATION,
+        REASON_UNKNOWN_CONTROL, ControlAssessmentProposal,
+    )
+
+    controls = reference_repo.get_baseline_controls("RGPD")   # three controls in the dev seed
+    a, b, c = (controls[i].control_id for i in range(3))
+    result = assess_framework("RGPD", controls, [
+        ControlAssessmentProposal(control_id=a, verdict="insufficient_information"),
+        ControlAssessmentProposal(control_id=b, verdict="gap", evidence_quote=""),
+        ControlAssessmentProposal(control_id="RGPD-Art999", verdict="gap", evidence_quote="x"),
+        ControlAssessmentProposal(control_id=c, verdict="peut-être", evidence_quote="x"),
+    ])
+
+    reasons = {u.control_id: u.reason for u in result.insufficient}
+    assert reasons[a] == REASON_NO_INFORMATION          # client said nothing -> ask the auditor
+    assert reasons[b] == REASON_NO_EVIDENCE_CITED       # model was sloppy -> fix the prompt
+    assert reasons["RGPD-Art999"] == REASON_UNKNOWN_CONTROL
+    assert reasons[c] == REASON_INVALID_VERDICT
+    assert result.gaps == []                            # none of these becomes a finding
+
+
+def test_unverified_keeps_what_the_model_claimed(reference_repo):
+    from ebios_rm.workshops.workshop1_cadrage.models import ControlAssessmentProposal
+
+    controls = reference_repo.get_baseline_controls("ANSSI_hygiene")
+    result = assess_framework("ANSSI_hygiene", controls, [
+        ControlAssessmentProposal(control_id=controls[0].control_id, verdict="compliant", evidence_quote=""),
+    ])
+    entry = result.insufficient[0]
+    assert entry.model_said == "compliant"      # claimed compliant, proved nothing -> not accepted
+    assert entry.framework == "ANSSI_hygiene"
+    assert entry.reason_label                   # human-readable for the review screen

@@ -60,6 +60,37 @@ class ControlReference(BaseModel):
     control_id: str
 
 
+# Why a control could not be concluded on (conception §15 step 2). These are not
+# interchangeable: NO_INFORMATION is a question for the auditor, NO_EVIDENCE_CITED
+# is a prompt problem, and the last two are model malfunctions. Lumping them into
+# one opaque list hides which of those is actually happening.
+REASON_NO_INFORMATION = "no_information"        # nothing in the Mission Context covers it
+REASON_NO_EVIDENCE_CITED = "no_evidence_cited"  # verdict claimed without citing a fact
+REASON_UNKNOWN_CONTROL = "unknown_control"      # a control_id the referential never returned
+REASON_INVALID_VERDICT = "invalid_verdict"      # verdict outside the allowed values
+
+UNVERIFIED_REASON_LABELS = {
+    REASON_NO_INFORMATION: "Information absente du contexte de la mission",
+    REASON_NO_EVIDENCE_CITED: "Verdict rendu sans preuve citée",
+    REASON_UNKNOWN_CONTROL: "Contrôle inconnu du référentiel",
+    REASON_INVALID_VERDICT: "Verdict non exploitable",
+}
+
+
+class UnverifiedControl(BaseModel):
+    """A control left 'unverified', with why — never silently reclassified (conception §15 step 2)."""
+
+    control_id: str
+    framework: str = ""
+    description: str = ""   # what was being checked, so the auditor can judge without lookups
+    reason: str = REASON_NO_INFORMATION
+    model_said: str = ""    # the verdict the model claimed, when it claimed one
+
+    @property
+    def reason_label(self) -> str:
+        return UNVERIFIED_REASON_LABELS.get(self.reason, self.reason)
+
+
 class BaselineGap(BaseModel):
     """One real weakness, with every declared framework that requires it (conception §15, §20.3).
 
@@ -119,9 +150,9 @@ class Workshop1Output(BaseModel):
     evenements_redoutes: list[FearedEvent] = Field(default_factory=list)
     baseline_scope_decisions: list[BaselineScopeDecision] = Field(default_factory=list)
     baseline_gaps_full: list[BaselineGap] = Field(default_factory=list)
-    # Controls whose verdict was insufficient / unproven — stay 'unverified' until the
-    # auditor answers, never silently reclassified (conception §15 step 2).
-    unverified_controls: list[str] = Field(default_factory=list)
+    # Controls that could not be concluded on, each with its reason — they stay
+    # 'unverified', never silently reclassified as compliant (conception §15 step 2).
+    unverified_controls: list[UnverifiedControl] = Field(default_factory=list)
     # Corrections the auditor made directly on this output, each with its
     # justification and provenance (conception §2, §8) — read by the report agent.
     human_edits: list[dict] = Field(default_factory=list)

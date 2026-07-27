@@ -41,6 +41,10 @@ from ebios_rm.repositories.reference_repository import ReferenceRepository  # no
 
 DEV_SEED = Path(__file__).resolve().parents[1] / "data" / "dev_seed" / "baseline_controls.dev.json"
 
+# Unverified controls listed per reason before the rest is left to w1_output —
+# a 248-control referential can leave a long tail, and a wall of text is skipped.
+MAX_UNVERIFIED_SHOWN = 8
+
 
 def _reference_repo() -> ReferenceRepository:
     """Reference DB built from the framework plugins (the real referential text).
@@ -198,6 +202,51 @@ def _consolidate_gaps(repo, mission_id, output, runner=None, io_in=input, io_out
     return updated
 
 
+def _review_unverified(repo, mission_id, output, io_in=input, io_out=print):
+    """Show what could not be concluded and why (conception §15 step 2).
+
+    No forced questions: with hundreds of controls, interrogating the auditor on
+    each one guarantees they skip everything, which pollutes the audit trail with
+    empty justifications. They read the list and supply information only for the
+    controls they choose — the rest stay explicitly unverified, never reclassified.
+    """
+    unverified = output.unverified_controls
+    if not unverified:
+        return
+
+    by_reason: dict[str, list] = {}
+    for item in unverified:
+        by_reason.setdefault(item.reason, []).append(item)
+
+    io_out(f"\n=== Contrôles non conclus ({len(unverified)}) ===")
+    for reason, items in by_reason.items():
+        io_out(f"\n{items[0].reason_label} ({len(items)}) :")
+        for item in items[:MAX_UNVERIFIED_SHOWN]:
+            io_out(f"   {item.framework}/{item.control_id}  {item.description[:90]}")
+        if len(items) > MAX_UNVERIFIED_SHOWN:
+            io_out(f"   ... et {len(items) - MAX_UNVERIFIED_SHOWN} autre(s) (voir w1_output).")
+
+    io_out("\nCes contrôles restent NON VÉRIFIÉS — jamais reclassés en conformes.")
+    io_out("Pour en documenter un, tapez son identifiant (ex. ANSSI-H-14) ; [Entrée] pour continuer.")
+
+    known = {i.control_id: i for i in unverified}
+    while True:
+        answer = io_in("> ").strip()
+        if not answer:
+            return
+        item = known.get(answer) or known.get(answer.upper())
+        if item is None:
+            io_out("   Identifiant inconnu dans la liste.")
+            continue
+        info = io_in(f"Information pour {item.control_id} : ").strip()
+        if not info:
+            continue
+        repo.log_decision(mission_id, stage="workshop_1",
+                          action=f"unverified_documented:{item.control_id}", justification=info)
+        io_out("   Enregistré dans le journal de décision. Le contrôle reste non vérifié "
+               "tant qu'il n'a pas été réévalué.")
+
+
 def _review_and_approve(repo, mission_id, mission_context, output):
     """Clarification + the final approval gate. Returns (approved, reason)."""
     from ebios_rm.mission_context.clarification import clarification_repl  # noqa: PLC0415
@@ -346,6 +395,7 @@ def _approval_loop(repo, mission_id, mission_context, reference_repo, output) ->
         # approve the consolidated list, not one padded with the same weakness
         # repeated once per referential (§15 step 9).
         output = _consolidate_gaps(repo, mission_id, output)
+        _review_unverified(repo, mission_id, output)
         approved, _reason = _review_and_approve(repo, mission_id, mission_context, output)
         if approved:
             return 0

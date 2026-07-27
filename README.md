@@ -128,6 +128,23 @@ Nothing is grouped automatically — a wrongly merged pair would silently drop a
 finding (§15 step 9). Workshop 4 then analyses each weakness once instead of once
 per referential.
 
+### Controls the agent could not conclude on
+
+A control the agent cannot settle is never quietly counted as compliant — it is
+reported as **unverified, with the reason**, grouped so you can see at a glance
+what kind of problem it is:
+
+- *Information absente du contexte* — the client never said. A question for you.
+- *Verdict rendu sans preuve citée* — the agent claimed something without citing a
+  fact, so the code refused it. That points at the prompt, not at the client.
+- *Contrôle inconnu du référentiel* / *Verdict non exploitable* — model malfunction.
+
+You are **not** interrogated control by control: with hundreds of controls that
+guarantees the list gets skipped and the audit trail fills with empty
+justifications. You read the list and type a control id only for the ones you want
+to document; the information is recorded in the decision log and the control stays
+explicitly unverified until it is reassessed.
+
 ### Missing referential controls
 
 If a declared framework has no controls loaded, the run **stops** before the

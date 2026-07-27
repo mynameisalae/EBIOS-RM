@@ -11,10 +11,15 @@ from dataclasses import dataclass
 
 from ebios_rm.repositories.reference_repository import BaselineControl
 from ebios_rm.workshops.workshop1_cadrage.models import (
+    REASON_INVALID_VERDICT,
+    REASON_NO_EVIDENCE_CITED,
+    REASON_NO_INFORMATION,
+    REASON_UNKNOWN_CONTROL,
     BaselineGap,
-    ControlReference,
     BaselineScopeDecision,
     ControlAssessmentProposal,
+    ControlReference,
+    UnverifiedControl,
 )
 
 _GAP_VERDICT = "gap"
@@ -32,9 +37,8 @@ class FrameworkAssessment:
     """The result of assessing one framework's controls against the Mission Context."""
 
     gaps: list[BaselineGap]
-    # control_ids whose verdict is insufficient, or a gap/compliant claimed without evidence:
-    # these become follow-up questions and stay 'unverified' until answered (conception §15 step 2).
-    insufficient: list[str]
+    # Controls that could not be concluded on, each carrying why (conception §15 step 2).
+    insufficient: list[UnverifiedControl]
 
 
 def assess_framework(
@@ -49,18 +53,31 @@ def assess_framework(
     """
     controls_by_id = {c.control_id: c for c in controls}
     gaps: list[BaselineGap] = []
-    insufficient: list[str] = []
+    insufficient: list[UnverifiedControl] = []
+
+    def unverified(proposal, reason: str, control=None) -> None:
+        insufficient.append(UnverifiedControl(
+            control_id=proposal.control_id,
+            framework=framework,
+            description=control.description if control else "",
+            reason=reason,
+            model_said=proposal.verdict.strip(),
+        ))
 
     for proposal in proposals:
         control = controls_by_id.get(proposal.control_id)
         if control is None:
             # A verdict citing a control the tools never returned — never invented into a gap.
-            insufficient.append(proposal.control_id)
+            unverified(proposal, REASON_UNKNOWN_CONTROL)
             continue
 
         verdict = proposal.verdict.strip().lower()
-        if verdict == _INSUFFICIENT_VERDICT or not has_evidence(proposal):
-            insufficient.append(proposal.control_id)
+        if verdict == _INSUFFICIENT_VERDICT:
+            unverified(proposal, REASON_NO_INFORMATION, control)
+            continue
+        if not has_evidence(proposal):
+            # Claimed a verdict but cited nothing: a prompt problem, not missing info.
+            unverified(proposal, REASON_NO_EVIDENCE_CITED, control)
             continue
         if verdict == _COMPLIANT_VERDICT:
             continue  # nothing to record — compliant with evidence
@@ -76,7 +93,7 @@ def assess_framework(
                 )
             )
         else:
-            insufficient.append(proposal.control_id)  # unrecognized verdict — never assumed
+            unverified(proposal, REASON_INVALID_VERDICT, control)  # never assumed
 
     return FrameworkAssessment(gaps=gaps, insufficient=insufficient)
 

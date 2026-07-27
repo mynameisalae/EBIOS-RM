@@ -69,9 +69,10 @@ def test_edited_output_still_validates_as_workshop_output():
     from ebios_rm.workshops.workshop1_cadrage.models import Workshop1Output
 
     base = Workshop1Output().model_dump(mode="json")
-    base["unverified_controls"] = ["RGPD-Art33"]
-    edited = apply_edit(base, "unverified_controls.0", "RGPD-Art32", justification="mauvais article")
+    base["unverified_controls"] = [{"control_id": "RGPD-Art33", "framework": "RGPD"}]
+    edited = apply_edit(base, "unverified_controls.0.control_id", "RGPD-Art32",
+                        justification="mauvais article")
 
     restored = Workshop1Output.model_validate(edited)
-    assert restored.unverified_controls == ["RGPD-Art32"]
+    assert restored.unverified_controls[0].control_id == "RGPD-Art32"
     assert restored.human_edits[0]["justification"] == "mauvais article"
