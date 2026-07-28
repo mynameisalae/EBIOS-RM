@@ -9,9 +9,9 @@
 #   correspondre au nom du dossier (nist_csf déclare NIST) et il écrase la valeur
 #   portée par les lignes de controls.json.
 # Comment l'IA l'utilise : (1) clé SQL reliant vos 93 règles de controls.json à ce
-#   manifest ; (2) cible du rapprochement quand l'auditeur écrit « Norme ISO 27001 »
-#   en texte libre — le rapprochement se fait sur les mots de l'id, donc ISO 27005
-#   ne peut pas être confondu avec celui-ci.
+#   manifest ; (2) cet id et le nom ci-dessous sont donnés à l'agent d'ingestion
+#   comme la liste des référentiels évaluables ici, et il répond avec les id qu'il
+#   reconnaît dans la prose du client (« Norme ISO 27001 », « ISO/IEC 27001:2022 »).
 # Exemple de requête interne de l'IA : SELECT * FROM baseline_controls WHERE framework = 'ISO27001';
 id: ISO27001
 # 3. NOM DU FRAMEWORK

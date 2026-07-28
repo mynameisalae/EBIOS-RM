@@ -17,10 +17,6 @@ through the HumanInterface, because those are the auditor's decisions (§2).
 
 from __future__ import annotations
 
-import re
-import unicodedata
-from functools import lru_cache
-
 from pydantic import BaseModel, Field
 
 from ebios_rm.domain.enums import FactStatus
@@ -70,49 +66,6 @@ def _parse_frameworks(value: object) -> list[str]:
     return []
 
 
-def tokens(text: str) -> set[str]:
-    """Accent-free lowercase word/number tokens: « Norme ISO 27001 » -> {norme, iso, 27001}.
-
-    Shared with the expert review, which keys its question ids on the same set so
-    case, accents, punctuation and word order cannot pass as a new question.
-    """
-    plain = unicodedata.normalize("NFKD", text.casefold())
-    return set(re.findall(r"[a-z]+|\d+", "".join(c for c in plain if not unicodedata.combining(c))))
-
-
-@lru_cache(maxsize=1)
-def _known_framework_ids() -> tuple[str, ...]:
-    """Loadable plugin ids — read once, the plugin folder does not change mid-run."""
-    from ebios_rm.plugins.registry import discover_frameworks  # local import: avoids a cycle
-
-    return tuple(p.id for p in discover_frameworks())
-
-
-def _canonical_frameworks(parts: list[str], known_ids: tuple[str, ...] | None = None) -> list[str]:
-    """Map free-text framework mentions onto the plugin ids that can actually be loaded (§12.5).
-
-    A real answer names a referential in prose (« Norme ISO 27001 », « ISO/IEC
-    27001:2022 »); the plugin id is ISO27001. Without this every such mention
-    reports as an unloaded framework even when its controls are right there.
-    Matching is by tokens, so word order and punctuation do not matter, and
-    ISO 27005 never matches ISO 27001.
-
-    A mention matching no plugin is kept verbatim: it stops the workshop at the
-    controls gate, where the auditor loads it or withdraws it with a reason (§2).
-    """
-    known = {pid: tokens(pid) for pid in (known_ids or _known_framework_ids())}
-    out: list[str] = []
-    for part in parts:
-        part_tokens = tokens(part)
-        matched = [pid for pid, toks in known.items() if toks and toks <= part_tokens]
-        # Keep only the most specific match: « NIST 800-53 » satisfies both NIST and a
-        # future NIST80053 plugin, and returning both would declare two referentials
-        # where the auditor named one.
-        matched = [p for p in matched if not any(known[p] < known[o] for o in matched)]
-        out.extend(matched or [part])
-    return list(dict.fromkeys(out))
-
-
 def assemble_from_facts(facts: list[Fact]) -> MissionContext:
     """Build a MissionContext from a validated Fact set keyed by questionnaire id.
 
@@ -123,9 +76,11 @@ def assemble_from_facts(facts: list[Fact]) -> MissionContext:
     return MissionContext(
         organisation_nom=str(values.get("organisation_nom") or "Organisation non renseignée"),
         secteur_activite=str(values.get("secteur_activite") or "Secteur non renseigné"),
+        # The ingestion prompt is shown the referentials this installation can load and
+        # answers with their ids, so nothing is matched here: a mention the model did
+        # not recognise stays as the client wrote it and stops at the controls gate (§12.5).
         applicable_frameworks=(
-            _canonical_frameworks(_parse_frameworks(values.get("applicable_frameworks")))
-            or list(_DEFAULT_FRAMEWORKS)
+            _parse_frameworks(values.get("applicable_frameworks")) or list(_DEFAULT_FRAMEWORKS)
         ),
         facts=facts,
         documents_fournis=documents,

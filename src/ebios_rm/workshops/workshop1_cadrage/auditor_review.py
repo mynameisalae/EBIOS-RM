@@ -14,6 +14,8 @@ patch cadence), same as a real interview. Bounded so it cannot run forever.
 from __future__ import annotations
 
 import hashlib
+import re
+import unicodedata
 from typing import Protocol
 
 from pydantic import BaseModel, Field
@@ -21,7 +23,7 @@ from pydantic import BaseModel, Field
 from ebios_rm.agent_runtime import StructuredCallFailed, facts_as_json, run_structured
 from ebios_rm.config import get_model
 from ebios_rm.domain.enums import PriorityLevel
-from ebios_rm.mission_context.mission_context import MissionContext, tokens
+from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.mission_context.priority_matrix import FollowUpQuestion
 
 # The review stops when the auditor-agent has nothing further worth asking — that
@@ -102,6 +104,12 @@ def already_asked(mission_context: MissionContext) -> list[str]:
     return [f.question for f in mission_context.facts if f.question]
 
 
+def _tokens(text: str) -> set[str]:
+    """Accent-free lowercase word/number tokens: « Norme ISO 27001 » -> {norme, iso, 27001}."""
+    plain = unicodedata.normalize("NFKD", text.casefold())
+    return set(re.findall(r"[a-z]+|\d+", "".join(c for c in plain if not unicodedata.combining(c))))
+
+
 def _make_field_name(question: str) -> str:
     """Stable id derived by hashing the question text, matching the gap_id pattern elsewhere.
 
@@ -111,7 +119,7 @@ def _make_field_name(question: str) -> str:
     collide with the one already asked, so the ``asked`` filter drops it in code.
     Genuinely new wording still gets through — that part stays the model's job.
     """
-    digest = hashlib.sha256(" ".join(sorted(tokens(question))).encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(" ".join(sorted(_tokens(question))).encode("utf-8")).hexdigest()
     return f"AUD-{digest[:8]}"
 
 

@@ -41,6 +41,33 @@ def _questions_block(questions: list[Question]) -> str:
     )
 
 
+def _frameworks_note(questions: list[Question]) -> str:
+    """The referentials this installation can actually evaluate, id + display name.
+
+    Shown to the model so it answers applicable_frameworks with ids that exist here
+    rather than with the client's prose. « ISO 27001 », « ISO27001 » and « ISO/IEC
+    27001:2022 » are the same referential to a reader; matching them by string is a
+    lookup table that is never finished, so the choice is given to the model against
+    a closed list instead. Whatever it does not map is kept verbatim and stops at the
+    controls gate, where the auditor rules on it (§2, §12.5).
+    """
+    from ebios_rm.plugins.registry import discover_frameworks  # noqa: PLC0415 — avoids a cycle
+
+    if not any(q.id == "applicable_frameworks" for q in questions):
+        return ""   # questions are sent in batches; only the batch carrying it needs the list
+
+    listed = "\n".join(f"- {p.id} : {p.name}" for p in discover_frameworks())
+    return (
+        "RÉFÉRENTIELS DISPONIBLES DANS CETTE INSTALLATION :\n"
+        f"{listed}\n"
+        "Pour la question applicable_frameworks uniquement : réponds avec les id de "
+        "cette liste que le client désigne, séparés par des virgules, quelle que soit "
+        "la façon dont il les écrit. Ajoute tels quels, sans les traduire en id, les "
+        "référentiels qu'il cite et qui ne figurent pas dans la liste. N'ajoute jamais "
+        "un id que le client n'a pas désigné.\n"
+    )
+
+
 def _chunk(questions: list[Question], size: int) -> list[list[Question]]:
     return [questions[i:i + size] for i in range(0, len(questions), size)]
 
@@ -86,6 +113,7 @@ class AgnoIngestionRunner:
                 "en citant le passage exact (source_quote), et évalue sa plausibilité. Si aucune "
                 "réponse n'est fournie pour une question, mets found=false.\n\n"
                 f"QUESTIONS:\n{_questions_block(batch)}\n\n"
+                f"{_frameworks_note(batch)}"
                 f"DOCUMENT REMPLI:\n{doc_text}"
             )
             collected.extend(self._run(prompt, what="questionnaire"))
@@ -104,6 +132,7 @@ class AgnoIngestionRunner:
                 "et source_quote OBLIGATOIRE citant le passage exact). N'extrais que ce qui est "
                 "réellement écrit dans le document.\n\n"
                 f"QUESTIONS:\n{_questions_block(batch)}\n\n"
+                f"{_frameworks_note(batch)}"
                 f"DOCUMENT:\n{doc_text}"
             )
             collected.extend(self._run(prompt, what=f"supporting:{doc_name}"))

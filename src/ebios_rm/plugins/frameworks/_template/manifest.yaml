@@ -1,10 +1,9 @@
 # The id declared here is authoritative everywhere: it overrides whatever the rows
-# of controls.json carry, and it is what an auditor's free-text mention is matched
-# against. The folder name is not used for anything (nist_csf declares NIST), so
-# pick the id an auditor would write, not a directory name.
-# Match is on the id's word set, so « NIST CSF 2.0 » reaches NIST and « Norme ISO
-# 27001 » reaches ISO27001. Keep it specific enough not to collide with a sibling
-# standard you may add later.
+# of controls.json carry. The folder name is not used for anything (nist_csf
+# declares NIST). This id and the name below are shown to the ingestion agent as
+# the list of referentials this installation can evaluate, and it answers with the
+# ids it recognises in the client's prose — so write the id and the name the way a
+# referential is actually named, not a directory name.
 id: CHANGE_ME                 # e.g. HIPAA, PCI_DSS
 name: "Full display name"
 framework_version: "CHANGE_ME"  # e.g. '2022', 'CSF 2.0', '2016/679'
