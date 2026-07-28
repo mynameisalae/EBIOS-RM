@@ -177,3 +177,106 @@ def test_skip_is_refused_on_a_blocking_question():
 
     assert hi.ask_followup(_q(blocking=True)) == "Paris"
     assert any("ne peut pas être passée" in line for line in out)
+
+
+# --- a real answer typed into the skip-reason box is not lost (live-run finding) ---
+
+_LONG_ANSWER = ("Nous utilisons Microsoft Defender for Endpoint en version 7.12, déployé sur "
+                "l'ensemble du parc, avec des mises à jour automatiques quotidiennes.")
+
+
+def test_substantive_skip_reason_can_be_recorded_as_the_answer():
+    runner = ScriptedTurnRunner({})
+    ask, show, out = _io(["skip", _LONG_ANSWER, "o"])
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    assert hi.ask_followup(_q()) == _LONG_ANSWER   # becomes a Fact, not a skip justification
+
+
+def test_substantive_skip_reason_still_skips_when_refused():
+    runner = ScriptedTurnRunner({})
+    ask, show, out = _io(["skip", _LONG_ANSWER, "n"])
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    result = hi.ask_followup(_q())
+    assert isinstance(result, SkipRequested) and result.reason == _LONG_ANSWER
+
+
+def test_answer_or_skip_requires_an_explicit_choice():
+    # Defaulting either way is silent: it discards a real answer, or files a skip
+    # motive as one. Anything but oui/non re-asks (§2).
+    runner = ScriptedTurnRunner({})
+    ask, show, out = _io(["skip", _LONG_ANSWER, "", "peut-être", "non"])
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    assert isinstance(hi.ask_followup(_q()), SkipRequested)
+    assert sum("décision explicite" in line for line in out) == 2
+
+
+def test_short_skip_reason_is_never_second_guessed():
+    runner = ScriptedTurnRunner({})
+    ask, show, out = _io(["skip", "client injoignable"])   # no extra prompt consumed
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+    assert isinstance(hi.ask_followup(_q()), SkipRequested)
+
+
+def test_punctuation_only_justification_is_refused():
+    runner = ScriptedTurnRunner({})
+    ask, show, out = _io(["skip", ":::::", "skip", "8", "skip", "non applicable ici"])
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    result = hi.ask_followup(_q())
+    assert isinstance(result, SkipRequested) and result.reason == "non applicable ici"
+
+
+# --- blank presses must offer the same way out as conversational pushback ---
+
+def test_repeated_blank_input_advertises_the_override():
+    runner = ScriptedTurnRunner({})
+    ask, show, out = _io(["", "", "", "!aucune information disponible"])
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    assert hi.ask_followup(_q(blocking=True)) == "aucune information disponible"
+    assert any("préfixez '!'" in line for line in out)
+
+
+# --- a hand-typed contradiction resolution is plausibility-checked (§11) ---
+
+def _contradiction():
+    from ebios_rm.mission_context.validation import Contradiction
+
+    return Contradiction(
+        field_name="organisation_nom",
+        declaration=Fact.declaration("organisation_nom", "Horizon Télésanté"),
+        extraction=Fact.extraction("organisation_nom", "Horizon Telesante SAS",
+                                   source_document="statuts.pdf", source_quote="Horizon Telesante SAS"),
+    )
+
+
+def test_implausible_typed_resolution_is_refused_then_corrected():
+    runner = ScriptedTurnRunner({
+        "C:\\Users\\aud\\Desktop\\notes.txt": TurnResult(
+            intent="insufficient", reply="Cela ressemble à un chemin de fichier, pas à un nom."),
+        "Horizon Télésanté SAS": TurnResult(intent="answer", answer="Horizon Télésanté SAS"),
+    })
+    ask, show, out = _io(["C:\\Users\\aud\\Desktop\\notes.txt", "Horizon Télésanté SAS"])
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    assert hi.resolve_contradiction(_contradiction()) == "Horizon Télésanté SAS"
+
+
+def test_typed_resolution_can_be_forced_through():
+    runner = ScriptedTurnRunner({})
+    ask, show, out = _io(["!Horizon"])
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    assert hi.resolve_contradiction(_contradiction()) == "Horizon"
+    assert runner.seen == []   # the override never reaches the LLM (§2)
+
+
+def test_listed_choice_still_bypasses_the_check():
+    runner = ScriptedTurnRunner({})
+    ask, show, out = _io(["2"])
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    assert hi.resolve_contradiction(_contradiction()) == "Horizon Telesante SAS"

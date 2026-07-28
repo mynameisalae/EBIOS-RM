@@ -7,6 +7,7 @@ from ebios_rm.workshops.workshop1_cadrage.auditor_review import (
     MAX_ROUNDS,
     MAX_TOTAL_QUESTIONS,
     AuditorFollowUp,
+    already_asked,
     to_followup_question,
 )
 from ebios_rm.workshops.workshop1_cadrage.intake_ingestion import complete_intake_from_facts
@@ -93,6 +94,29 @@ def test_total_question_ceiling_caps_interrogation():
     assert len([f for f in mc.facts if f.field_name.startswith("AUD-")]) == MAX_TOTAL_QUESTIONS
 
 
+def test_asked_questions_survive_for_a_resumed_review():
+    # The question text is kept on each Fact, so a review resumed from the checkpoint
+    # knows what was already asked instead of regenerating a reworded round 1.
+    proposal = AuditorFollowUp(question="Quelle version de CrowdStrike Falcon ?", why="x")
+    reviewer = FakeAuditorReviewRunner({1: [proposal]})
+    human = ScriptedHuman(answers={to_followup_question(proposal).field_name: "7.x"})
+    mc = complete_intake_from_facts(_minimal_facts(), [], human, auditor_reviewer=reviewer)
+
+    assert "Quelle version de CrowdStrike Falcon ?" in already_asked(mc)
+    # Catalog questions are recorded the same way — the reviewer must not re-ask them either.
+    assert all(f.question for f in mc.facts if f.field_name.startswith("AUD-"))
+    assert len(already_asked(mc)) > 1
+
+
+def test_skipped_question_is_still_recorded_as_asked():
+    human = ScriptedHuman(skips={"processus_metier_critiques": "sera fourni plus tard"})
+    mc = complete_intake_from_facts(_minimal_facts(), [], human)
+    skipped = mc.get("processus_metier_critiques")
+
+    assert skipped.justification == "sera fourni plus tard"
+    assert skipped.question in already_asked(mc)   # never proposed again as if new
+
+
 def test_duplicate_question_across_rounds_is_not_reasked():
     same_question = AuditorFollowUp(question="Quelle est la fréquence de mise à jour ?", why="x")
     reviewer = FakeAuditorReviewRunner({1: [same_question], 2: [same_question]})
@@ -101,3 +125,24 @@ def test_duplicate_question_across_rounds_is_not_reasked():
 
     aud_facts = [f for f in mc.facts if f.field_name.startswith("AUD-")]
     assert len(aud_facts) == 1  # asked once in round 1, round 2's identical proposal skipped
+
+
+def test_trivially_reworded_question_is_not_reasked():
+    # The prompt asks the model not to repeat itself "même reformulée"; that is a
+    # request, not a guarantee. Case, accents, punctuation and word order must be
+    # caught in code, so a free model cannot re-interrogate the auditor by rewrapping.
+    first = AuditorFollowUp(question="Quelle est la fréquence de mise à jour ?", why="x")
+    reworded = AuditorFollowUp(question="  de quelle MISE A JOUR est la frequence ???  ", why="x")
+    assert to_followup_question(first).field_name == to_followup_question(reworded).field_name
+
+    reviewer = FakeAuditorReviewRunner({1: [first], 2: [reworded]})
+    human = ScriptedHuman(answers={to_followup_question(first).field_name: "Quotidienne"})
+    mc = complete_intake_from_facts(_minimal_facts(), [], human, auditor_reviewer=reviewer)
+
+    assert len([f for f in mc.facts if f.field_name.startswith("AUD-")]) == 1
+
+
+def test_a_genuinely_different_question_still_gets_through():
+    first = AuditorFollowUp(question="Quelle est la fréquence de mise à jour ?", why="x")
+    other = AuditorFollowUp(question="Le MFA est-il actif sur les accès distants ?", why="x")
+    assert to_followup_question(first).field_name != to_followup_question(other).field_name

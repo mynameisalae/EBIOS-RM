@@ -28,7 +28,7 @@ from ebios_rm.mission_context.ingestion import (
     supporting_answers_to_facts,
 )
 from ebios_rm.mission_context.mission_context import MissionContext, assemble_from_facts
-from ebios_rm.mission_context.priority_matrix import catalog_follow_up_questions
+from ebios_rm.mission_context.priority_matrix import FollowUpQuestion, catalog_follow_up_questions
 from ebios_rm.mission_context.questionnaire import all_questions
 from ebios_rm.mission_context.validation import validate
 from ebios_rm.workshops.workshop1_cadrage.human_interface import HumanInterface, SkipRequested
@@ -74,14 +74,20 @@ def _noop_checkpoint(_facts: list[Fact]) -> None:
     pass
 
 
-def _append_outcome(facts: list[Fact], field_name: str, outcome) -> None:
+def _append_outcome(facts: list[Fact], question: FollowUpQuestion, outcome) -> None:
+    """Record an answer (or a skip) together with the question that produced it.
+
+    The question text is kept on the Fact so a resumed expert review can see what
+    was already asked instead of re-proposing it reworded (its field_name is a hash).
+    """
     if isinstance(outcome, SkipRequested):
         facts.append(Fact(
-            field_name=field_name, value=None, origin=Origin.DECLARATION,
+            field_name=question.field_name, value=None, origin=Origin.DECLARATION,
             confidence=Confidence.LOW, status=FactStatus.SKIPPED, justification=outcome.reason,
+            question=question.question,
         ))
     else:
-        facts.append(Fact.declaration(field_name, outcome))
+        facts.append(Fact.declaration(question.field_name, outcome, question=question.question))
 
 
 def _ask_follow_ups(facts: list[Fact], human: HumanInterface, checkpoint: Checkpoint) -> None:
@@ -100,7 +106,7 @@ def _ask_follow_ups(facts: list[Fact], human: HumanInterface, checkpoint: Checkp
             break
         for question in pending:
             asked.add(question.field_name)
-            _append_outcome(facts, question.field_name, human.ask_followup(question))
+            _append_outcome(facts, question, human.ask_followup(question))
             checkpoint(facts)
 
 
@@ -125,7 +131,7 @@ def _run_expert_review(
                 return
             fq = to_followup_question(proposal)
             asked.add(fq.field_name)
-            _append_outcome(facts, fq.field_name, human.ask_followup(fq))
+            _append_outcome(facts, fq, human.ask_followup(fq))
             checkpoint(facts)
 
 

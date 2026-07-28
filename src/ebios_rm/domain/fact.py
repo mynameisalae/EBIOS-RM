@@ -41,6 +41,10 @@ class Fact(BaseModel):
     validated_at: str | None = None
     # Non-empty reason attached to a Skip or Reject (universal justification rule, §8).
     justification: str | None = None
+    # The follow-up question this Fact answers, when it came from one. An expert
+    # question's field_name is an opaque hash, so without the text nothing — neither
+    # the auditor nor the reviewing agent after a resume — can tell what was asked.
+    question: str | None = None
 
     @model_validator(mode="after")
     def _enforce_provenance(self) -> "Fact":
@@ -69,6 +73,7 @@ class Fact(BaseModel):
         confidence: Confidence = Confidence.HIGH,
         validated_by: str | None = None,
         validated_at: str | None = None,
+        question: str | None = None,
     ) -> "Fact":
         """A value entered directly by the auditor in the intake form (§4, §11.1) — highest confidence."""
         return cls(
@@ -79,6 +84,7 @@ class Fact(BaseModel):
             status=FactStatus.DECLARED,
             validated_by=validated_by,
             validated_at=validated_at,
+            question=question,
         )
 
     @classmethod

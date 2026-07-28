@@ -70,6 +70,13 @@ RÈGLE ABSOLUE : si ton reply pose une question ou réclame une précision, inte
 n'est JAMAIS "answer". Ne jamais enregistrer une réponse et demander un complément
 dans le même tour.
 
+CAS DE LA CONFIRMATION : si TON tour précédent (voir ÉCHANGE RÉCENT) proposait une
+reformulation à valider (« est-ce bien cela ? »), un « oui » isolé confirme CETTE
+reformulation — intent="answer", answer = la reformulation que tu avais proposée.
+Un « non » isolé la rejette — intent="question", reply = demande la correction.
+Dans ce cas précis, ne réévalue pas ce « oui »/« non » comme s'il répondait à la
+question d'origine : ce serait boucler sur une réponse déjà obtenue.
+
 Réponds en français, concis, au format structuré demandé.
 """
 

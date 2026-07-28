@@ -17,11 +17,11 @@ data/mission/*.db
 .env
 *.env.local
 
-# Internal working documents — kept locally, not published.
-# The conception is the project's private design reference; HANDOFF.md is passed
-# between working sessions by hand.
-docs/conception/
-docs/HANDOFF.md
+# Internal working documents — kept locally, not published. Everything under
+# docs/ stays on disk (conception = private design reference, HANDOFF.md is
+# passed between sessions by hand); only the client intake questionnaire ships.
+docs/*
+!docs/intake/
 
 # Licensed referential text — never redistributed (conception §12.2).
 # ISO 27001 Annex A is copyrighted (AFNOR licence, internal use only), so its

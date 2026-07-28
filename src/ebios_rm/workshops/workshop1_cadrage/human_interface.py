@@ -21,6 +21,32 @@ from ebios_rm.mission_context.priority_matrix import FollowUpQuestion
 from ebios_rm.mission_context.validation import Contradiction
 
 
+# A "skip reason" this long is usually the answer itself, typed one prompt too late —
+# observed live, and it silently loses real audit information: the text is logged as a
+# justification and never becomes a Fact. Above this length, confirm before skipping.
+ANSWER_LIKE_REASON_CHARS = 80
+
+
+def is_meaningful(text: str) -> bool:
+    """A justification must actually be one (§8).
+
+    "Motif du skip : :::::" and "Motif du retrait : 8" are non-empty yet say nothing;
+    they satisfy the letter of §8 while emptying it of content. Noise rejection only —
+    two alphanumeric characters are enough, this is not a content check.
+    """
+    return sum(1 for c in text if c.isalnum()) >= 2
+
+
+def ask_justification(prompt: str, io_in: Callable[[str], str] = input,
+                      io_out: Callable[[str], None] = print) -> str:
+    """Re-prompt until the auditor gives a real reason (§8)."""
+    while True:
+        reason = io_in(prompt).strip()
+        if is_meaningful(reason):
+            return reason
+        io_out("    Un motif non vide est obligatoire (§8) — indiquez la raison.")
+
+
 class SkipRequested(Exception):
     """Raised/returned when the auditor skips an Important question, carrying the mandatory reason (§8)."""
 
@@ -62,6 +88,33 @@ class CLIHumanInterface:
     def _prompt(self, text: str) -> str:
         return input(text).strip()
 
+    def _say(self, text: str) -> None:
+        print(text)
+
+    def _skip_outcome(self, reason: str) -> str | SkipRequested:
+        """Finalise a skip — unless the "reason" reads like the answer itself.
+
+        The auditor types 'skip', is asked why, and pastes a full technical answer
+        there. Committing to the skip then throws that information away, while they
+        believe they answered. Ask instead of guessing (§2).
+        """
+        if len(reason) < ANSWER_LIKE_REASON_CHARS:
+            return SkipRequested(reason)
+        while True:
+            keep = self._prompt("    Cela ressemble à une réponse — l'enregistrer comme réponse ? [oui/non] : ")
+            if keep.casefold() in {"o", "oui", "y", "yes"}:
+                return reason
+            if keep.casefold() in {"n", "non", "no"}:
+                return SkipRequested(reason)
+            # No default: guessing here either discards a real answer or records a
+            # skip motive as one. Both are silent, so the choice must be explicit (§2).
+            self._say("    Répondez 'oui' ou 'non' — une décision explicite est requise (§2).")
+
+    def _accept_free_value(self, contradiction: Contradiction, typed: str) -> object | None:
+        """A hand-typed contradiction resolution. Taken as-is here; checked by the
+        conversational subclass. None means 'not accepted, ask again'."""
+        return typed
+
     def ask_followup(self, question: FollowUpQuestion) -> str | SkipRequested:
         tag = "CRITIQUE (bloquant)" if question.blocking else "IMPORTANT"
         print(f"\n[{tag}] {question.question}")
@@ -78,8 +131,8 @@ class CLIHumanInterface:
                 if answer.lower() != "skip":
                     return answer
                 reason = self._prompt("Motif du skip (obligatoire, §8) : ")
-                if reason:
-                    return SkipRequested(reason)
+                if is_meaningful(reason):
+                    return self._skip_outcome(reason)
                 print("    Un motif non vide est obligatoire pour passer (§8).")
 
     def confirm_document_only(self, field_name: str, value: object, source_quote: str) -> bool:
@@ -100,7 +153,10 @@ class CLIHumanInterface:
             if choice == "2":
                 return contradiction.extraction.value
             if choice:
-                return choice
+                value = self._accept_free_value(contradiction, choice)
+                if value is not None:
+                    return value
+                continue
             print("    Une décision explicite est requise — la mission ne peut avancer sans elle (§11).")
 
     def review_flag(self, flag: AnswerFlag) -> object | None:
@@ -137,13 +193,10 @@ def approve_workshop(
         if choice in {"oui", "o", "yes", "y"}:
             return True, ""
         if choice in {"non", "n", "no"}:
-            while True:
-                reason = io_in("Motif du refus (obligatoire, §8) : ").strip()
-                if reason:
-                    io_out(f"Résultat NON APPROUVÉ — motif enregistré : {reason}")
-                    io_out("La reprise de l'atelier nécessitera la persistance de mission (à venir).")
-                    return False, reason
-                io_out("    Un motif non vide est obligatoire (§8).")
+            reason = ask_justification("Motif du refus (obligatoire, §8) : ", io_in, io_out)
+            io_out(f"Résultat NON APPROUVÉ — motif enregistré : {reason}")
+            io_out("La reprise de l'atelier nécessitera la persistance de mission (à venir).")
+            return False, reason
         io_out("    Répondez 'oui' ou 'non' — une décision explicite est requise (§2).")
 
 
@@ -185,6 +238,9 @@ class ConversationalHumanInterface(CLIHumanInterface):
     def _prompt(self, text: str) -> str:  # keep parent's confirm/contradiction/flag prompts working
         return self._in(text)
 
+    def _say(self, text: str) -> None:
+        self._out(text)
+
     def _converse(self, question: str, explanation: str, user: str) -> tuple[bool, str]:
         """One agent turn. Returns (is_answer, captured_value). Records into session history.
 
@@ -200,6 +256,35 @@ class ConversationalHumanInterface(CLIHumanInterface):
             self._out(f"Agent : {turn.reply}")
         return turn.is_answer, (turn.answer or user)
 
+    def _nudge(self, pushbacks: int) -> int:
+        """Count one turn that did not answer; at the threshold, advertise the '!' override.
+
+        Blank presses and conversational non-answers share this counter: they are the
+        same dead end for the auditor, so they must offer the same way out (§2).
+        """
+        pushbacks += 1
+        if pushbacks == self.MAX_PUSHBACKS:
+            self._out("    (bloqué ? préfixez '!' pour enregistrer votre réponse telle quelle)")
+        return pushbacks
+
+    def _accept_free_value(self, contradiction: Contradiction, typed: str) -> object | None:
+        """Plausibility-check a hand-typed resolution, as ingestion checks what it reads (§11).
+
+        Anything non-empty used to be accepted verbatim: an accidental paste of a file
+        path became the authoritative value of organisation_nom. '!' still forces a
+        value through — the auditor outranks the agent (§2).
+        """
+        if typed.startswith("!"):
+            return typed[1:].strip() or None
+        extraction = contradiction.extraction
+        is_answer, value = self._converse(
+            f"Quelle est la valeur correcte pour « {contradiction.field_name} » ?",
+            f"Valeurs en conflit : {contradiction.declaration.value!r} (formulaire) "
+            f"vs {extraction.value!r} ({extraction.source_document}).",
+            typed,
+        )
+        return value if is_answer else None
+
     def ask_followup(self, question: FollowUpQuestion) -> str | SkipRequested:
         tag = "CRITIQUE (bloquant)" if question.blocking else "IMPORTANT"
         self._out(f"\n[{tag}] {question.question}")
@@ -214,20 +299,23 @@ class ConversationalHumanInterface(CLIHumanInterface):
         while True:
             user = self._in("> ")
             # A blank line is never a decision: skipping is an explicit act that must
-            # be typed, so a stray Enter cannot start abandoning a question (§8).
+            # be typed, so a stray Enter cannot start abandoning a question (§8). It is
+            # still a non-answer, so it counts toward the same pushback budget — 30
+            # blank Enters in a row on a blocking question found no way out otherwise.
             if not user:
                 if question.blocking:
                     self._out("    Information bloquante — une réponse est requise (§7).")
                 else:
                     self._out("    Répondez, ou tapez 'skip' pour passer cette question.")
+                pushbacks = self._nudge(pushbacks)
                 continue
             if user.lower() == "skip":
                 if question.blocking:
                     self._out("    Question bloquante : elle ne peut pas être passée (§7).")
                     continue
                 reason = self._in("Motif du skip (obligatoire, §8) : ")
-                if reason:
-                    return SkipRequested(reason)
+                if is_meaningful(reason):
+                    return self._skip_outcome(reason)
                 self._out("    Un motif non vide est obligatoire pour passer (§8).")
                 continue
             # Escape hatch: the auditor always outranks the agent (§2). Without this,
@@ -243,9 +331,7 @@ class ConversationalHumanInterface(CLIHumanInterface):
             is_answer, value = self._converse(question.question, question.help_text, user)
             if is_answer:
                 return value
-            pushbacks += 1
-            if pushbacks == self.MAX_PUSHBACKS:
-                self._out("    (l'agent insiste : préfixez '!' pour enregistrer votre réponse telle quelle)")
+            pushbacks = self._nudge(pushbacks)
 
     def review_flag(self, flag: AnswerFlag) -> object | None:
         label = "INCOHÉRENTE" if flag.kind == "implausible" else "À CLARIFIER"
