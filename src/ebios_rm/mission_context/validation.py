@@ -35,11 +35,24 @@ def values_match(a: object, b: object) -> bool:
 
 @dataclass
 class Contradiction:
-    """Two sources disagree on the same field (conception §11) — human resolution mandatory."""
+    """Sources disagree on the same field (conception §11) — human resolution mandatory.
+
+    ``declaration`` is the questionnaire's value when there is one. Two supplied
+    documents can also disagree while the form says nothing about the field; then
+    ``declaration`` is the first document's Fact and ``sources`` names them all, so
+    the disagreement is still put to the auditor rather than being decided by
+    whichever document happened to be read last.
+    """
 
     field_name: str
     declaration: Fact
     extraction: Fact
+    others: list[Fact] = field(default_factory=list)  # further disagreeing documents, if any
+
+    @property
+    def has_declaration(self) -> bool:
+        """False when the form never answered this field and only documents disagree."""
+        return self.declaration.source_document is None
 
 
 @dataclass
@@ -64,24 +77,40 @@ def validate(declaration_facts: list[Fact], extraction_facts: list[Fact]) -> Val
     """
     result = ValidationResult()
     decl_by_field = {f.field_name: f for f in declaration_facts}
-    extr_by_field = {f.field_name: f for f in extraction_facts}
+
+    # Grouped, not keyed: several documents can answer the same field, and a dict would
+    # keep only the last one read — two documents flatly disagreeing would then pass as
+    # a single quiet fact, which is precisely what §11 forbids.
+    extr_by_field: dict[str, list[Fact]] = {}
+    for f in extraction_facts:
+        extr_by_field.setdefault(f.field_name, []).append(f)
 
     for field_name, decl in decl_by_field.items():
-        extr = extr_by_field.get(field_name)
-        if extr is None:
+        extractions = extr_by_field.get(field_name, [])
+        disagreeing = [e for e in extractions if not values_match(decl.value, e.value)]
+        if not extractions:
             result.declaration_only.append(decl)
-        elif values_match(decl.value, extr.value):
-            # Identical: keep the declaration (highest confidence), mark verified.
-            verified = decl.model_copy(update={"confidence": Confidence.HIGH})
-            result.verified.append(verified)
+        elif not disagreeing:
+            # Every document agrees with the form: keep the declaration, mark verified.
+            result.verified.append(decl.model_copy(update={"confidence": Confidence.HIGH}))
         else:
-            result.contradictions.append(
-                Contradiction(field_name=field_name, declaration=decl, extraction=extr)
-            )
+            result.contradictions.append(Contradiction(
+                field_name=field_name, declaration=decl,
+                extraction=disagreeing[0], others=disagreeing[1:],
+            ))
 
-    # Extraction facts with no declaration counterpart: propose for simple confirmation.
-    for field_name, extr in extr_by_field.items():
-        if field_name not in decl_by_field:
-            result.document_only.append(extr)
+    for field_name, extractions in extr_by_field.items():
+        if field_name in decl_by_field:
+            continue
+        first = extractions[0]
+        disagreeing = [e for e in extractions[1:] if not values_match(first.value, e.value)]
+        if disagreeing:
+            # The form says nothing, and the documents do not agree with each other.
+            result.contradictions.append(Contradiction(
+                field_name=field_name, declaration=first,
+                extraction=disagreeing[0], others=disagreeing[1:],
+            ))
+        else:
+            result.document_only.append(first)
 
     return result

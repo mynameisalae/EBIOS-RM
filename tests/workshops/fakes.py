@@ -24,6 +24,10 @@ from ebios_rm.workshops.workshop1_cadrage.models import (
 class ScriptedHuman:
     """Answers follow-ups/confirmations/contradictions from pre-set scripts."""
 
+    # Derived answers are accepted wholesale unless a test overrides this.
+    def confirm_derived_answers(self, reviews):
+        return list(reviews)
+
     def __init__(
         self,
         answers: dict[str, str] | None = None,
@@ -153,7 +157,7 @@ class FakeRunner:
                 ))
         return out
 
-    def assess_legal_impacts(self, mission_context, events, provisions, revision_notes=None):
+    def assess_legal_impacts(self, mission_context, events, provisions, revision_notes=None, assets=None):
         if not events or not provisions:
             return []
         return [

@@ -167,7 +167,7 @@ def test_typed_skip_still_requires_a_reason():
     assert isinstance(result, SkipRequested)
     assert result.reason == "client injoignable"
     assert runner.seen == []                        # skip never reaches the LLM
-    assert any("motif non vide est obligatoire" in line for line in out)
+    assert any("une vraie raison" in line for line in out)
 
 
 def test_skip_is_refused_on_a_blocking_question():
@@ -280,3 +280,55 @@ def test_listed_choice_still_bypasses_the_check():
     hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
 
     assert hi.resolve_contradiction(_contradiction()) == "Horizon Telesante SAS"
+
+
+# --- a turn can be an answer AND a follow-up (live-run finding) ---
+
+def test_a_follow_up_is_actually_asked_instead_of_being_printed_and_lost():
+    # The live run answered, the agent asked "et vos menaces principales ?" in the same
+    # turn, and the loop advanced — the question appeared on screen with no prompt behind it.
+    runner = ScriptedTurnRunner({
+        "on a ISO 27001 et SOC 2": TurnResult(
+            intent="answer_and_more", answer="ISO 27001 et SOC 2",
+            reply="Noté. Vos hébergeurs sont-ils audités chaque année ?"),
+        "oui, audit annuel": TurnResult(intent="answer", answer="audit annuel"),
+    })
+    ask, show, out = _io(["on a ISO 27001 et SOC 2", "oui, audit annuel"])
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    result = hi.ask_followup(_q())
+    assert "ISO 27001 et SOC 2" in result and "audit annuel" in result   # both halves kept
+    assert runner.seen == ["on a ISO 27001 et SOC 2", "oui, audit annuel"]
+
+
+def test_endless_follow_ups_cannot_trap_the_auditor():
+    always_more = TurnResult(intent="answer_and_more", answer="ok", reply="Et encore ?")
+    runner = ScriptedTurnRunner({"ok": always_more})
+    ask, show, out = _io(["ok"] * 10)
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    hi.ask_followup(_q())                       # returns rather than looping forever
+    assert len(runner.seen) <= hi.MAX_PUSHBACKS + 1
+
+
+def test_a_long_answer_is_recorded_in_the_auditors_own_words():
+    # `answer` is the model's summary; a summary of a long answer drops most of it.
+    long_answer = ("Nos serveurs de production sont à Tanger, les sauvegardes chiffrées "
+                   "sont hébergées en Europe, et tout accès distant passe par le VPN.")
+    runner = ScriptedTurnRunner({
+        long_answer: TurnResult(intent="answer", answer="Tanger", reply="Noté."),
+    })
+    ask, show, out = _io([long_answer])
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    assert hi.ask_followup(_q()) == long_answer
+
+
+def test_a_garbled_short_reply_still_benefits_from_normalisation():
+    runner = ScriptedTurnRunner({
+        "zes it is": TurnResult(intent="answer", answer="Oui, la MFA est en place"),
+    })
+    ask, show, out = _io(["zes it is"])
+    hi = ConversationalHumanInterface(runner, io_in=ask, io_out=show)
+
+    assert hi.ask_followup(_q()) == "Oui, la MFA est en place"

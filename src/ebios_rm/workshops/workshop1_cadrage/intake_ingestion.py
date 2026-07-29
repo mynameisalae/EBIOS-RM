@@ -32,6 +32,11 @@ from ebios_rm.mission_context.priority_matrix import FollowUpQuestion, catalog_f
 from ebios_rm.mission_context.questionnaire import all_questions
 from ebios_rm.mission_context.validation import validate
 from ebios_rm.workshops.workshop1_cadrage.human_interface import HumanInterface, SkipRequested
+from ebios_rm.workshops.workshop1_cadrage.intake_review import (
+    IntakeReviewRunner,
+    enrich,
+    valid_reviews,
+)
 
 
 def _answers_map(facts: list[Fact]) -> dict[str, object]:
@@ -90,7 +95,39 @@ def _append_outcome(facts: list[Fact], question: FollowUpQuestion, outcome) -> N
         facts.append(Fact.declaration(question.field_name, outcome, question=question.question))
 
 
-def _ask_follow_ups(facts: list[Fact], human: HumanInterface, checkpoint: Checkpoint) -> None:
+def _apply_review(
+    facts: list[Fact], pending: list[FollowUpQuestion], reviewer: IntakeReviewRunner | None,
+    human: HumanInterface,
+) -> list[FollowUpQuestion]:
+    """Drop questions the documents already answer; sharpen the ones answered too thinly.
+
+    The auditor confirms the derived answers in a single pass — one per question would
+    trade a question for a confirmation and save nobody anything. Whatever they decline,
+    and everything the review did not settle, is asked exactly as before (§2).
+    """
+    if reviewer is None or not pending:
+        return pending
+
+    answered, thin = valid_reviews(reviewer.review(facts, pending), facts, pending)
+    accepted = human.confirm_derived_answers(answered) if answered else []
+    by_field = {q.field_name: q for q in pending}
+    for review in accepted:
+        question = by_field[review.field_name]
+        facts.append(Fact(
+            field_name=review.field_name, value=review.answer, origin=Origin.ASSESSMENT,
+            # The fact it was read from, so the trail survives into the report (§5.1).
+            assessment_basis=[review.based_on_fact],
+            confidence=Confidence.MEDIUM, status=FactStatus.APPROVED, validated_by="auditor",
+            justification="Déjà répondu dans le dossier, confirmé par l'auditeur (§2, §7).",
+            question=question.question,
+        ))
+
+    settled = {r.field_name for r in accepted}
+    return [enrich(q, thin) for q in pending if q.field_name not in settled]
+
+
+def _ask_follow_ups(facts: list[Fact], human: HumanInterface, checkpoint: Checkpoint,
+                    reviewer: IntakeReviewRunner | None = None) -> None:
     """Ask catalog follow-ups for still-missing fields (conception §7, §11).
 
     Fields already present (from the questionnaire or a supporting document) are
@@ -104,6 +141,7 @@ def _ask_follow_ups(facts: list[Fact], human: HumanInterface, checkpoint: Checkp
         pending = [q for q in catalog_follow_up_questions(_answers_map(facts)) if q.field_name not in asked]
         if not pending:
             break
+        pending = _apply_review(facts, pending, reviewer, human)
         for question in pending:
             asked.add(question.field_name)
             _append_outcome(facts, question, human.ask_followup(question))
@@ -138,8 +176,9 @@ def _run_expert_review(
 def _follow_and_review(
     facts: list[Fact], human: HumanInterface,
     auditor_reviewer: AuditorReviewRunner | None, checkpoint: Checkpoint,
+    intake_reviewer: IntakeReviewRunner | None = None,
 ) -> MissionContext:
-    _ask_follow_ups(facts, human, checkpoint)
+    _ask_follow_ups(facts, human, checkpoint, intake_reviewer)
     if auditor_reviewer is not None:
         _run_expert_review(facts, auditor_reviewer, human, checkpoint)
     return assemble_from_facts(facts)
@@ -151,6 +190,7 @@ def complete_intake_from_facts(
     human: HumanInterface,
     auditor_reviewer: AuditorReviewRunner | None = None,
     checkpoint: Checkpoint = _noop_checkpoint,
+    intake_reviewer: IntakeReviewRunner | None = None,
 ) -> MissionContext:
     """Three-case validation, then catalog follow-ups + expert review, over one fact set (§7, §11).
 
@@ -174,7 +214,7 @@ def complete_intake_from_facts(
         ))
 
     checkpoint(working)  # ingestion + validation done, saved before the interactive Q&A
-    return _follow_and_review(working, human, auditor_reviewer, checkpoint)
+    return _follow_and_review(working, human, auditor_reviewer, checkpoint, intake_reviewer)
 
 
 def resume_intake(
@@ -182,13 +222,14 @@ def resume_intake(
     human: HumanInterface,
     auditor_reviewer: AuditorReviewRunner | None = None,
     checkpoint: Checkpoint = _noop_checkpoint,
+    intake_reviewer: IntakeReviewRunner | None = None,
 ) -> MissionContext:
     """Continue a partially-completed intake from its checkpointed facts (persistence, phase A).
 
     Ingestion and validation are already reflected in ``saved_facts``; catalog
     follow-ups skip whatever is already answered and resume at the first gap.
     """
-    return _follow_and_review(list(saved_facts), human, auditor_reviewer, checkpoint)
+    return _follow_and_review(list(saved_facts), human, auditor_reviewer, checkpoint, intake_reviewer)
 
 
 def complete_intake_from_documents(
@@ -198,6 +239,7 @@ def complete_intake_from_documents(
     human: HumanInterface,
     auditor_reviewer: AuditorReviewRunner | None = None,
     checkpoint: Checkpoint = _noop_checkpoint,
+    intake_reviewer: IntakeReviewRunner | None = None,
 ) -> MissionContext:
     """Full document-ingestion intake: filled questionnaire + supporting docs -> Mission Context."""
     questions = list(all_questions())
@@ -211,8 +253,12 @@ def complete_intake_from_documents(
     for sp in supporting_doc_paths:
         sp_path = Path(sp)
         s_answers = ingestion_runner.extract_supporting(read_document(sp_path), sp_path.name, questions)
-        extraction_facts.extend(supporting_answers_to_facts(s_answers, sp_path.name))
+        s_facts, s_flags = supporting_answers_to_facts(s_answers, sp_path.name)
+        extraction_facts.extend(s_facts)
+        # Ruled on exactly like a questionnaire flag: the auditor keeps, corrects or
+        # discards it before the value ever reaches validation.
+        extraction_facts = apply_flags(extraction_facts, s_flags, human)
 
     return complete_intake_from_facts(
-        declaration_facts, extraction_facts, human, auditor_reviewer, checkpoint
+        declaration_facts, extraction_facts, human, auditor_reviewer, checkpoint, intake_reviewer
     )

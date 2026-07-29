@@ -146,3 +146,27 @@ def test_a_genuinely_different_question_still_gets_through():
     first = AuditorFollowUp(question="Quelle est la fréquence de mise à jour ?", why="x")
     other = AuditorFollowUp(question="Le MFA est-il actif sur les accès distants ?", why="x")
     assert to_followup_question(first).field_name != to_followup_question(other).field_name
+
+
+def test_a_question_citing_a_fact_that_does_not_exist_is_dropped():
+    # The prompt asks for a fact-grounded question; without this the rule binds nothing,
+    # and the auditor cannot tell an invented justification from a real one.
+    from ebios_rm.mission_context.mission_context import assemble_from_facts
+    from ebios_rm.workshops.workshop1_cadrage.auditor_review import grounded
+
+    mc = assemble_from_facts(_minimal_facts())
+    proposals = [
+        AuditorFollowUp(question="Quelle version de l'EDR ?", why="x", based_on_fact="edr_av_deploye"),
+        AuditorFollowUp(question="Combien de datacenters ?", why="x", based_on_fact="fait_invente"),
+        AuditorFollowUp(question="Avez-vous un DPO ?", why="lacune RGPD", based_on_fact=""),
+    ]
+    kept = [p.question for p in grounded(proposals, mc)]
+
+    assert kept == ["Quelle version de l'EDR ?", "Avez-vous un DPO ?"]   # gap-based stays
+
+
+def test_the_motivating_fact_is_shown_to_the_auditor():
+    q = to_followup_question(
+        AuditorFollowUp(question="Quelle version ?", why="EDR nommé sans version",
+                        based_on_fact="edr_av_deploye"))
+    assert "edr_av_deploye" in q.help_text

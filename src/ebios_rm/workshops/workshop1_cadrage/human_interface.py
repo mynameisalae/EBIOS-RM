@@ -44,7 +44,7 @@ def ask_justification(prompt: str, io_in: Callable[[str], str] = input,
         reason = io_in(prompt).strip()
         if is_meaningful(reason):
             return reason
-        io_out("    Un motif non vide est obligatoire (§8) — indiquez la raison.")
+        io_out("    Indiquez une vraie raison — quelques mots suffisent (§8).")
 
 
 class SkipRequested(Exception):
@@ -75,6 +75,11 @@ class HumanInterface(Protocol):
     def review_flag(self, flag: AnswerFlag) -> object | None:
         """Rule on an answer the agent flagged as implausible/unclear (conception §2).
         Return the value to keep (the original, or a correction), or None to discard it."""
+        ...
+
+    def confirm_derived_answers(self, reviews: list) -> list:
+        """Accept, in one pass, the questions the dossier already answers (conception §2, §7).
+        Returns those the auditor accepts; the rest stay pending and are asked."""
         ...
 
 
@@ -115,6 +120,27 @@ class CLIHumanInterface:
         conversational subclass. None means 'not accepted, ask again'."""
         return typed
 
+    def confirm_derived_answers(self, reviews: list) -> list:
+        """Accept, in one pass, the questions the documents already answer (§2, §7).
+
+        Shown as a list rather than one prompt each: replacing a question with a
+        confirmation saves the auditor nothing, and with dozens of them the individual
+        prompts get waved through, which is exactly the rubber-stamping §8 exists to
+        prevent. Whatever is left out stays pending and is asked normally.
+        """
+        if not reviews:
+            return []
+        self._say(f"\n=== Déjà répondu dans le dossier ({len(reviews)}) ===")
+        for i, r in enumerate(reviews, 1):
+            self._say(f"   [{i}] {r.answer}")
+            self._say(f"       d'après « {r.based_on_fact} »")
+        self._say("\n[Entrée] tout accepter ; sinon les numéros à REDEMANDER (ex. 1,3).")
+        raw = self._prompt("> ")
+        if not raw:
+            return list(reviews)
+        rejected = {int(p) for p in raw.replace(" ", "").split(",") if p.isdigit()}
+        return [r for i, r in enumerate(reviews, 1) if i not in rejected]
+
     def ask_followup(self, question: FollowUpQuestion) -> str | SkipRequested:
         tag = "CRITIQUE (bloquant)" if question.blocking else "IMPORTANT"
         print(f"\n[{tag}] {question.question}")
@@ -133,7 +159,7 @@ class CLIHumanInterface:
                 reason = self._prompt("Motif du skip (obligatoire, §8) : ")
                 if is_meaningful(reason):
                     return self._skip_outcome(reason)
-                print("    Un motif non vide est obligatoire pour passer (§8).")
+                print("    Indiquez une vraie raison pour passer — quelques mots suffisent (§8).")
 
     def confirm_document_only(self, field_name: str, value: object, source_quote: str) -> bool:
         print(f"\n[CONFIRMATION] Le document indique pour « {field_name} » : {value!r}")
@@ -142,16 +168,19 @@ class CLIHumanInterface:
 
     def resolve_contradiction(self, contradiction: Contradiction) -> object:
         print(f"\n[CONTRADICTION] Champ « {contradiction.field_name} » — résolution humaine obligatoire (§11)")
-        print(f"    [1] Formulaire (déclaration) : {contradiction.declaration.value!r}")
-        extr = contradiction.extraction
-        print(f"    [2] Document ({extr.source_document}) : {extr.value!r}")
-        print(f'        Extrait source : "{extr.source_quote}"')
+        # Every disagreeing source is listed, and each is named for what it is: labelling
+        # a supplied PDF "Formulaire" would misattribute the value the auditor picks.
+        sources = [contradiction.declaration, contradiction.extraction, *contradiction.others]
+        for i, fact in enumerate(sources, 1):
+            origin = f"Document ({fact.source_document})" if fact.source_document else "Formulaire (déclaration)"
+            print(f"    [{i}] {origin} : {fact.value!r}")
+            if fact.source_quote:
+                print(f'        Extrait source : "{fact.source_quote}"')
+        options = " / ".join(f"[{i}]" for i in range(1, len(sources) + 1))
         while True:
-            choice = self._prompt("Choix [1] / [2] / (saisir une autre valeur) : ")
-            if choice == "1":
-                return contradiction.declaration.value
-            if choice == "2":
-                return contradiction.extraction.value
+            choice = self._prompt(f"Choix {options} / (saisir une autre valeur) : ")
+            if choice.isdigit() and 1 <= int(choice) <= len(sources):
+                return sources[int(choice) - 1].value
             if choice:
                 value = self._accept_free_value(contradiction, choice)
                 if value is not None:
@@ -241,7 +270,7 @@ class ConversationalHumanInterface(CLIHumanInterface):
     def _say(self, text: str) -> None:
         self._out(text)
 
-    def _converse(self, question: str, explanation: str, user: str) -> tuple[bool, str]:
+    def _converse(self, question: str, explanation: str, user: str) -> tuple[object, str]:
         """One agent turn. Returns (is_answer, captured_value). Records into session history.
 
         Intent is read from the model's own classification (TurnResult.intent), not
@@ -254,7 +283,11 @@ class ConversationalHumanInterface(CLIHumanInterface):
         self._history.append({"role": "agent", "content": turn.reply, "intent": turn.intent})
         if turn.reply:
             self._out(f"Agent : {turn.reply}")
-        return turn.is_answer, (turn.answer or user)
+        # The auditor's own words win over the model's normalisation whenever they say
+        # more: `answer` is a summary, and a summary of a five-line answer silently
+        # drops most of it. Normalisation still helps a short or garbled reply.
+        captured = turn.answer if len(turn.answer) > len(user) else user
+        return turn, captured
 
     def _nudge(self, pushbacks: int) -> int:
         """Count one turn that did not answer; at the threshold, advertise the '!' override.
@@ -277,13 +310,13 @@ class ConversationalHumanInterface(CLIHumanInterface):
         if typed.startswith("!"):
             return typed[1:].strip() or None
         extraction = contradiction.extraction
-        is_answer, value = self._converse(
+        turn, value = self._converse(
             f"Quelle est la valeur correcte pour « {contradiction.field_name} » ?",
             f"Valeurs en conflit : {contradiction.declaration.value!r} (formulaire) "
             f"vs {extraction.value!r} ({extraction.source_document}).",
             typed,
         )
-        return value if is_answer else None
+        return value if turn.intent == "answer" else None
 
     def ask_followup(self, question: FollowUpQuestion) -> str | SkipRequested:
         tag = "CRITIQUE (bloquant)" if question.blocking else "IMPORTANT"
@@ -296,6 +329,7 @@ class ConversationalHumanInterface(CLIHumanInterface):
         self._out(f"    (répondez, {hint})")
 
         pushbacks = 0
+        collected: list[str] = []   # an answer may arrive in parts, one follow-up at a time
         while True:
             user = self._in("> ")
             # A blank line is never a decision: skipping is an explicit act that must
@@ -316,7 +350,7 @@ class ConversationalHumanInterface(CLIHumanInterface):
                 reason = self._in("Motif du skip (obligatoire, §8) : ")
                 if is_meaningful(reason):
                     return self._skip_outcome(reason)
-                self._out("    Un motif non vide est obligatoire pour passer (§8).")
+                self._out("    Indiquez une vraie raison pour passer — quelques mots suffisent (§8).")
                 continue
             # Escape hatch: the auditor always outranks the agent (§2). Without this,
             # a model that keeps asking for detail traps a CRITICAL question forever,
@@ -328,9 +362,18 @@ class ConversationalHumanInterface(CLIHumanInterface):
                     return forced
                 continue
 
-            is_answer, value = self._converse(question.question, question.help_text, user)
-            if is_answer:
-                return value
+            turn, value = self._converse(question.question, question.help_text, user)
+            if turn.wants_more and pushbacks < self.MAX_PUSHBACKS:
+                # Answered, and the agent has one more thing to ask. Keep what was said
+                # and let it ask, instead of advancing and leaving its question printed
+                # on screen but never put to the auditor. Bounded by the same budget as
+                # a pushback, so "one more thing" cannot become an endless interview.
+                collected.append(value)
+                pushbacks += 1
+                continue
+            if turn.is_answer:
+                collected.append(value)
+                return " ".join(collected)
             pushbacks = self._nudge(pushbacks)
 
     def review_flag(self, flag: AnswerFlag) -> object | None:
@@ -346,8 +389,8 @@ class ConversationalHumanInterface(CLIHumanInterface):
                 return flag.answer
             if user.lower() == "skip":
                 return None
-            is_answer, value = self._converse(
+            turn, value = self._converse(
                 flag.question, f"Réponse actuelle jugée {flag.kind} : {flag.reason}", user
             )
-            if is_answer:
+            if turn.is_answer:
                 return value

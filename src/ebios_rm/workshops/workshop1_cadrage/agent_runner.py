@@ -13,6 +13,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, Field
 
+from ebios_rm.domain.essential_asset import EssentialAsset
 from ebios_rm.domain.feared_event import FearedEvent
 from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.repositories.reference_repository import BaselineControl
@@ -72,6 +73,7 @@ class Workshop1AgentRunner(Protocol):
         events: list[FearedEvent],
         provisions: list[BaselineControl],
         revision_notes: list[str] | None = None,
+        assets: list[EssentialAsset] | None = None,
     ) -> list[LegalImpactAssignment]:
         """Flag which declared legal provisions are relevant to which feared events."""
         ...

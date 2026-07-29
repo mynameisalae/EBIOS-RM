@@ -60,6 +60,18 @@ class ReferenceRepository:
         )
         return [_row_to_control(r) for r in cur.fetchall()]
 
+    def loaded_frameworks(self) -> list[str]:
+        """Frameworks that actually have controls in this database.
+
+        What an unmatched declaration can be mapped onto at the controls gate: the
+        referentials this installation can genuinely evaluate, not the plugins present
+        (a plugin whose controls.json is absent declares a framework it cannot assess).
+        """
+        cur = self._conn.execute(
+            "SELECT DISTINCT framework FROM baseline_controls ORDER BY framework"
+        )
+        return [r["framework"] for r in cur.fetchall()]
+
     def get_legal_impact_provisions(self, applicable_frameworks: list[str]) -> list[BaselineControl]:
         """Provisions with a non-null legal_impact_type across all declared frameworks (conception §12.3, §15.1).
 

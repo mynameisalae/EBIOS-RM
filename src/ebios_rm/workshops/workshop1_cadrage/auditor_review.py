@@ -125,7 +125,23 @@ def _make_field_name(question: str) -> str:
 
 def to_followup_question(proposal: AuditorFollowUp) -> FollowUpQuestion:
     priority = PriorityLevel.CRITICAL if proposal.priority == "critical" else PriorityLevel.IMPORTANT
-    return FollowUpQuestion(_make_field_name(proposal.question), proposal.question, priority, proposal.why)
+    # The fact that motivated the question is shown to the auditor, who can then see
+    # whether it is grounded in the dossier or in nothing. Collected and dropped, it
+    # was a rule the model was asked to follow with no consequence either way.
+    why = f"{proposal.why} (à partir de « {proposal.based_on_fact} »)" if proposal.based_on_fact else proposal.why
+    return FollowUpQuestion(_make_field_name(proposal.question), proposal.question, priority, why)
+
+
+def grounded(proposals: list[AuditorFollowUp], mission_context: MissionContext) -> list[AuditorFollowUp]:
+    """Drop proposals citing a fact that does not exist (conception §2).
+
+    A question may rest on a named fact, or on a methodological gap in the declared
+    referentials (based_on_fact empty, justified in `why`). What it may not do is cite
+    a fact nobody ever recorded: that is the model inventing its own justification, and
+    the auditor has no way to tell from the question text alone.
+    """
+    known = {f.field_name for f in mission_context.facts}
+    return [p for p in proposals if not p.based_on_fact or p.based_on_fact in known]
 
 
 class AgnoAuditorReviewRunner:
@@ -161,4 +177,4 @@ class AgnoAuditorReviewRunner:
             # A failed review round is not a methodology outcome: no proposals, never invented.
             self._progress(f"   (relecture experte indisponible ce round : {str(exc)[:120]})")
             return []
-        return batch.proposals[:MAX_QUESTIONS_PER_ROUND]
+        return grounded(batch.proposals, mission_context)[:MAX_QUESTIONS_PER_ROUND]

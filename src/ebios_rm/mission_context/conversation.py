@@ -24,17 +24,27 @@ class TurnResult(BaseModel):
 
     ``intent`` is stated by the model rather than inferred from the reply text:
     'answer' = the question is answered and the loop may advance;
+    'answer_and_more' = answered, and one follow-up is worth asking before advancing;
     'question' = the auditor asked something / needs an explanation;
     'insufficient' = they replied, but too vaguely to record.
+
+    'answer_and_more' exists because a real turn can be both. Forced to pick one, a
+    model either drops the answer or writes its follow-up into the reply while still
+    labelling the turn 'answer' — and the loop, which reads only the label, advances
+    and leaves that question printed on screen but never asked.
     """
 
-    intent: Literal["answer", "question", "insufficient"]
+    intent: Literal["answer", "answer_and_more", "question", "insufficient"]
     answer: str = ""         # the captured/normalized answer when intent == 'answer'
     reply: str = ""          # message to show the auditor (explanation, answer, or note)
 
     @property
     def is_answer(self) -> bool:
-        return self.intent == "answer"
+        return self.intent in {"answer", "answer_and_more"}
+
+    @property
+    def wants_more(self) -> bool:
+        return self.intent == "answer_and_more"
 
 
 class ConversationRunner(Protocol):
@@ -55,9 +65,13 @@ d'une mission. Tu es intelligent et conversationnel, pas un formulaire figé.
 
 À chaque tour, l'auditeur écrit quelque chose pendant qu'une question précise lui
 est posée. Décide ce qu'il veut :
-Choisis intent parmi exactement trois valeurs :
+Choisis intent parmi exactement quatre valeurs :
 - intent="answer" : l'auditeur a RÉPONDU de façon exploitable. answer = la valeur
   normalisée et claire. reply = éventuelle courte remarque (jamais une demande).
+- intent="answer_and_more" : il a RÉPONDU, et une seule question de suivi mérite
+  d'être posée avant de continuer. answer = ce qu'il a répondu ; reply = cette
+  question de suivi. À n'utiliser que si le complément est vraiment utile : ce n'est
+  pas un moyen d'enchaîner les questions indéfiniment.
 - intent="insufficient" : il a répondu, mais trop vaguement (« oui », « non », un
   mot isolé) alors que la question attend un détail (un produit, des règles, une
   fréquence). reply = demande précisément ce qui manque. N'enregistre rien.
@@ -67,8 +81,9 @@ Choisis intent parmi exactement trois valeurs :
   des faits déjà connus. Si l'information n'est pas connue, dis-le — n'invente jamais.
 
 RÈGLE ABSOLUE : si ton reply pose une question ou réclame une précision, intent
-n'est JAMAIS "answer". Ne jamais enregistrer une réponse et demander un complément
-dans le même tour.
+n'est JAMAIS "answer" — c'est "answer_and_more" si tu as tout de même capté une
+réponse, sinon "insufficient" ou "question". Ne laisse jamais une question dans ton
+reply sous un intent qui fait avancer la boucle : elle ne serait jamais posée.
 
 CAS DE LA CONFIRMATION : si TON tour précédent (voir ÉCHANGE RÉCENT) proposait une
 reformulation à valider (« est-ce bien cela ? »), un « oui » isolé confirme CETTE
@@ -76,6 +91,11 @@ reformulation — intent="answer", answer = la reformulation que tu avais propos
 Un « non » isolé la rejette — intent="question", reply = demande la correction.
 Dans ce cas précis, ne réévalue pas ce « oui »/« non » comme s'il répondait à la
 question d'origine : ce serait boucler sur une réponse déjà obtenue.
+
+TON reply N'AJOUTE AUCUN FAIT. Tu peux reformuler ce que l'auditeur vient de dire,
+jamais le compléter : « c'est noté, vos collaborateurs utilisent des portables
+professionnels » alors qu'il a seulement dit « oui » invente un fait qu'il lira
+comme acquis. Reste strictement à ce qui a été dit ou figure dans les faits connus.
 
 Réponds en français, concis, au format structuré demandé.
 """

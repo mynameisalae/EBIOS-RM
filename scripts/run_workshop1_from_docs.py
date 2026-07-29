@@ -32,6 +32,7 @@ for _stream in (sys.stdout, sys.stderr, sys.stdin):
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from ebios_rm.agent_runtime import StructuredCallFailed  # noqa: E402
 from ebios_rm.config import load_settings  # noqa: E402
 from ebios_rm.db.loader import build_reference_db  # noqa: E402
 from ebios_rm.domain.fact import Fact  # noqa: E402
@@ -39,6 +40,7 @@ from ebios_rm.orchestrator import mission_state  # noqa: E402
 from ebios_rm.repositories.mission_repository import MissionRepository, connect  # noqa: E402
 from ebios_rm.repositories.reference_repository import ReferenceRepository  # noqa: E402
 from ebios_rm.workshops.workshop1_cadrage.human_interface import ask_justification  # noqa: E402
+from ebios_rm.workshops.workshop1_cadrage.intake_review import AgnoIntakeReviewRunner  # noqa: E402
 
 DEV_SEED = Path(__file__).resolve().parents[1] / "data" / "dev_seed" / "baseline_controls.dev.json"
 
@@ -76,6 +78,50 @@ def _print_missions(repo: MissionRepository) -> None:
         print(f"{m.mission_id:34}  {m.status:14}  {m.updated_at[:19]:20}  {m.name}")
 
 
+def _map_onto_loaded(repo, mission_id, mission_context, reference_repo, missing,
+                     io_in=input, io_out=print):
+    """Let the auditor say that an unmatched name is a referential already loaded here.
+
+    « ISO 27001 » and « ISO27001 » are the same standard to a reader, and the ingestion
+    agent is given the loadable ids precisely so it answers with them — but a model that
+    writes the standard's usual name instead would otherwise cost the mission its 93
+    loaded controls, with only 'withdraw' or 'stop' on offer. The mapping is the
+    auditor's decision and is logged like any other (§2, §8).
+    """
+    from ebios_rm.mission_context.mission_context import assemble_from_facts  # noqa: PLC0415
+
+    loaded = reference_repo.loaded_frameworks()
+    if not loaded:
+        return mission_context
+
+    declared = list(mission_context.applicable_frameworks)
+    mapped: dict[str, str] = {}
+    io_out("\n=== Référentiels déclarés sans contrôles chargés ===")
+    io_out("Certains sont peut-être un référentiel déjà chargé ici, écrit autrement.")
+    for name in missing:
+        options = "  ".join(f"[{i}] {fw}" for i, fw in enumerate(loaded, 1))
+        io_out(f"\n« {name} » — correspond-il à l'un de ceux-ci ?")
+        io_out(f"   {options}   [Entrée] non, aucun")
+        choice = io_in("> ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(loaded):
+            mapped[name] = loaded[int(choice) - 1]
+
+    if not mapped:
+        return mission_context
+
+    kept = [mapped.get(fw, fw) for fw in declared]
+    facts = [f for f in mission_context.facts if f.field_name != "applicable_frameworks"]
+    facts.append(Fact.declaration("applicable_frameworks", list(dict.fromkeys(kept))))
+    updated = assemble_from_facts(facts)
+    mission_state.save_mission_context(repo, mission_id, updated)
+    repo.log_decision(
+        mission_id, stage="workshop_1", action="frameworks_mapped",
+        justification="; ".join(f"« {k} » identifié comme {v}" for k, v in mapped.items()),
+    )
+    io_out(f"Référentiels retenus : {updated.applicable_frameworks}")
+    return updated
+
+
 def _check_controls_available(repo, mission_id, mission_context, reference_repo):
     """Refuse to run the workshop while a declared framework has no controls (conception §2, §12.5).
 
@@ -86,6 +132,11 @@ def _check_controls_available(repo, mission_id, mission_context, reference_repo)
     from ebios_rm.mission_context.mission_context import assemble_from_facts  # noqa: PLC0415
     from ebios_rm.workshops.workshop1_cadrage.assessment import frameworks_without_controls  # noqa: PLC0415
 
+    missing = frameworks_without_controls(mission_context.applicable_frameworks, reference_repo)
+    if not missing:
+        return mission_context
+
+    mission_context = _map_onto_loaded(repo, mission_id, mission_context, reference_repo, missing)
     missing = frameworks_without_controls(mission_context.applicable_frameworks, reference_repo)
     if not missing:
         return mission_context
@@ -265,8 +316,6 @@ def _completeness_warnings(output, mission_context, reference_repo) -> list[str]
         unverified = unverified_by_framework.get(framework, 0)
         if loaded and unverified >= loaded:
             warnings.append(f"{framework} : aucun de ses {loaded} contrôles n'a pu être conclu.")
-        elif loaded and unverified * 2 >= loaded:
-            warnings.append(f"{framework} : {unverified} contrôles non conclus sur {loaded}.")
 
     if not output.baseline_gaps_full:
         warnings.append(
@@ -519,7 +568,7 @@ def _new_mission(repo: MissionRepository, reference_repo: ReferenceRepository, a
     print("\n=== Phase 1 : ingestion des documents (l'agent lit, vous décidez) ===")
     mission_context = complete_intake_from_documents(
         intake_doc, supporting, AgnoIngestionRunner(), human, AgnoAuditorReviewRunner(),
-        checkpoint=_checkpoint(repo, mission_id),
+        checkpoint=_checkpoint(repo, mission_id), intake_reviewer=AgnoIntakeReviewRunner(),
     )
     _finish_intake(repo, mission_id, mission_context)
     return _run_workshop_and_finish(repo, mission_id, mission_context, reference_repo)
@@ -564,7 +613,8 @@ def _resume_mission(repo: MissionRepository, reference_repo: ReferenceRepository
         print("Intake incomplet — reprise du questionnaire là où il s'est arrêté.")
         human = ConversationalHumanInterface(AgnoConversationRunner())
         mission_context = resume_intake(
-            saved.facts, human, AgnoAuditorReviewRunner(), checkpoint=_checkpoint(repo, mission_id)
+            saved.facts, human, AgnoAuditorReviewRunner(),
+            checkpoint=_checkpoint(repo, mission_id), intake_reviewer=AgnoIntakeReviewRunner(),
         )
         _finish_intake(repo, mission_id, mission_context)
 
@@ -624,4 +674,10 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main(sys.argv))
     except (KeyboardInterrupt, EOFError):
+        raise SystemExit(_interrupted()) from None
+    except StructuredCallFailed as exc:
+        # The model is unreachable (bad key, rate limit, provider down). Nothing here
+        # is the auditor's doing and nothing captured is lost, so say what happened and
+        # print the resume command instead of dumping a traceback.
+        print(f"\nModèle indisponible : {exc}")
         raise SystemExit(_interrupted()) from None

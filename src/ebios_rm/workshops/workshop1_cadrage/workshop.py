@@ -117,7 +117,9 @@ def run_workshop1(
         for event in events:
             event.legal_impacts = []  # regenerating: drop the previous attachments first
         provisions = reference_repo.get_legal_impact_provisions(mission_context.applicable_frameworks)
-        assignments = runner.assess_legal_impacts(mission_context, events, provisions, revision_notes)
+        assignments = runner.assess_legal_impacts(
+            mission_context, events, provisions, revision_notes, biens_essentiels
+        )
         events = _attach_legal_impacts(events, assignments, provisions)
 
     return Workshop1Output(
