@@ -118,6 +118,17 @@ Exemple : _En cours de structuration_
 
 > _______________________________________________________________
 
+### Avez-vous déjà formalisé une analyse de risques, et qui l'a validée ?
+🔹 **Explication.** Un document qui recense vos risques, les décisions prises et par qui elles ont été approuvées. C'est ce qui permet de démontrer que la sécurité est pilotée et non subie. Précisez la date de la dernière mise à jour.
+
+🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
+Format attendu : Texte.
+Exemple : _Analyse de 2022 validée en comité de direction, non revue depuis_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
 
 ## 2. Périmètre et objectifs de l'audit
 
@@ -206,11 +217,33 @@ Exemple : _Dossiers médicaux, résultats d'examens, données RH_
 > _______________________________________________________________
 
 ### Que se passerait-il si votre activité s'arrêtait une journée ?
-🔹 **Explication.** Décrivez les conséquences concrètes d'une interruption (sécurité des personnes, pertes financières, atteinte à l'image, conséquences légales). Cela nourrit la gravité des événements redoutés.
+🔹 **Explication.** Décrivez les conséquences concrètes d'une INTERRUPTION (sécurité des personnes, pertes financières, atteinte à l'image, conséquences légales). Précisez à partir de quelle durée les conséquences changent de nature. Cela nourrit la gravité des événements redoutés.
 
 🔸 *Priorité : Critique — indispensable pour démarrer l'étude.*
 Format attendu : Texte libre.
 Exemple : _Report de soins, risque pour les patients, perte de revenus, atteinte à la réputation_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+### Que se passerait-il si vos informations sensibles étaient divulguées ?
+🔹 **Explication.** Une FUITE n'a pas les mêmes conséquences qu'une panne : imaginez vos informations les plus sensibles rendues publiques ou vendues. Qui serait lésé, quelles obligations légales s'appliqueraient, quel serait le préjudice pour les personnes concernées ?
+
+🔸 *Priorité : Critique — indispensable pour démarrer l'étude.*
+Format attendu : Texte libre.
+Exemple : _Atteinte grave à la vie privée des patients, notification CNIL et information des personnes, plaintes et perte de confiance durable_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+### Que se passerait-il si vos données étaient modifiées à votre insu ?
+🔹 **Explication.** Une ALTÉRATION est souvent le scénario le plus grave et le moins visible : des données fausses utilisées comme si elles étaient justes. Pensez à une décision prise sur une donnée erronée, ou à une falsification que personne ne détecte.
+
+🔸 *Priorité : Critique — indispensable pour démarrer l'étude.*
+Format attendu : Texte libre.
+Exemple : _Erreur de prescription sur un dossier falsifié, mise en danger du patient, perte de valeur probante du dossier médical_
 
 ✏️ **Votre réponse :**
 
@@ -260,6 +293,28 @@ Exemple : _SIH (éditeur X), PACS imagerie (éditeur Y), paie (SaaS)_
 🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
 Format attendu : Nombres.
 Exemple : _~30 serveurs, ~350 postes_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+### Tenez-vous un inventaire de votre matériel et de vos logiciels ?
+🔹 **Explication.** Différent d'un ordre de grandeur : une liste réellement tenue à jour, où l'on retrouve chaque machine et son responsable. On ne protège pas ce qu'on ne sait pas posséder.
+
+🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
+Format attendu : Texte.
+Exemple : _Inventaire GLPI pour les serveurs ; postes suivis dans un tableur, incomplet_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+### Développez-vous des logiciels, et comment arrivent-ils en production ?
+🔹 **Explication.** Si vous développez ou faites développer une application, décrivez le chemin d'une modification jusqu'à la production : qui valide, quels tests, quels contrôles de sécurité. Répondez « non » si vous n'utilisez que des logiciels du commerce.
+
+🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
+Format attendu : Texte.
+Exemple : _Application interne, déploiement par l'éditeur après recette métier, sans test de sécurité_
 
 ✏️ **Votre réponse :**
 
@@ -363,12 +418,12 @@ Exemple : _Portail patient, webmail, VPN_
 
 > _______________________________________________________________
 
-### Le télétravail est-il autorisé ?
-🔹 **Explication.** Vos collaborateurs se connectent-ils depuis l'extérieur (domicile, déplacement) ?
+### Qui travaille à distance, et depuis quel matériel ?
+🔹 **Explication.** Quels profils se connectent depuis l'extérieur (domicile, déplacement), et depuis un poste fourni par l'entreprise ou leur propre matériel. Répondez « non » si personne ne travaille à distance.
 
 🔸 *Priorité : Critique — indispensable pour démarrer l'étude.*
-Format attendu : Oui / Non.
-Exemple : _Oui, pour les fonctions administratives et les médecins_
+Format attendu : Texte.
+Exemple : _Administratifs et médecins, depuis des portables fournis par l'établissement_
 
 ✏️ **Votre réponse :**
 
@@ -418,6 +473,17 @@ Exemple : _Liaison de télémaintenance avec l'éditeur du SIH_
 🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
 Format attendu : Texte.
 Exemple : _Active Directory ; création/suppression via un processus RH_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+### Qui vérifie, et à quelle fréquence, que chacun n'a que les accès nécessaires ?
+🔹 **Explication.** Les droits s'accumulent au fil des changements de poste et ne sont presque jamais retirés. Une revue périodique compare les accès réels aux besoins réels. Précisez la date de la dernière revue.
+
+🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
+Format attendu : Texte.
+Exemple : _Aucune revue formelle ; les droits suivent les demandes des managers_
 
 ✏️ **Votre réponse :**
 
@@ -483,23 +549,45 @@ Exemple : _Mises à jour automatiques sur les postes, plus lentes sur les serveu
 
 > _______________________________________________________________
 
-### Les utilisateurs sont-ils administrateurs de leur poste ?
-🔹 **Explication.** Si un utilisateur est « administrateur » de sa machine, un logiciel malveillant qu'il ouvre obtient aussi tous les droits. Limiter ces droits réduit fortement le risque.
+### Qui est administrateur de son propre poste, et pourquoi ?
+🔹 **Explication.** Si un utilisateur est « administrateur » de sa machine, un logiciel malveillant qu'il ouvre obtient aussi tous les droits. Indiquez quels profils le sont encore et ce qui le justifie.
 
 🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
-Format attendu : Oui / Non / partiel.
-Exemple : _Non, sauf quelques exceptions techniques_
+Format attendu : Texte.
+Exemple : _Personne, sauf 4 développeurs et les techniciens support_
 
 ✏️ **Votre réponse :**
 
 > _______________________________________________________________
 
-### Des smartphones / tablettes accèdent-ils aux données pro ? Personnels ?
-🔹 **Explication.** L'usage d'appareils personnels (BYOD) pour le travail élargit la surface à protéger. Précisez s'ils sont gérés (MDM) ou non.
+### Comment sont gérés les smartphones et tablettes fournis par l'entreprise ?
+🔹 **Explication.** Précisez s'ils sont administrés à distance (MDM), chiffrés, et si l'entreprise peut les effacer en cas de perte ou de vol.
 
 🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
 Format attendu : Texte.
-Exemple : _Téléphones pro gérés ; pas d'accès depuis les téléphones personnels_
+Exemple : _Téléphones pro sous MDM, chiffrés, effacement à distance possible_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+### Des appareils personnels accèdent-ils aux données professionnelles ?
+🔹 **Explication.** Le BYOD (appareil personnel utilisé pour le travail) élargit la surface à protéger sur du matériel que vous ne maîtrisez pas. Précisez ce qui est accessible depuis ces appareils.
+
+🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
+Format attendu : Texte.
+Exemple : _Messagerie accessible depuis les téléphones personnels, sans MDM_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+### Comment repérez-vous les failles connues de vos systèmes ?
+🔹 **Explication.** Distinct de l'application des correctifs : il s'agit de SAVOIR ce qui est vulnérable (scans réguliers, veille sur les alertes, tests d'intrusion). Sans découverte, on ne corrige que ce qui est déjà connu.
+
+🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
+Format attendu : Texte.
+Exemple : _Scan de vulnérabilités mensuel sur les serveurs exposés ; veille CERT-FR ; rien sur les postes_
 
 ✏️ **Votre réponse :**
 
@@ -510,12 +598,12 @@ Exemple : _Téléphones pro gérés ; pas d'accès depuis les téléphones perso
 
 *Cette partie concerne les données relatives à des personnes (clients, patients, salariés). Le RGPD impose des obligations précises et prévoit des sanctions.*
 
-### Traitez-vous des données personnelles ?
-🔹 **Explication.** Toute information se rapportant à une personne identifiable (nom, email, dossier, numéro). Presque toutes les organisations en traitent.
+### Sur quelles personnes détenez-vous des informations ?
+🔹 **Explication.** Toute information se rapportant à une personne identifiable (nom, email, dossier, numéro) compte. Citez les groupes concernés — clients, patients, salariés, candidats. Répondez « aucune » si vous n'en traitez réellement pas.
 
 🔸 *Priorité : Critique — indispensable pour démarrer l'étude.*
-Format attendu : Oui / Non.
-Exemple : _Oui_
+Format attendu : Liste.
+Exemple : _Patients, salariés, candidats à l'embauche_
 
 ✏️ **Votre réponse :**
 
@@ -554,12 +642,34 @@ Exemple : _Oui, support d'un éditeur hébergé aux États-Unis_
 
 > _______________________________________________________________
 
-### Tenez-vous un registre des traitements et avez-vous un DPO ?
-🔹 **Explication.** Le registre liste vos usages de données personnelles ; le DPO est le référent RGPD. Tous deux sont des obligations pour beaucoup d'organisations.
+### Tenez-vous un registre des activités de traitement ?
+🔹 **Explication.** Le registre liste vos usages de données personnelles : quelles données, pour quelle finalité, conservées combien de temps, partagées avec qui. Précisez s'il est à jour et qui le tient.
 
 🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
 Format attendu : Texte.
-Exemple : _Registre tenu par le DPO externe_
+Exemple : _Registre tenu et revu chaque année par le DPO externe_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+### Avez-vous désigné un délégué à la protection des données (DPO) ?
+🔹 **Explication.** Le DPO est le référent RGPD. Précisez s'il est interne ou externe, et s'il a été déclaré à la CNIL — l'obligation dépend de votre activité et du type de données traitées.
+
+🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
+Format attendu : Texte.
+Exemple : _DPO externe mutualisé, déclaré à la CNIL_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+### Combien de temps conservez-vous les données, et comment sont-elles supprimées ?
+🔹 **Explication.** Une donnée gardée au-delà de son utilité est un risque sans contrepartie. Indiquez les durées de conservation prévues et ce qui déclenche réellement une suppression (automatique, manuelle, jamais).
+
+🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
+Format attendu : Texte.
+Exemple : _Dossiers patients conservés 20 ans ; purge des logs à 6 mois ; pas de purge automatisée sur les sauvegardes_
 
 ✏️ **Votre réponse :**
 
@@ -614,12 +724,23 @@ Exemple : _Test de restauration semestriel_
 
 > _______________________________________________________________
 
-### Avez-vous un plan de continuité / reprise d'activité (PCA/PRA) ?
-🔹 **Explication.** Un document et une organisation prévus pour continuer ou redémarrer l'activité après un sinistre majeur (incendie, cyberattaque).
+### Avez-vous un plan de reprise informatique (PRA) ?
+🔹 **Explication.** Comment le système d'information est techniquement remonté après un sinistre majeur (incendie, rançongiciel) : où, à partir de quoi, par qui. Précisez la date du dernier test réel.
 
 🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
-Format attendu : Oui / Non + détails.
-Exemple : _PRA informatique en place, PCA métier en cours_
+Format attendu : Texte.
+Exemple : _PRA documenté, bascule testée en octobre dernier_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+### Avez-vous un plan de continuité métier (PCA) ?
+🔹 **Explication.** Comment l'activité continue PENDANT la panne, sans l'informatique : procédures dégradées, papier, report vers un autre site. C'est distinct du redémarrage technique.
+
+🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
+Format attendu : Texte.
+Exemple : _Procédure papier pour les admissions ; PCA métier en cours de rédaction_
 
 ✏️ **Votre réponse :**
 
@@ -680,6 +801,17 @@ Exemple : _Une tentative de rançongiciel bloquée en 2023_
 🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
 Format attendu : Texte.
 Exemple : _Procédure informelle ; contrat d'assistance avec un prestataire_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+### En cas de violation de données, qui devez-vous prévenir et sous quel délai ?
+🔹 **Explication.** Certaines obligations imposent un délai court et non négociable — par exemple 72 heures vers l'autorité de contrôle, plus l'information des personnes concernées si le risque est élevé. Indiquez si ces destinataires et ces délais sont écrits, et qui décide.
+
+🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
+Format attendu : Texte.
+Exemple : _CNIL sous 72h et patients concernés ; décidé par le DPO, procédure non écrite_
 
 ✏️ **Votre réponse :**
 

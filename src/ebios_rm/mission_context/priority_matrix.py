@@ -48,15 +48,22 @@ class FollowUpQuestion:
         return self.priority is PriorityLevel.CRITICAL
 
 
-_AFFIRMATIVE = {"oui", "yes", "true", "vrai", "o", "y", "1"}
+_NEGATIVE = {"non", "no", "false", "faux", "n", "0", "aucun", "aucune", "néant", "neant", "rien"}
 
 
 def _is_affirmative(value: object) -> bool:
+    """True unless the answer is an explicit denial.
+
+    Read as a denial test rather than a list of accepted yes-words: the questions
+    that gate others ask for substance, not for "oui", so « Données de santé de
+    50 000 patients » must open the dependent questions exactly as « oui » does.
+    """
     if isinstance(value, bool):
         return value
     if value is None:
         return False
-    return str(value).strip().casefold() in _AFFIRMATIVE or "oui" in str(value).casefold()
+    text = str(value).strip().casefold()
+    return bool(text) and text not in _NEGATIVE
 
 
 def catalog_follow_up_questions(answers: dict[str, object]) -> list[FollowUpQuestion]:

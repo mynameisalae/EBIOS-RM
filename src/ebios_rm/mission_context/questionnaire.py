@@ -110,6 +110,13 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 "mauvaise réponse — cela nous aide à calibrer nos attentes.",
                 I, "Choix / texte", "En cours de structuration",
             ),
+            Question(
+                "analyse_risques_existante", "Avez-vous déjà formalisé une analyse de risques, et qui l'a validée ?",
+                "Un document qui recense vos risques, les décisions prises et par qui elles ont été "
+                "approuvées. C'est ce qui permet de démontrer que la sécurité est pilotée et non subie. "
+                "Précisez la date de la dernière mise à jour.",
+                I, "Texte", "Analyse de 2022 validée en comité de direction, non revue depuis",
+            ),
         ),
     ),
     Section(
@@ -165,12 +172,34 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 "secrets de fabrication, données de santé, données financières).",
                 C, "Liste", "Dossiers médicaux, résultats d'examens, données RH",
             ),
+            # Gravity is assessed per kind of harm, so it is asked per kind of harm.
+            # A single "what if it stopped" question only ever describes unavailability,
+            # and a confidentiality or integrity event then has nothing of its own to
+            # rest on (conception §15 — gravité par événement redouté).
             Question(
                 "impact_arret", "Que se passerait-il si votre activité s'arrêtait une journée ?",
-                "Décrivez les conséquences concrètes d'une interruption (sécurité des personnes, pertes "
-                "financières, atteinte à l'image, conséquences légales). Cela nourrit la gravité des "
-                "événements redoutés.",
+                "Décrivez les conséquences concrètes d'une INTERRUPTION (sécurité des personnes, pertes "
+                "financières, atteinte à l'image, conséquences légales). Précisez à partir de quelle durée "
+                "les conséquences changent de nature. Cela nourrit la gravité des événements redoutés.",
                 C, "Texte libre", "Report de soins, risque pour les patients, perte de revenus, atteinte à la réputation",
+            ),
+            Question(
+                "impact_divulgation", "Que se passerait-il si vos informations sensibles étaient divulguées ?",
+                "Une FUITE n'a pas les mêmes conséquences qu'une panne : imaginez vos informations les plus "
+                "sensibles rendues publiques ou vendues. Qui serait lésé, quelles obligations légales "
+                "s'appliqueraient, quel serait le préjudice pour les personnes concernées ?",
+                C, "Texte libre",
+                "Atteinte grave à la vie privée des patients, notification CNIL et information des personnes, "
+                "plaintes et perte de confiance durable",
+            ),
+            Question(
+                "impact_alteration", "Que se passerait-il si vos données étaient modifiées à votre insu ?",
+                "Une ALTÉRATION est souvent le scénario le plus grave et le moins visible : des données "
+                "fausses utilisées comme si elles étaient justes. Pensez à une décision prise sur une donnée "
+                "erronée, ou à une falsification que personne ne détecte.",
+                C, "Texte libre",
+                "Erreur de prescription sur un dossier falsifié, mise en danger du patient, "
+                "perte de valeur probante du dossier médical",
             ),
             Question(
                 "obligations_metier", "Avez-vous des obligations de service ou contractuelles fortes ?",
@@ -200,6 +229,19 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 "parc_informatique", "Combien de serveurs et de postes de travail environ ?",
                 "Un ordre de grandeur suffit. Cela indique la surface à protéger.",
                 I, "Nombres", "~30 serveurs, ~350 postes",
+            ),
+            Question(
+                "inventaire_actifs", "Tenez-vous un inventaire de votre matériel et de vos logiciels ?",
+                "Différent d'un ordre de grandeur : une liste réellement tenue à jour, où l'on retrouve "
+                "chaque machine et son responsable. On ne protège pas ce qu'on ne sait pas posséder.",
+                I, "Texte", "Inventaire GLPI pour les serveurs ; postes suivis dans un tableur, incomplet",
+            ),
+            Question(
+                "developpement_logiciel", "Développez-vous des logiciels, et comment arrivent-ils en production ?",
+                "Si vous développez ou faites développer une application, décrivez le chemin d'une "
+                "modification jusqu'à la production : qui valide, quels tests, quels contrôles de sécurité. "
+                "Répondez « non » si vous n'utilisez que des logiciels du commerce.",
+                I, "Texte", "Application interne, déploiement par l'éditeur après recette métier, sans test de sécurité",
             ),
             Question(
                 "systemes_exploitation", "Quels systèmes d'exploitation utilisez-vous ?",
@@ -262,9 +304,11 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Liste", "Portail patient, webmail, VPN",
             ),
             Question(
-                "teletravail_autorise", "Le télétravail est-il autorisé ?",
-                "Vos collaborateurs se connectent-ils depuis l'extérieur (domicile, déplacement) ?",
-                C, "Oui / Non", "Oui, pour les fonctions administratives et les médecins",
+                "teletravail_autorise", "Qui travaille à distance, et depuis quel matériel ?",
+                "Quels profils se connectent depuis l'extérieur (domicile, déplacement), et depuis un poste "
+                "fourni par l'entreprise ou leur propre matériel. Répondez « non » si personne ne travaille "
+                "à distance.",
+                C, "Texte", "Administratifs et médecins, depuis des portables fournis par l'établissement",
             ),
             Question(
                 "acces_distant_moyens", "Par quels moyens accède-t-on à distance au système ?",
@@ -295,6 +339,13 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 "Avez-vous un annuaire central (ex. Active Directory) ? Comment sont créés, modifiés et "
                 "surtout supprimés les comptes quand une personne part ?",
                 I, "Texte", "Active Directory ; création/suppression via un processus RH",
+            ),
+            Question(
+                "revue_acces", "Qui vérifie, et à quelle fréquence, que chacun n'a que les accès nécessaires ?",
+                "Les droits s'accumulent au fil des changements de poste et ne sont presque jamais retirés. "
+                "Une revue périodique compare les accès réels aux besoins réels. Précisez la date de la "
+                "dernière revue.",
+                I, "Texte", "Aucune revue formelle ; les droits suivent les demandes des managers",
             ),
             Question(
                 "authentification_forte", "L'authentification multifacteur (MFA) est-elle en place ?",
@@ -333,16 +384,30 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Texte", "Mises à jour automatiques sur les postes, plus lentes sur les serveurs",
             ),
             Question(
-                "droits_administrateur", "Les utilisateurs sont-ils administrateurs de leur poste ?",
+                "droits_administrateur", "Qui est administrateur de son propre poste, et pourquoi ?",
                 "Si un utilisateur est « administrateur » de sa machine, un logiciel malveillant qu'il "
-                "ouvre obtient aussi tous les droits. Limiter ces droits réduit fortement le risque.",
-                I, "Oui / Non / partiel", "Non, sauf quelques exceptions techniques",
+                "ouvre obtient aussi tous les droits. Indiquez quels profils le sont encore et ce qui le "
+                "justifie.",
+                I, "Texte", "Personne, sauf 4 développeurs et les techniciens support",
             ),
             Question(
-                "mobiles_byod", "Des smartphones / tablettes accèdent-ils aux données pro ? Personnels ?",
-                "L'usage d'appareils personnels (BYOD) pour le travail élargit la surface à protéger. "
-                "Précisez s'ils sont gérés (MDM) ou non.",
-                I, "Texte", "Téléphones pro gérés ; pas d'accès depuis les téléphones personnels",
+                "mobiles_professionnels", "Comment sont gérés les smartphones et tablettes fournis par l'entreprise ?",
+                "Précisez s'ils sont administrés à distance (MDM), chiffrés, et si l'entreprise peut les "
+                "effacer en cas de perte ou de vol.",
+                I, "Texte", "Téléphones pro sous MDM, chiffrés, effacement à distance possible",
+            ),
+            Question(
+                "mobiles_byod", "Des appareils personnels accèdent-ils aux données professionnelles ?",
+                "Le BYOD (appareil personnel utilisé pour le travail) élargit la surface à protéger sur du "
+                "matériel que vous ne maîtrisez pas. Précisez ce qui est accessible depuis ces appareils.",
+                I, "Texte", "Messagerie accessible depuis les téléphones personnels, sans MDM",
+            ),
+            Question(
+                "gestion_vulnerabilites", "Comment repérez-vous les failles connues de vos systèmes ?",
+                "Distinct de l'application des correctifs : il s'agit de SAVOIR ce qui est vulnérable "
+                "(scans réguliers, veille sur les alertes, tests d'intrusion). Sans découverte, on ne "
+                "corrige que ce qui est déjà connu.",
+                I, "Texte", "Scan de vulnérabilités mensuel sur les serveurs exposés ; veille CERT-FR ; rien sur les postes",
             ),
         ),
     ),
@@ -352,10 +417,11 @@ QUESTIONNAIRE: tuple[Section, ...] = (
         "Le RGPD impose des obligations précises et prévoit des sanctions.",
         (
             Question(
-                "donnees_personnelles_traitees", "Traitez-vous des données personnelles ?",
+                "donnees_personnelles_traitees", "Sur quelles personnes détenez-vous des informations ?",
                 "Toute information se rapportant à une personne identifiable (nom, email, dossier, "
-                "numéro). Presque toutes les organisations en traitent.",
-                C, "Oui / Non", "Oui",
+                "numéro) compte. Citez les groupes concernés — clients, patients, salariés, candidats. "
+                "Répondez « aucune » si vous n'en traitez réellement pas.",
+                C, "Liste", "Patients, salariés, candidats à l'embauche",
             ),
             Question(
                 "categories_donnees_personnelles", "Quelles catégories de données personnelles ?",
@@ -377,10 +443,24 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Oui / Non + détails", "Oui, support d'un éditeur hébergé aux États-Unis",
             ),
             Question(
-                "registre_traitements", "Tenez-vous un registre des traitements et avez-vous un DPO ?",
-                "Le registre liste vos usages de données personnelles ; le DPO est le référent RGPD. "
-                "Tous deux sont des obligations pour beaucoup d'organisations.",
-                I, "Texte", "Registre tenu par le DPO externe",
+                "registre_traitements", "Tenez-vous un registre des activités de traitement ?",
+                "Le registre liste vos usages de données personnelles : quelles données, pour quelle "
+                "finalité, conservées combien de temps, partagées avec qui. Précisez s'il est à jour et "
+                "qui le tient.",
+                I, "Texte", "Registre tenu et revu chaque année par le DPO externe",
+            ),
+            Question(
+                "dpo_designe", "Avez-vous désigné un délégué à la protection des données (DPO) ?",
+                "Le DPO est le référent RGPD. Précisez s'il est interne ou externe, et s'il a été déclaré "
+                "à la CNIL — l'obligation dépend de votre activité et du type de données traitées.",
+                I, "Texte", "DPO externe mutualisé, déclaré à la CNIL",
+            ),
+            Question(
+                "retention_donnees", "Combien de temps conservez-vous les données, et comment sont-elles supprimées ?",
+                "Une donnée gardée au-delà de son utilité est un risque sans contrepartie. Indiquez les "
+                "durées de conservation prévues et ce qui déclenche réellement une suppression "
+                "(automatique, manuelle, jamais).",
+                I, "Texte", "Dossiers patients conservés 20 ans ; purge des logs à 6 mois ; pas de purge automatisée sur les sauvegardes",
             ),
             Question(
                 "sous_traitants_donnees", "Quels sous-traitants accèdent à des données personnelles ?",
@@ -414,10 +494,16 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Texte", "Test de restauration semestriel",
             ),
             Question(
-                "plan_continuite", "Avez-vous un plan de continuité / reprise d'activité (PCA/PRA) ?",
-                "Un document et une organisation prévus pour continuer ou redémarrer l'activité après un "
-                "sinistre majeur (incendie, cyberattaque).",
-                I, "Oui / Non + détails", "PRA informatique en place, PCA métier en cours",
+                "plan_reprise_informatique", "Avez-vous un plan de reprise informatique (PRA) ?",
+                "Comment le système d'information est techniquement remonté après un sinistre majeur "
+                "(incendie, rançongiciel) : où, à partir de quoi, par qui. Précisez la date du dernier test réel.",
+                I, "Texte", "PRA documenté, bascule testée en octobre dernier",
+            ),
+            Question(
+                "plan_continuite_metier", "Avez-vous un plan de continuité métier (PCA) ?",
+                "Comment l'activité continue PENDANT la panne, sans l'informatique : procédures dégradées, "
+                "papier, report vers un autre site. C'est distinct du redémarrage technique.",
+                I, "Texte", "Procédure papier pour les admissions ; PCA métier en cours de rédaction",
             ),
             Question(
                 "rto_rpo", "Combien de temps pouvez-vous rester à l'arrêt, et quelle perte de données tolérez-vous ?",
@@ -454,6 +540,13 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 "Qui appeler, quoi faire, dans quel ordre en cas de crise cyber. Et avez-vous un contact "
                 "d'assistance (prestataire, assurance cyber, CERT) ?",
                 I, "Texte", "Procédure informelle ; contrat d'assistance avec un prestataire",
+            ),
+            Question(
+                "notification_incidents", "En cas de violation de données, qui devez-vous prévenir et sous quel délai ?",
+                "Certaines obligations imposent un délai court et non négociable — par exemple 72 heures "
+                "vers l'autorité de contrôle, plus l'information des personnes concernées si le risque est "
+                "élevé. Indiquez si ces destinataires et ces délais sont écrits, et qui décide.",
+                I, "Texte", "CNIL sous 72h et patients concernés ; décidé par le DPO, procédure non écrite",
             ),
         ),
     ),
