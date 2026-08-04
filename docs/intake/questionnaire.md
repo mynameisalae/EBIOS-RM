@@ -28,6 +28,8 @@ redemandées.
 
 ## 1. Identité et gouvernance de l'organisation
 
+**RÉPOND : DIRECTION**
+
 *Cette première partie décrit qui vous êtes et comment la sécurité est organisée chez vous. Elle sert à cadrer toute l'étude.*
 
 ### Quel est le nom de l'organisation auditée ?
@@ -132,6 +134,8 @@ Exemple : _Analyse de 2022 validée en comité de direction, non revue depuis_
 
 ## 2. Périmètre et objectifs de l'audit
 
+**RÉPOND : DIRECTION**
+
 *Ici nous délimitons précisément ce qui est étudié et pourquoi.*
 
 ### Quels sont vos objectifs pour cet audit ?
@@ -167,6 +171,17 @@ Exemple : _La billetterie de la cafétéria (sans donnée sensible)_
 
 > _______________________________________________________________
 
+### Qu'est-ce qui est en train de changer, ou va changer bientôt ?
+🔹 **Explication.** Une migration, un déménagement, une fusion, un nouveau site, une application qui arrive ou qui disparaît, un prestataire qui change. L'étude décrit votre système tel qu'il sera, pas seulement tel qu'il est aujourd'hui.
+
+🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
+Format attendu : Texte.
+Exemple : _Migration de la messagerie vers le cloud au 2e trimestre ; ouverture d'un second site en fin d'année_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
 ### Qui commandite l'audit et qui décidera in fine ?
 🔹 **Explication.** La ou les personnes qui portent le projet et qui approuveront les conclusions (direction, comité, sponsor). L'audit assiste la décision, mais la décision reste humaine.
 
@@ -191,6 +206,8 @@ Exemple : _Certification HDS à renouveler en mars prochain_
 
 
 ## 3. Contexte métier et valeurs essentielles
+
+**RÉPOND : DIRECTION + MÉTIERS**
 
 *Cette partie identifie ce qui est vital pour votre organisation — le cœur de l'analyse EBIOS RM. Répondez du point de vue métier, pas informatique.*
 
@@ -249,6 +266,39 @@ Exemple : _Erreur de prescription sur un dossier falsifié, mise en danger du pa
 
 > _______________________________________________________________
 
+### À partir de quel moment un incident cesse-t-il d'être bénin pour vous ?
+🔹 **Explication.** Décrivez ce qui fait passer un incident de gênant à sérieux, puis de sérieux à inacceptable — une durée, un nombre de personnes touchées, un type de donnée concerné. Sans votre échelle, la gravité est estimée à votre place.
+
+🔸 *Priorité : Critique — indispensable pour démarrer l'étude.*
+Format attendu : Texte libre.
+Exemple : _Gênant sous 2h ; sérieux au-delà d'une demi-journée ou dès qu'un dossier patient sort ; inacceptable si les soins sont interrompus ou si les données fuitent publiquement_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+### À partir de quel montant de perte un incident devient-il vraiment grave ?
+🔹 **Explication.** Un ordre de grandeur suffit, et il n'est pas nécessaire de communiquer votre chiffre d'affaires. Cela calibre directement la gravité financière des scénarios étudiés.
+
+🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
+Format attendu : Montant approximatif.
+Exemple : _Au-delà de ~150 000 € l'incident remonte au conseil d'administration_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+### Parmi tout ce que vous avez cité, que faut-il protéger en priorité ?
+🔹 **Explication.** Si vous ne pouviez en préserver qu'une seule chose, laquelle ? Classez vos informations et processus les plus critiques par ordre d'importance. Ce classement est le vôtre, pas le nôtre.
+
+🔸 *Priorité : Critique — indispensable pour démarrer l'étude.*
+Format attendu : Liste ordonnée.
+Exemple : _1. Dossiers médicaux des patients  2. Continuité des consultations  3. Données RH_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
 ### Avez-vous des obligations de service ou contractuelles fortes ?
 🔹 **Explication.** Des engagements envers vos clients ou l'État (continuité de service, délais, disponibilité garantie) que la sécurité doit préserver.
 
@@ -262,6 +312,8 @@ Exemple : _Continuité des soins 24/7, engagements de disponibilité envers l'AR
 
 
 ## 4. Cartographie du système d'information
+
+**RÉPOND : TECHNIQUE**
 
 *Une vue d'ensemble de votre informatique. Restez simple : nous approfondirons si besoin.*
 
@@ -345,6 +397,8 @@ Exemple : _Deux échographes sous un ancien Windows non mis à jour_
 
 ## 5. Hébergement et cloud
 
+**RÉPOND : TECHNIQUE**
+
 *Où vivent vos données et vos applications.*
 
 ### Comment est hébergé votre système d'information ?
@@ -393,6 +447,8 @@ Exemple : _Hébergeur certifié HDS et ISO 27001_
 
 
 ## 6. Réseau et accès distant
+
+**RÉPOND : TECHNIQUE**
 
 *Comment vos systèmes communiquent entre eux et avec l'extérieur.*
 
@@ -465,6 +521,8 @@ Exemple : _Liaison de télémaintenance avec l'éditeur du SIH_
 
 ## 7. Identités et gestion des accès
 
+**RÉPOND : TECHNIQUE**
+
 *Comment vous contrôlez qui accède à quoi.*
 
 ### Comment gérez-vous les comptes utilisateurs ?
@@ -524,6 +582,8 @@ Exemple : _12 caractères minimum, pas de renouvellement forcé_
 
 
 ## 8. Postes de travail et serveurs
+
+**RÉPOND : TECHNIQUE**
 
 *La protection des ordinateurs et serveurs eux-mêmes.*
 
@@ -595,6 +655,8 @@ Exemple : _Scan de vulnérabilités mensuel sur les serveurs exposés ; veille C
 
 
 ## 9. Données personnelles (RGPD)
+
+**RÉPOND : RSSI / DSI**
 
 *Cette partie concerne les données relatives à des personnes (clients, patients, salariés). Le RGPD impose des obligations précises et prévoit des sanctions.*
 
@@ -700,6 +762,8 @@ Exemple : _Chiffrement des sauvegardes et des échanges web ; disques serveurs n
 
 ## 10. Sauvegarde et continuité d'activité
 
+**RÉPOND : RSSI / DSI**
+
 *Votre capacité à résister à une panne, une destruction ou un rançongiciel.*
 
 ### Quelle est votre stratégie de sauvegarde ?
@@ -759,6 +823,8 @@ Exemple : _Arrêt tolérable ~4h, perte de données max ~1h_
 
 
 ## 11. Journalisation, détection et incidents
+
+**RÉPOND : RSSI / DSI**
 
 *Votre capacité à voir ce qui se passe et à réagir.*
 
@@ -820,6 +886,8 @@ Exemple : _CNIL sous 72h et patients concernés ; décidé par le DPO, procédur
 
 ## 12. Écosystème et tiers de confiance
 
+**RÉPOND : DIRECTION / ACHATS**
+
 *Vos dépendances envers d'autres organisations — souvent une porte d'entrée des attaques.*
 
 ### Quels sont vos fournisseurs / prestataires critiques ?
@@ -858,6 +926,8 @@ Exemple : _Clauses RGPD présentes, exigences de sécurité limitées_
 
 ## 13. Sécurité physique et facteur humain
 
+**RÉPOND : RSSI / DSI**
+
 *Les locaux et les personnes comptent autant que la technique.*
 
 ### Comment sont protégés vos locaux et salles serveurs ?
@@ -894,7 +964,38 @@ Exemple : _Charte signée à l'embauche ; PSSI en cours de rédaction_
 > _______________________________________________________________
 
 
-## 14. Conformité, référentiels et historique
+## 14. Sources de menace et scénarios redoutés
+
+**RÉPOND : DIRECTION / RSSI**
+
+*On cherche ici à identifier qui aurait intérêt à vous nuire, pourquoi, et par quel chemin probable — pas pour vous inquiéter, mais pour prioriser les protections là où elles comptent.*
+
+### Selon vous, qui pourrait chercher à vous attaquer, et pourquoi ?
+🔹 **Explication.** Pensez à des cybercriminels motivés par l'argent (rançongiciel, fraude), un concurrent, un employé ou ancien employé mécontent, un État, ou un prestataire compromis servant de porte d'entrée. Décrivez ce qui vous semble plausible, même sans certitude.
+
+🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
+Format attendu : Texte libre.
+Exemple : _Rançongiciel opportuniste ; revente de données de santé ; un ancien salarié parti en conflit_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+### Par quel chemin une attaque arriverait-elle le plus probablement ?
+🔹 **Explication.** Par exemple un email piégé (phishing), un mot de passe volé ou faible, une faille logicielle non corrigée, une intrusion via un prestataire, ou un accès physique aux locaux.
+
+🔸 *Priorité : Important — si vous ne pouvez pas répondre, indiquez pourquoi.*
+Format attendu : Texte.
+Exemple : _Un email piégé ouvert par un utilisateur, ou la télémaintenance de l'éditeur_
+
+✏️ **Votre réponse :**
+
+> _______________________________________________________________
+
+
+## 15. Conformité, référentiels et historique
+
+**RÉPOND : DIRECTION / RSSI**
 
 *Les cadres réglementaires et normatifs qui s'appliquent, et ce qui a déjà été fait.*
 

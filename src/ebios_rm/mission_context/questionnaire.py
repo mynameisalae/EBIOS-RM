@@ -49,10 +49,19 @@ class Question:
 
 @dataclass(frozen=True)
 class Section:
+    """One section of the intake document.
+
+    ``respondent`` names who is expected to answer it. The catalog is long, and a
+    long form handed to a single person produces confident answers to questions
+    outside their competence — which reads exactly like a real answer and cannot be
+    told apart from one afterwards.
+    """
+
     id: str
     title: str
     intro: str
     questions: tuple[Question, ...] = field(default_factory=tuple)
+    respondent: str = ""
 
 
 QUESTIONNAIRE: tuple[Section, ...] = (
@@ -118,6 +127,7 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Texte", "Analyse de 2022 validée en comité de direction, non revue depuis",
             ),
         ),
+        respondent="DIRECTION",
     ),
     Section(
         "perimetre", "2. Périmètre et objectifs de l'audit",
@@ -142,6 +152,14 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Liste + justification", "La billetterie de la cafétéria (sans donnée sensible)",
             ),
             Question(
+                "changements_en_cours", "Qu'est-ce qui est en train de changer, ou va changer bientôt ?",
+                "Une migration, un déménagement, une fusion, un nouveau site, une application qui arrive ou "
+                "qui disparaît, un prestataire qui change. L'étude décrit votre système tel qu'il sera, pas "
+                "seulement tel qu'il est aujourd'hui.",
+                I, "Texte",
+                "Migration de la messagerie vers le cloud au 2e trimestre ; ouverture d'un second site en fin d'année",
+            ),
+            Question(
                 "commanditaires", "Qui commandite l'audit et qui décidera in fine ?",
                 "La ou les personnes qui portent le projet et qui approuveront les conclusions "
                 "(direction, comité, sponsor). L'audit assiste la décision, mais la décision reste humaine.",
@@ -154,6 +172,7 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Texte", "Certification HDS à renouveler en mars prochain",
             ),
         ),
+        respondent="DIRECTION",
     ),
     Section(
         "metier", "3. Contexte métier et valeurs essentielles",
@@ -202,12 +221,35 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 "perte de valeur probante du dossier médical",
             ),
             Question(
+                "gravite_seuils", "À partir de quel moment un incident cesse-t-il d'être bénin pour vous ?",
+                "Décrivez ce qui fait passer un incident de gênant à sérieux, puis de sérieux à "
+                "inacceptable — une durée, un nombre de personnes touchées, un type de donnée concerné. "
+                "Sans votre échelle, la gravité est estimée à votre place.",
+                C, "Texte libre",
+                "Gênant sous 2h ; sérieux au-delà d'une demi-journée ou dès qu'un dossier patient sort ; "
+                "inacceptable si les soins sont interrompus ou si les données fuitent publiquement",
+            ),
+            Question(
+                "gravite_seuil_financier", "À partir de quel montant de perte un incident devient-il vraiment grave ?",
+                "Un ordre de grandeur suffit, et il n'est pas nécessaire de communiquer votre chiffre "
+                "d'affaires. Cela calibre directement la gravité financière des scénarios étudiés.",
+                I, "Montant approximatif", "Au-delà de ~150 000 € l'incident remonte au conseil d'administration",
+            ),
+            Question(
+                "valeurs_prioritaires", "Parmi tout ce que vous avez cité, que faut-il protéger en priorité ?",
+                "Si vous ne pouviez en préserver qu'une seule chose, laquelle ? Classez vos informations et "
+                "processus les plus critiques par ordre d'importance. Ce classement est le vôtre, pas le nôtre.",
+                C, "Liste ordonnée",
+                "1. Dossiers médicaux des patients  2. Continuité des consultations  3. Données RH",
+            ),
+            Question(
                 "obligations_metier", "Avez-vous des obligations de service ou contractuelles fortes ?",
                 "Des engagements envers vos clients ou l'État (continuité de service, délais, disponibilité "
                 "garantie) que la sécurité doit préserver.",
                 I, "Texte", "Continuité des soins 24/7, engagements de disponibilité envers l'ARS",
             ),
         ),
+        respondent="DIRECTION + MÉTIERS",
     ),
     Section(
         "cartographie", "4. Cartographie du système d'information",
@@ -256,6 +298,7 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Texte", "Deux échographes sous un ancien Windows non mis à jour",
             ),
         ),
+        respondent="TECHNIQUE",
     ),
     Section(
         "hebergement", "5. Hébergement et cloud",
@@ -286,6 +329,7 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Texte", "Hébergeur certifié HDS et ISO 27001",
             ),
         ),
+        respondent="TECHNIQUE",
     ),
     Section(
         "reseau", "6. Réseau et accès distant",
@@ -329,6 +373,7 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Liste", "Liaison de télémaintenance avec l'éditeur du SIH",
             ),
         ),
+        respondent="TECHNIQUE",
     ),
     Section(
         "identites", "7. Identités et gestion des accès",
@@ -366,6 +411,7 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Texte", "12 caractères minimum, pas de renouvellement forcé",
             ),
         ),
+        respondent="TECHNIQUE",
     ),
     Section(
         "postes", "8. Postes de travail et serveurs",
@@ -410,6 +456,7 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Texte", "Scan de vulnérabilités mensuel sur les serveurs exposés ; veille CERT-FR ; rien sur les postes",
             ),
         ),
+        respondent="TECHNIQUE",
     ),
     Section(
         "donnees", "9. Données personnelles (RGPD)",
@@ -475,6 +522,7 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Texte", "Chiffrement des sauvegardes et des échanges web ; disques serveurs non chiffrés",
             ),
         ),
+        respondent="RSSI / DSI",
     ),
     Section(
         "continuite", "10. Sauvegarde et continuité d'activité",
@@ -512,6 +560,7 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Texte", "Arrêt tolérable ~4h, perte de données max ~1h",
             ),
         ),
+        respondent="RSSI / DSI",
     ),
     Section(
         "detection", "11. Journalisation, détection et incidents",
@@ -549,6 +598,7 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Texte", "CNIL sous 72h et patients concernés ; décidé par le DPO, procédure non écrite",
             ),
         ),
+        respondent="RSSI / DSI",
     ),
     Section(
         "ecosysteme", "12. Écosystème et tiers de confiance",
@@ -573,6 +623,7 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Texte", "Clauses RGPD présentes, exigences de sécurité limitées",
             ),
         ),
+        respondent="DIRECTION / ACHATS",
     ),
     Section(
         "physique_rh", "13. Sécurité physique et facteur humain",
@@ -596,9 +647,32 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 I, "Oui / Non + détails", "Charte signée à l'embauche ; PSSI en cours de rédaction",
             ),
         ),
+        respondent="RSSI / DSI",
     ),
     Section(
-        "conformite", "14. Conformité, référentiels et historique",
+        "menaces", "14. Sources de menace et scénarios redoutés",
+        "On cherche ici à identifier qui aurait intérêt à vous nuire, pourquoi, et par quel chemin "
+        "probable — pas pour vous inquiéter, mais pour prioriser les protections là où elles comptent.",
+        (
+            Question(
+                "sources_menace_percues", "Selon vous, qui pourrait chercher à vous attaquer, et pourquoi ?",
+                "Pensez à des cybercriminels motivés par l'argent (rançongiciel, fraude), un concurrent, un "
+                "employé ou ancien employé mécontent, un État, ou un prestataire compromis servant de porte "
+                "d'entrée. Décrivez ce qui vous semble plausible, même sans certitude.",
+                I, "Texte libre",
+                "Rançongiciel opportuniste ; revente de données de santé ; un ancien salarié parti en conflit",
+            ),
+            Question(
+                "chemin_attaque_probable", "Par quel chemin une attaque arriverait-elle le plus probablement ?",
+                "Par exemple un email piégé (phishing), un mot de passe volé ou faible, une faille logicielle "
+                "non corrigée, une intrusion via un prestataire, ou un accès physique aux locaux.",
+                I, "Texte", "Un email piégé ouvert par un utilisateur, ou la télémaintenance de l'éditeur",
+            ),
+        ),
+        respondent="DIRECTION / RSSI",
+    ),
+    Section(
+        "conformite", "15. Conformité, référentiels et historique",
         "Les cadres réglementaires et normatifs qui s'appliquent, et ce qui a déjà été fait.",
         (
             Question(
@@ -627,6 +701,7 @@ QUESTIONNAIRE: tuple[Section, ...] = (
                 askable=False,
             ),
         ),
+        respondent="DIRECTION / RSSI",
     ),
 )
 
