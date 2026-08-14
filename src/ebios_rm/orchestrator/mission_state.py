@@ -10,9 +10,11 @@ from __future__ import annotations
 from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.repositories.mission_repository import ROLLBACK_CAP, MissionRepository
 from ebios_rm.workshops.workshop1_cadrage.models import Workshop1Output
+from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Output
 
 WORKSHOP_CONTEXT = 0  # the Mission Context (intake result)
 WORKSHOP_1 = 1
+WORKSHOP_2 = 2
 
 
 def save_mission_context(repo: MissionRepository, mission_id: str, mc: MissionContext) -> None:
@@ -37,6 +39,15 @@ def save_w1_output(repo: MissionRepository, mission_id: str, output: Workshop1Ou
 def load_w1_output(repo: MissionRepository, mission_id: str) -> Workshop1Output | None:
     version = repo.latest_output(mission_id, WORKSHOP_1)
     return Workshop1Output.model_validate(version.output) if version else None
+
+
+def save_w2_output(repo: MissionRepository, mission_id: str, output: Workshop2Output, *, status: str = "current") -> int:
+    return repo.save_output(mission_id, WORKSHOP_2, output.model_dump(mode="json"), status=status)
+
+
+def load_w2_output(repo: MissionRepository, mission_id: str) -> Workshop2Output | None:
+    version = repo.latest_output(mission_id, WORKSHOP_2)
+    return Workshop2Output.model_validate(version.output) if version else None
 
 
 def can_redo(repo: MissionRepository, mission_id: str, workshop_number: int) -> bool:

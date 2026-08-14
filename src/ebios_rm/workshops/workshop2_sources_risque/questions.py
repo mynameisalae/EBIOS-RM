@@ -1,0 +1,146 @@
+"""The atelier 2 session with the client — the one phase with no atelier 1 equivalent.
+
+Atelier 2 is run as a working session: judging whether a competitor, a former
+employee or a state actor is plausible needs things the intake questionnaire never
+asks. Three of the questions below exist only here for that reason.
+
+Two design rules, both deliberate:
+
+* It asks through an injected ``HumanInterface`` — the same Protocol the rest of
+  the project uses for auditor decisions — so it is testable with a scripted human
+  and the orchestrator can drive it later without touching this code. Nothing here
+  is wired into the CLI.
+* It is not an LLM call. Which questions are missing is a lookup over the context,
+  and a model asking them would only add a way to hallucinate one.
+
+Answers become Facts of origin ``declaration`` so they stay distinguishable from
+the AI's own assumptions all the way into the SR/OV justifications (white-box §8).
+A skip keeps its mandatory justification (conception §8), and the workshop can run
+without any of these — none of them blocks.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from ebios_rm.domain.enums import Confidence, FactStatus, Origin, PriorityLevel
+from ebios_rm.domain.fact import Fact
+from ebios_rm.mission_context.priority_matrix import FollowUpQuestion
+from ebios_rm.workshops.workshop1_cadrage.human_interface import HumanInterface, SkipRequested
+from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Input
+
+
+@dataclass(frozen=True)
+class SessionQuestion:
+    """One atelier 2 session question and what it is there to decide."""
+
+    field_name: str
+    question: str
+    help_text: str
+
+
+# Ordered as a conversation, not as a form: who would come for us, how, and then
+# the specifics that make particular actor categories plausible or not.
+SESSION_QUESTIONS: tuple[SessionQuestion, ...] = (
+    SessionQuestion(
+        "sources_menace_percues",
+        "Selon vous, qui pourrait chercher à vous attaquer, et pourquoi ?",
+        "Votre propre lecture compte : elle oriente les catégories de sources de risque examinées.",
+    ),
+    SessionQuestion(
+        "chemin_attaque_probable",
+        "Par quel chemin une attaque arriverait-elle le plus probablement ?",
+        "Sert à apprécier votre exposition, pas à décrire une technique précise.",
+    ),
+    SessionQuestion(
+        "concurrence_directe",
+        "Qui sont vos concurrents directs, et y a-t-il des marchés ou dossiers disputés ?",
+        "Détermine si un concurrent — ou une officine agissant pour son compte — est plausible.",
+    ),
+    SessionQuestion(
+        "departs_conflictuels",
+        "Y a-t-il eu des départs conflictuels, des litiges ou un climat social tendu ?",
+        "Détermine si un interne malveillant ou un vengeur est plausible ici.",
+    ),
+    SessionQuestion(
+        "visibilite_publique",
+        "Votre organisation est-elle exposée médiatiquement ou publiquement contestée ?",
+        "Détermine si un activiste idéologique ou un profil pathologique est plausible.",
+    ),
+    SessionQuestion(
+        "exposition_internet",
+        "Quels services sont accessibles depuis Internet ?",
+        "Mesure votre surface d'exposition, donc votre attractivité pour un acteur opportuniste.",
+    ),
+    SessionQuestion(
+        "fournisseurs_tiers_critiques",
+        "Quels sont vos fournisseurs et prestataires critiques ?",
+        "Un tiers de confiance élargit la liste des acteurs qui vous approchent légitimement.",
+    ),
+    SessionQuestion(
+        "incidents_securite_passes",
+        "Avez-vous déjà subi des incidents ou des tentatives notables ?",
+        "Un acteur déjà venu est le meilleur indice de pertinence disponible.",
+    ),
+)
+
+
+def _is_answered(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set, dict)):
+        return len(value) > 0
+    return True
+
+
+def session_questions(w2_input: Workshop2Input) -> list[FollowUpQuestion]:
+    """The session questions the context does not already answer.
+
+    All Important: atelier 2 can be conducted without any single one of them, so
+    none may block the study. A skip still costs a justification (§8).
+    """
+    return [
+        FollowUpQuestion(
+            field_name=q.field_name,
+            question=q.question,
+            priority=PriorityLevel.IMPORTANT,
+            help_text=q.help_text,
+        )
+        for q in SESSION_QUESTIONS
+        if not _is_answered(w2_input.contexte.get(q.field_name))
+    ]
+
+
+def ask_session_questions(w2_input: Workshop2Input, human: HumanInterface) -> Workshop2Input:
+    """Run the session and return the enriched input — the original is left untouched.
+
+    Returning a new value rather than mutating keeps the workshop a pure function
+    over typed input, which is what makes pause/resume and replay the orchestrator's
+    business instead of this module's.
+    """
+    enriched = w2_input.model_copy(deep=True)
+    for question in session_questions(w2_input):
+        outcome = human.ask_followup(question)
+        if isinstance(outcome, SkipRequested):
+            # The refusal is recorded, not discarded: an auditor reading the study
+            # must see that the question was put and why it went unanswered.
+            enriched.faits_contexte.append(Fact(
+                field_name=question.field_name,
+                value=None,
+                origin=Origin.DECLARATION,
+                confidence=Confidence.LOW,
+                status=FactStatus.SKIPPED,
+                justification=outcome.reason,
+                question=question.question,
+            ))
+            continue
+        answer = str(outcome).strip()
+        if not answer:
+            continue
+        enriched.contexte[question.field_name] = answer
+        enriched.faits_contexte.append(
+            Fact.declaration(question.field_name, answer, question=question.question)
+        )
+    return enriched

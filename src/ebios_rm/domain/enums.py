@@ -62,6 +62,38 @@ class CategorieImpact(str, Enum):
     VIE_PRIVEE_PERSONNES_CONCERNEES = "vie_privee_personnes_concernees"  # impact on the data subjects
 
 
+class Pertinence(str, Enum):
+    """Pertinence of an SR/OV couple — three fixed values (fiche de test atelier 2)."""
+
+    FAIBLE = "Faible"
+    MOYEN = "Moyen"
+    ELEVE = "Élevé"
+
+
+class VraisemblanceInitiale(str, Enum):
+    """Initial likelihood of an SR/OV couple, V1..V4 (fiche de test atelier 2).
+
+    "Does this source target this organisation", never technical success — the
+    likelihood of an attack succeeding belongs to atelier 4.
+    """
+
+    V1 = "V1"
+    V2 = "V2"
+    V3 = "V3"
+    V4 = "V4"
+
+
+class StatutSelection(str, Enum):
+    """Outcome of an atelier 2 filter (white-box §7, §10, §11).
+
+    Nothing is deleted: an écarté element keeps its reason (§17, §19).
+    """
+
+    RETENU = "retenu"
+    SECONDAIRE = "secondaire"
+    ECARTE = "ecarte"
+
+
 class Hebergement(str, Enum):
     """Hosting model declared in the intake form (conception §11.1)."""
 

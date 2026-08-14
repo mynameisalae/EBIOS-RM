@@ -19,6 +19,11 @@ from ebios_rm.workshops.workshop1_cadrage.models import (
     CadrageProposal,
     ControlAssessmentProposal,
 )
+from ebios_rm.workshops.workshop2_sources_risque.models import (
+    CoupleProposal,
+    ObjectifViseProposal,
+    RiskSourceProposal,
+)
 
 
 class ScriptedHuman:
@@ -167,6 +172,109 @@ class FakeRunner:
                 evidence_mission_context="donnees_personnelles_traitees = True (données de santé)",
             )
         ]
+
+
+class FakeWorkshop2Runner:
+    """A Workshop2AgentRunner returning canned proposals — no LLM involved.
+
+    Deliberately mixes valid candidates with the failures the real model produces:
+    a category outside the approved base, an "objective" that is really a
+    technique, and a couple with no usable rating.
+    """
+
+    def __init__(self) -> None:
+        self.revision_notes_seen: list[str] | None = None
+        self.calls: list[str] = []
+
+    def propose_sources(self, w2_input, base, revision_notes=None) -> list[RiskSourceProposal]:
+        self.calls.append("sources")
+        self.revision_notes_seen = revision_notes
+        return [
+            RiskSourceProposal(
+                categorie_id="crime_organise",
+                nom="Groupe cybercriminel organisé",
+                description="Acteur lucratif ciblant les établissements de santé.",
+                motivation="Monnayer l'arrêt de l'activité et les données de santé.",
+                statut="retenu",
+                justification="Secteur santé fortement ciblé et forte dépendance à la disponibilité.",
+                derived_from_fact_fields=["exposition_internet", "sources_menace_percues"],
+            ),
+            RiskSourceProposal(
+                categorie_id="concurrent",
+                nom="Concurrent régional",
+                description="Établissement concurrent sur la même zone de recrutement.",
+                motivation="Capter des patients et des praticiens.",
+                statut="secondaire",
+                justification="Concurrence directe citée par le client.",
+                derived_from_fact_fields=["concurrence_directe"],
+            ),
+            # A category the approved base does not define — never invented into an SR (§6).
+            RiskSourceProposal(
+                categorie_id="apt28",
+                nom="APT28",
+                statut="retenu",
+                justification="Groupe actif contre l'Europe.",
+                derived_from_fact_fields=["secteur_activite"],
+            ),
+        ]
+
+    def propose_objectifs(self, w2_input, base, sources, revision_notes=None) -> list[ObjectifViseProposal]:
+        self.calls.append("objectifs")
+        return [
+            ObjectifViseProposal(
+                finalite_id="lucratif",
+                description="Obtenir le versement d'une rançon en rendant les dossiers inaccessibles",
+                enjeu="Continuité de la prise en charge des patients",
+                biens_essentiels_vises=["BE-1"],
+                statut="retenu",
+                justification="Le client ne peut pas fonctionner sans accès aux dossiers.",
+                derived_from_fact_fields=["processus_metier_critiques"],
+            ),
+            ObjectifViseProposal(
+                finalite_id="espionnage",
+                description="Capter le fichier des praticiens et leurs conditions",
+                enjeu="Avantage concurrentiel",
+                biens_essentiels_vises=["BE-1"],
+                statut="retenu",
+                justification="Information directement exploitable par un concurrent.",
+                derived_from_fact_fields=["concurrence_directe"],
+            ),
+            # A technique dressed up as an objective — forbidden by §9/§17.
+            ObjectifViseProposal(
+                finalite_id="espionnage",
+                description="Injection SQL sur le portail de prise de rendez-vous",
+                biens_essentiels_vises=["BE-1"],
+                statut="retenu",
+                justification="Le portail est exposé.",
+                derived_from_fact_fields=["exposition_internet"],
+            ),
+        ]
+
+    def propose_couples(self, w2_input, sources, objectifs, revision_notes=None) -> list[CoupleProposal]:
+        self.calls.append("couples")
+        by_finalite = {o.finalite_id: o.id for o in objectifs}
+        couples = [
+            CoupleProposal(
+                source_risque_id=sources[0].id,
+                objectif_vise_id=by_finalite["lucratif"],
+                justification="Le rançongiciel est le mode d'action lucratif habituel sur ce secteur.",
+                motivation=4, ressources=3, activite=4, statut="retenu",
+            ),
+            CoupleProposal(
+                source_risque_id=sources[1].id,
+                objectif_vise_id=by_finalite["espionnage"],
+                justification="Un concurrent tire un bénéfice direct de ces informations.",
+                motivation=3, ressources=2, activite=2, statut="retenu",
+            ),
+            # No usable rating: cannot be prioritised, and must not be guessed (§17).
+            CoupleProposal(
+                source_risque_id=sources[0].id,
+                objectif_vise_id=by_finalite["espionnage"],
+                justification="Possible mais mal caractérisé.",
+                motivation=0, ressources=0, activite=0, statut="retenu",
+            ),
+        ]
+        return couples
 
 
 class FakeAuditorReviewRunner:
