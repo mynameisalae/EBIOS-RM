@@ -1,15 +1,22 @@
 """The atelier 2 session with the client — the one phase with no atelier 1 equivalent.
 
-Atelier 2 is run as a working session: judging whether a competitor, a former
-employee or a state actor is plausible needs things the intake questionnaire never
-asks. Three of the questions below exist only here for that reason.
+The white-box spec asks for this phase to exist (§5: "the design must let it
+build a working session with the client") but does not enumerate its questions —
+unlike the intake questionnaire, whose fields come from questionnaire.py's 90-odd
+declared items. SESSION_QUESTIONS below is authored, not sourced: nine questions
+chosen because each maps to an indice_pertinence in the approved SR/OV base
+(plugins/ebios_bases/anssi_ebios_rm_v1/sources_risque.json) — e.g.
+"departs_conflictuels" feeds the plausibility of "interne_malveillant" and
+"vengeur". They have not been run past a real client or checked against the
+official ANSSI guide. Treat them the same way as the base's
+verified_against_official_guide flag: usable, not yet validated.
 
 Two design rules, both deliberate:
 
 * It asks through an injected ``HumanInterface`` — the same Protocol the rest of
-  the project uses for auditor decisions — so it is testable with a scripted human
-  and the orchestrator can drive it later without touching this code. Nothing here
-  is wired into the CLI.
+  the project uses for auditor decisions — so it is testable with a scripted human.
+  scripts/run_workshop2.py wires a CLIHumanInterface into it; the orchestrator can
+  swap that for its own driver later without touching this module.
 * It is not an LLM call. Which questions are missing is a lookup over the context,
   and a model asking them would only add a way to hallucinate one.
 
