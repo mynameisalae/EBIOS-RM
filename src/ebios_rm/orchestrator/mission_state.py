@@ -7,12 +7,22 @@ resume from, whether a redo is still allowed under the rollback cap).
 
 from __future__ import annotations
 
+from typing import TypeVar
+
+from pydantic import BaseModel
+
 from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.repositories.mission_repository import ROLLBACK_CAP, MissionRepository
 from ebios_rm.workshops.workshop1_cadrage.models import Workshop1Output
 
 WORKSHOP_CONTEXT = 0  # the Mission Context (intake result)
 WORKSHOP_1 = 1
+WORKSHOP_2 = 2
+WORKSHOP_3 = 3
+WORKSHOP_4 = 4
+WORKSHOP_5 = 5
+
+T = TypeVar("T", bound=BaseModel)
 
 
 def save_mission_context(repo: MissionRepository, mission_id: str, mc: MissionContext) -> None:
@@ -42,3 +52,24 @@ def load_w1_output(repo: MissionRepository, mission_id: str) -> Workshop1Output 
 def can_redo(repo: MissionRepository, mission_id: str, workshop_number: int) -> bool:
     """False once the rollback cap is reached — the caller must ask for reinforced confirmation (§12.6)."""
     return repo.version_count(mission_id, workshop_number) < ROLLBACK_CAP
+
+
+# --- Generic save/load for workshops 2-5 ---
+#
+# Workshop 1 keeps its dedicated save_w1_output/load_w1_output above (existing
+# tests depend on the exact names). Workshops 2-5 share one generic pair instead
+# of four near-identical copies — same underlying repo.save_output/latest_output,
+# just parameterized by workshop_number and the caller's own Pydantic model.
+
+
+def save_workshop_output(
+    repo: MissionRepository, mission_id: str, workshop_number: int, output: BaseModel, *, status: str = "current"
+) -> int:
+    return repo.save_output(mission_id, workshop_number, output.model_dump(mode="json"), status=status)
+
+
+def load_workshop_output(
+    repo: MissionRepository, mission_id: str, workshop_number: int, model_cls: type[T]
+) -> T | None:
+    version = repo.latest_output(mission_id, workshop_number)
+    return model_cls.model_validate(version.output) if version else None

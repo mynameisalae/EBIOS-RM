@@ -2,3 +2,6 @@
 agno==2.6.12
 python-docx==1.2.0
 PyYAML==6.0.2
+fastapi==0.115.14
+uvicorn==0.34.3
+pytest-asyncio==1.4.0
