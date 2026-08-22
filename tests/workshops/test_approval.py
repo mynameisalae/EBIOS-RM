@@ -20,7 +20,7 @@ def test_rejection_requires_non_empty_reason():
     approved, reason = approve_workshop("l'atelier 1", io_in=ask, io_out=show)
     assert approved is False
     assert reason == "scénarios incomplets"
-    assert any("motif non vide est obligatoire" in line for line in out)
+    assert any("une vraie raison" in line for line in out)
 
 
 def test_unclear_choice_reprompts():

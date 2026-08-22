@@ -6,9 +6,9 @@ contradictions and gaps, and explains its reasoning — it never invents
 information, never makes a final audit decision, and never resolves a
 contradiction on its own. The auditor always has the last word.
 
-The full design reference is [`docs/conception/CONCEPTION.md`](docs/conception/CONCEPTION.md) —
-the single, authoritative source for every architectural decision in this
-repository. This README only orients; when in doubt, the conception document wins.
+The design reference is an internal document (`docs/conception/`, not published)
+and remains the authoritative source for every architectural decision here — the
+`§n` markers throughout the code point at its sections. This README only orients.
 
 ## Stack
 

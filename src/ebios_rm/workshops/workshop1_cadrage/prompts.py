@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 
+from ebios_rm.domain.essential_asset import EssentialAsset
 from ebios_rm.domain.feared_event import FearedEvent
 from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.repositories.reference_repository import BaselineControl
@@ -105,10 +106,25 @@ def controls_prompt(mc: MissionContext, framework: str, controls: list[BaselineC
 
 def legal_impacts_prompt(
     mc: MissionContext, events: list[FearedEvent], provisions: list[BaselineControl],
-    revision_notes: list[str] | None = None,
+    revision_notes: list[str] | None = None, assets: list[EssentialAsset] | None = None,
 ) -> str:
+    # The essential asset travels with its event: two events can read alike ("accès non
+    # autorisé...") while concerning entirely different assets, and with only the
+    # description to go on, the evidence of one gets attached to the other.
+    by_id = {a.id: a for a in (assets or [])}
     events_block = json.dumps(
-        [{"id": e.id, "description": e.description} for e in events], ensure_ascii=False, indent=2
+        [
+            {
+                "id": e.id,
+                "description": e.description,
+                "bien_essentiel": (
+                    f"{by_id[e.bien_essentiel_id].nom} — {by_id[e.bien_essentiel_id].description}"
+                    if e.bien_essentiel_id in by_id else e.bien_essentiel_id
+                ),
+            }
+            for e in events
+        ],
+        ensure_ascii=False, indent=2,
     )
     provisions_block = json.dumps(
         [

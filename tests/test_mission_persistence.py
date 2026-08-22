@@ -147,6 +147,27 @@ def test_token_sink_records_calls_against_the_mission(repo):
     assert repo.token_totals(mid) == {"input_tokens": 240, "output_tokens": 90, "llm_calls": 2}
 
 
+def test_prune_deletes_only_empty_missions_and_counts_them(repo):
+    # A live log showed "0 supprimée" while empty missions disappeared — pin the
+    # accounting so a mismatch between what is deleted and what is reported fails here.
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from mission_tokens import _prune
+
+    empty = repo.create_mission("Chemin mal saisi", ["RGPD"])
+    worked = repo.create_mission("Mission réelle", ["RGPD"])
+    repo.log_tokens(worked, input_tokens=10, output_tokens=5, model_used="gemma")
+    saved = repo.create_mission("Interrompue après ingestion", ["RGPD"])
+    repo.save_output(saved, mission_state.WORKSHOP_CONTEXT, {"facts": []})
+
+    assert _prune(repo) == 0
+    remaining = {m.mission_id for m in repo.list_missions()}
+    assert remaining == {worked, saved}      # only the truly empty one goes
+    assert empty not in remaining
+
+
 def test_token_accounting_never_breaks_a_run(repo):
     from ebios_rm import agent_runtime
     from ebios_rm.agent_runtime import set_token_sink

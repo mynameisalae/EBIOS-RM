@@ -66,6 +66,11 @@ def render_markdown() -> str:
     lines: list[str] = [_HEADER]
     for section in QUESTIONNAIRE:
         lines.append(f"## {section.title}\n")
+        if section.respondent:
+            # Who should answer this section. A long form handed to one person yields
+            # confident answers to questions outside their competence, and those read
+            # exactly like real ones afterwards.
+            lines.append(f"**RÉPOND : {section.respondent}**\n")
         lines.append(f"*{section.intro}*\n")
         for q in section.questions:
             lines.append(f"### {q.question}")

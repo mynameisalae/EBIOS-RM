@@ -124,7 +124,7 @@ def test_redo_notes_accumulate_from_the_decision_log(cli, repo, monkeypatch):
         repo.save_output(mid, mission_state.WORKSHOP_1, {})
         return object()
 
-    def review(_repo, _mid, _mc, _out):
+    def review(_repo, _mid, _mc, _out, _ref=None):
         reasons = ["motif A", "motif B"]
         idx = len(seen) - 1
         if idx < len(reasons):
@@ -144,3 +144,55 @@ def test_redo_notes_accumulate_from_the_decision_log(cli, repo, monkeypatch):
     assert seen[0] == []                          # first run: no prior feedback
     assert seen[1] == ["motif A"]                 # redo 1 carries the first rejection
     assert seen[2] == ["motif A", "motif B"]      # redo 2 carries both
+
+
+# --- what is being approved, when the result is thinner than it looks ---
+
+class _Ref:
+    """Reference repository stub: how many controls each framework actually loaded."""
+
+    def __init__(self, counts):
+        self._counts = counts
+
+    def get_baseline_controls(self, framework):
+        return [object()] * self._counts.get(framework, 0)
+
+
+def _output(gaps, unverified):
+    from ebios_rm.workshops.workshop1_cadrage.models import UnverifiedControl, Workshop1Output
+
+    return Workshop1Output(
+        baseline_gaps_full=gaps,
+        unverified_controls=[UnverifiedControl(control_id=cid, framework=fw, reason="REASON_NO_INFORMATION")
+                             for cid, fw in unverified],
+    )
+
+
+def _context(frameworks):
+    from ebios_rm.mission_context.mission_context import MissionContext
+
+    return MissionContext(organisation_nom="X", secteur_activite="Santé",
+                          applicable_frameworks=frameworks)
+
+
+def test_a_wholly_unconcluded_framework_is_called_out(cli):
+    output = _output([], [(f"A.{i}", "RGPD") for i in range(12)])
+    warnings = cli._completeness_warnings(output, _context(["RGPD"]), _Ref({"RGPD": 12}))
+
+    assert any("aucun de ses 12 contrôles" in w for w in warnings)
+
+
+def test_an_empty_gap_list_is_never_silent(cli):
+    # The live run approved an empty baseline_gaps_full with the same two keystrokes
+    # a full result would take. Empty must be stated, not inferred from the JSON.
+    warnings = cli._completeness_warnings(_output([], []), _context([]), _Ref({}))
+    assert any("non évalué" in w for w in warnings)
+
+
+def test_a_healthy_result_warns_about_nothing(cli):
+    from ebios_rm.workshops.workshop1_cadrage.models import BaselineGap, ControlReference
+
+    gap = BaselineGap(gap_id="G1", weakness="Pas de MFA",
+                      controls=[ControlReference(framework="RGPD", control_id="Art32")])
+    output = _output([gap], [("Art30", "RGPD")])
+    assert cli._completeness_warnings(output, _context(["RGPD"]), _Ref({"RGPD": 12})) == []

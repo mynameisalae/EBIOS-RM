@@ -174,9 +174,9 @@ class _CountingRunner(FakeRunner):
         self.calls["controls"] += 1
         return super().assess_controls(mission_context, framework, controls, revision_notes)
 
-    def assess_legal_impacts(self, mission_context, events, provisions, revision_notes=None):
+    def assess_legal_impacts(self, mission_context, events, provisions, revision_notes=None, assets=None):
         self.calls["legal"] += 1
-        return super().assess_legal_impacts(mission_context, events, provisions, revision_notes)
+        return super().assess_legal_impacts(mission_context, events, provisions, revision_notes, assets)
 
 
 def _context():

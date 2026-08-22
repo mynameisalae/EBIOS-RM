@@ -53,7 +53,15 @@ class MissionContext(BaseModel):
         return any(f.status in blocking for f in self.facts)
 
 
-_DEFAULT_FRAMEWORKS = ["ISO27001", "ANSSI_hygiene", "RGPD", "NIST"]
+def _default_frameworks() -> list[str]:
+    """The referentials a plugin marks as suggested by default (§12.4).
+
+    Read from the plugins rather than restated here: a hardcoded copy silently
+    drifts the day someone adds or removes one.
+    """
+    from ebios_rm.plugins.registry import default_suggested_frameworks  # noqa: PLC0415
+
+    return default_suggested_frameworks()
 
 
 def _parse_frameworks(value: object) -> list[str]:
@@ -76,7 +84,12 @@ def assemble_from_facts(facts: list[Fact]) -> MissionContext:
     return MissionContext(
         organisation_nom=str(values.get("organisation_nom") or "Organisation non renseignée"),
         secteur_activite=str(values.get("secteur_activite") or "Secteur non renseigné"),
-        applicable_frameworks=_parse_frameworks(values.get("applicable_frameworks")) or list(_DEFAULT_FRAMEWORKS),
+        # The ingestion prompt is shown the referentials this installation can load and
+        # answers with their ids, so nothing is matched here: a mention the model did
+        # not recognise stays as the client wrote it and stops at the controls gate (§12.5).
+        applicable_frameworks=(
+            _parse_frameworks(values.get("applicable_frameworks")) or _default_frameworks()
+        ),
         facts=facts,
         documents_fournis=documents,
     )

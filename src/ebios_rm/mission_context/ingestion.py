@@ -113,14 +113,22 @@ def questionnaire_answers_to_facts(
     return facts, flags
 
 
-def supporting_answers_to_facts(answers: list[ExtractedAnswer], doc_name: str) -> list[Fact]:
-    """Convert supporting-document answers into extraction Facts (conception §5.3, §11).
+def supporting_answers_to_facts(
+    answers: list[ExtractedAnswer], doc_name: str
+) -> tuple[list[Fact], list[AnswerFlag]]:
+    """Convert supporting-document answers into extraction Facts + flags (conception §5.3, §11).
 
     Extraction requires a non-empty source_quote — answers without one are dropped,
     exactly as validate_extraction would reject them.
+
+    Flagged the same way as the questionnaire: a supplied document is the client's
+    word too, and an absurd statement inside one used to reach the workshop unexamined
+    unless it happened to contradict the form on the very same field.
     """
     valid = _valid_question_ids()
+    qby_id = question_by_id()
     facts: list[Fact] = []
+    flags: list[AnswerFlag] = []
     for a in answers:
         if a.question_id not in valid:
             continue
@@ -134,4 +142,14 @@ def supporting_answers_to_facts(answers: list[ExtractedAnswer], doc_name: str) -
                 source_quote=a.source_quote.strip(),
             )
         )
-    return facts
+        if a.plausibility in {PLAUSIBILITY_IMPLAUSIBLE, PLAUSIBILITY_UNCLEAR}:
+            flags.append(
+                AnswerFlag(
+                    question_id=a.question_id,
+                    question=f"{qby_id[a.question_id].question}  [{doc_name}]",
+                    answer=a.answer.strip(),
+                    kind=a.plausibility,
+                    reason=a.plausibility_reason.strip(),
+                )
+            )
+    return facts, flags

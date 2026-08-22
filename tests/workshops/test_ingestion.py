@@ -45,7 +45,7 @@ def test_supporting_answers_require_source_quote():
         ExtractedAnswer(question_id="sauvegarde_strategie", found=True, answer="quotidienne",
                         source_quote=""),  # no quote -> dropped (extraction rule §5.3)
     ]
-    facts = supporting_answers_to_facts(answers, "politique.pdf")
+    facts, _ = supporting_answers_to_facts(answers, "politique.pdf")
     assert [f.field_name for f in facts] == ["edr_av_deploye"]
     assert facts[0].origin is Origin.EXTRACTION
     assert facts[0].source_quote
@@ -78,7 +78,7 @@ def test_complete_intake_from_facts_runs_followups_and_validates():
         ExtractedAnswer(question_id="donnees_personnelles_traitees", found=True, answer="Oui"),
     ], "questionnaire.docx")
     # An EDR value found only in a supporting document -> confirmed by the auditor.
-    extraction_facts = supporting_answers_to_facts([
+    extraction_facts, _ = supporting_answers_to_facts([
         ExtractedAnswer(question_id="edr_av_deploye", found=True, answer="Defender",
                         source_quote="EDR: Microsoft Defender"),
     ], "politique.pdf")

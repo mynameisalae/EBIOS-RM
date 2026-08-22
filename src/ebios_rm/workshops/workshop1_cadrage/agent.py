@@ -21,6 +21,7 @@ from pydantic import BaseModel
 
 from ebios_rm.agent_runtime import StructuredCallFailed, run_structured
 from ebios_rm.config import get_model
+from ebios_rm.domain.essential_asset import EssentialAsset
 from ebios_rm.domain.feared_event import FearedEvent
 from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.repositories.reference_repository import BaselineControl
@@ -37,6 +38,11 @@ from ebios_rm.workshops.workshop1_cadrage.models import (
 
 
 T = TypeVar("T", bound=BaseModel)
+
+# Controls assessed per LLM call. Matches the ingestion's question batch size for the
+# same reason: a structured response covering a whole referential overflows the output
+# budget and degrades recall long before it does.
+CONTROLS_PER_CALL = 12
 
 
 class Workshop1AgentError(RuntimeError):
@@ -96,12 +102,22 @@ class AgnoWorkshop1Runner:
     ) -> list[ControlAssessmentProposal]:
         if not controls:
             return []
-        batch = self._run_structured(
-            ControlAssessmentBatch,
-            prompts.controls_prompt(mission_context, framework, controls, revision_notes),
-            what=f"baseline assessment ({framework})",
-        )
-        return batch.assessments
+        # One call per slice, as the ingestion already does with its questions. A whole
+        # referential at once is both an output-budget problem (ISO 27001 is 93 controls,
+        # each needing a verdict and a cited quote) and a recall one: the more controls
+        # share a call, the more of them come back 'insufficient_information' against a
+        # context that does hold the evidence.
+        proposals: list[ControlAssessmentProposal] = []
+        slices = [controls[i:i + CONTROLS_PER_CALL] for i in range(0, len(controls), CONTROLS_PER_CALL)]
+        for i, chunk in enumerate(slices, 1):
+            suffix = f" {i}/{len(slices)}" if len(slices) > 1 else ""
+            batch = self._run_structured(
+                ControlAssessmentBatch,
+                prompts.controls_prompt(mission_context, framework, chunk, revision_notes),
+                what=f"baseline assessment ({framework}){suffix}",
+            )
+            proposals.extend(batch.assessments)
+        return proposals
 
     def assess_legal_impacts(
         self,
@@ -109,12 +125,13 @@ class AgnoWorkshop1Runner:
         events: list[FearedEvent],
         provisions: list[BaselineControl],
         revision_notes: list[str] | None = None,
+        assets: list[EssentialAsset] | None = None,
     ) -> list[LegalImpactAssignment]:
         if not events or not provisions:
             return []
         batch = self._run_structured(
             LegalImpactBatch,
-            prompts.legal_impacts_prompt(mission_context, events, provisions, revision_notes),
+            prompts.legal_impacts_prompt(mission_context, events, provisions, revision_notes, assets),
             what="legal-impact assessment",
         )
         return batch.impacts
