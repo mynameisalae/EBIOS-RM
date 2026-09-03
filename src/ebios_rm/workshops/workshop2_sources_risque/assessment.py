@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import Counter
 
 from ebios_rm.domain.enums import Origin, Pertinence, StatutSelection, VraisemblanceInitiale
 from ebios_rm.domain.risk_source import CoupleSROV, ObjectifVise, RiskSource
@@ -51,10 +52,15 @@ _SCORE_RANGE = range(1, 5)  # motivation / ressources / activité are rated 1..4
 # --- text helpers -----------------------------------------------------------
 
 def normalise(text: str) -> str:
-    """Lowercase, accent-free, single-spaced — for comparisons only, never for display."""
+    """Lowercase, accent-free, single-spaced — for comparisons only, never for display.
+
+    Apostrophes count as separators: « système d'information » and « systeme d
+    information » are the same phrase to a reader, and a blocklist written one way
+    silently missed the other.
+    """
     stripped = unicodedata.normalize("NFKD", text or "")
     ascii_text = "".join(c for c in stripped if not unicodedata.combining(c))
-    return re.sub(r"\s+", " ", ascii_text.casefold()).strip()
+    return re.sub(r"[\s'’]+", " ", ascii_text.casefold()).strip()
 
 
 # Attack techniques and modalities. An objectif visé phrased as one of these is a
@@ -67,12 +73,12 @@ def normalise(text: str) -> str:
 # only if real runs show false positives — a legitimate objective mentioning one of
 # these words in passing.
 _TECHNIQUE_TERMS = (
-    "phishing", "hameconnage", "spear", "injection sql", "sql", "xss", "csrf",
+    "phishing", "hameconnage", "spear", "sql", "xss", "csrf",
     "powershell", "ransomware", "rancongiciel", "malware", "logiciel malveillant",
     "ddos", "deni de service", "force brute", "brute force", "exploit",
-    "vulnerabilite", "faille", "cve-", "0-day", "zero day", "backdoor",
+    "vulnerabilite", "faille", "cve", "0-day", "zero day", "backdoor",
     "porte derobee", "keylogger", "rootkit", "credential stuffing",
-    "vol d identifiants", "vol didentifiants", "escalade de privileges",
+    "vol d identifiants", "escalade de privileges",
     "mouvement lateral", "scan de ports", "ingenierie sociale",
 )
 
@@ -565,8 +571,8 @@ def run_quality_checks(
           ok_message="Chaque couple forme une intention cohérente.")
 
     # 7. Doublons.
-    pairs = [(c.source_risque_id, c.objectif_vise_id) for c in all_couples]
-    duplicates = sorted({f"{sr}/{ov}" for (sr, ov) in pairs if pairs.count((sr, ov)) > 1})
+    counts = Counter((c.source_risque_id, c.objectif_vise_id) for c in all_couples)
+    duplicates = sorted(f"{sr}/{ov}" for (sr, ov), n in counts.items() if n > 1)
     check("Doublons", [f"couple en double : {d}" for d in duplicates],
           ok_message="Aucun couple équivalent.")
 

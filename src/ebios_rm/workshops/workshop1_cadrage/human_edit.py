@@ -12,6 +12,7 @@ report agent (§20) reads these entries to show what the auditor overrode.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 
@@ -72,7 +73,7 @@ def apply_edit(
     if not justification or not justification.strip():
         raise EditError("Une justification non vide est obligatoire pour toute modification (§8).")
 
-    edited = _deep_copy(output)
+    edited = deepcopy(output)
     parent, key = _resolve(edited, _split(path))
     old_value = parent[key]
     parent[key] = new_value
@@ -86,11 +87,3 @@ def apply_edit(
         "justification": justification.strip(),
     })
     return edited
-
-
-def _deep_copy(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {k: _deep_copy(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_deep_copy(v) for v in value]
-    return value
