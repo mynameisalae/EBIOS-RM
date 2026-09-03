@@ -107,7 +107,14 @@ def session_questions(w2_input: Workshop2Input) -> list[FollowUpQuestion]:
 
     All Important: atelier 2 can be conducted without any single one of them, so
     none may block the study. A skip still costs a justification (§8).
+
+    A skipped question counts as settled. Its Fact carries no value, so it never
+    reaches ``contexte`` — asking on the strength of that alone would put the same
+    question again at every rerun, and the auditor already said why they passed.
     """
+    skipped = {
+        f.field_name for f in w2_input.faits_contexte if f.status is FactStatus.SKIPPED
+    }
     return [
         FollowUpQuestion(
             field_name=q.field_name,
@@ -116,7 +123,7 @@ def session_questions(w2_input: Workshop2Input) -> list[FollowUpQuestion]:
             help_text=q.help_text,
         )
         for q in SESSION_QUESTIONS
-        if not _is_answered(w2_input.contexte.get(q.field_name))
+        if q.field_name not in skipped and not _is_answered(w2_input.contexte.get(q.field_name))
     ]
 
 

@@ -8,6 +8,9 @@ the scales, and the quality checker.
 
 from __future__ import annotations
 
+import importlib.util
+from pathlib import Path
+
 import pytest
 from fakes import FakeWorkshop2Runner, ScriptedHuman
 
@@ -50,7 +53,10 @@ from ebios_rm.workshops.workshop2_sources_risque.models import (
     STATUT_ERREUR,
     CoupleProposal,
     ObjectifViseProposal,
+    QualityCheck,
+    QualityReport,
     RiskSourceProposal,
+    Workshop2Output,
 )
 from ebios_rm.workshops.workshop2_sources_risque.questions import (
     ask_session_questions,
@@ -364,6 +370,34 @@ def test_session_answers_become_declared_facts_and_skips_keep_their_reason():
     skipped = next(f for f in enriched.faits_contexte if f.field_name == "visibilite_publique")
     assert skipped.justification  # non-empty reason (§8)
     assert "visibilite_publique" not in enriched.contexte
+
+
+def test_a_skipped_question_is_not_put_again_on_the_next_run():
+    """A skip is settled. Its Fact carries no value, so it never reaches ``contexte``;
+    read on that alone, the same question would come back at every rerun."""
+    human = ScriptedHuman(skips={"visibilite_publique": "À voir avec la direction"})
+    enriched = ask_session_questions(_input(), human)
+
+    assert "visibilite_publique" not in {q.field_name for q in session_questions(enriched)}
+
+
+# --- The CLI's quality gate (white-box §14, §19) ----------------------------
+
+def test_a_quality_error_blocks_approval_unless_explicitly_overridden():
+    """An output in error must not be approvable with the same two keystrokes as a clean one."""
+    spec = importlib.util.spec_from_file_location(
+        "cli_w2", Path(__file__).resolve().parents[2] / "scripts" / "run_workshop2.py"
+    )
+    cli = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cli)
+
+    failed = Workshop2Output(quality_report=QualityReport(
+        checks=[QualityCheck(controle="Données", statut=STATUT_ERREUR, message="CPL-01 inconnu")]
+    ))
+    assert cli._quality_override(failed, io_in=lambda _: "oui", io_out=lambda _: None) is False
+    assert cli._quality_override(failed, io_in=lambda _: "CONFIRMER", io_out=lambda _: None) is True
+    # A clean report never asks anything.
+    assert cli._quality_override(Workshop2Output(), io_in=None, io_out=None) is True
 
 
 # --- The approved methodological base (white-box §3, §6) --------------------
