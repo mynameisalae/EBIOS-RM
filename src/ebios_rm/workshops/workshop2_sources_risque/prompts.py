@@ -17,28 +17,47 @@ from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Input
 
 SYSTEM_INSTRUCTIONS = """\
 Tu es un assistant méthodologique EBIOS Risk Manager pour l'atelier 2 (sources de \
-risque et objectifs visés). Tu es assisté par l'humain, jamais l'inverse.
+risque et objectifs visés). Tu es assisté par l'humain, jamais l'inverse : tu \
+proposes et tu argumentes, un auditeur décide.
 
-Règles absolues :
+Tes propositions passent ensuite par un filtre automatique. Ce qui enfreint une \
+règle ci-dessous n'est pas corrigé : c'est supprimé, avec son motif de rejet.
+
+Définitions :
 - Une source de risque est une CATÉGORIE D'ACTEUR MOTIVÉ (cybercriminel, \
 concurrent, État, employé mécontent...). Un serveur, une base de données, un \
-annuaire, une faille ou une technique d'attaque n'est JAMAIS une source de risque.
+annuaire, un réseau, une faille ou une technique d'attaque n'est JAMAIS une \
+source de risque.
 - Un objectif visé est une FINALITÉ (espionner, entraver, obtenir de l'argent, \
-se venger...). « Injection SQL », « PowerShell », « phishing », « vol \
-d'identifiants » décrivent des modalités techniques : ce ne sont pas des \
+se venger...). « Injection SQL », « PowerShell », « hameçonnage », « rançongiciel », \
+« vol d'identifiants » décrivent des modalités techniques : ce ne sont pas des \
 objectifs visés.
+
+Règles absolues :
 - Tu ne choisis QUE parmi les catégories et finalités de la base méthodologique \
-fournie. Tu n'en inventes aucune.
+fournie, en reprenant leur identifiant tel quel. Tu n'en inventes, n'en renommes \
+et n'en fusionnes aucune.
 - Une catégorie n'est pas retenue parce qu'elle existe dans la base : elle doit \
 être plausible POUR CETTE ORGANISATION, et tu dois le justifier.
 - Toute justification s'appuie sur le contexte fourni. Tu cites les champs \
-utilisés dans derived_from_fact_fields, avec leur nom exact. Tu n'inventes aucune \
-information sur l'organisation.
+utilisés dans derived_from_fact_fields, avec leur nom exact ; une proposition sans \
+justification, ou sans aucun champ cité, est supprimée. Tu n'inventes aucune \
+information sur l'organisation : ce qui n'est pas dans le contexte n'existe pas.
+- N'emploie dans « nom » et « description » aucun nom de technique d'attaque \
+(rançongiciel, hameçonnage, injection SQL, déni de service...) ni de bien support \
+(serveur, réseau, messagerie, VPN, annuaire...) : la proposition serait rejetée \
+comme décrivant un bien ou une vulnérabilité plutôt qu'un acteur. Décris QUI agit \
+et ce qu'il veut, jamais comment il s'y prend.
 - Un bien support ne devient pas automatiquement une source de risque ni un \
 objectif visé.
 - Tu ne produis pas toutes les combinaisons possibles : tu sélectionnes.
 - Tu n'inventes ni score, ni échelle, ni formule. Les cotations demandées sont \
 des entiers de 1 à 4, et le calcul de la pertinence ne t'appartient pas.
+- Le champ statut vaut exactement 'retenu', 'secondaire' ou 'ecarte' ; toute \
+autre valeur fait écarter l'élément.
+- Tu écris la justification AVANT de conclure sur le statut : le raisonnement \
+précède le verdict.
+- Si rien n'est plausible, tu renvoies une liste vide plutôt qu'un contenu inventé.
 - Tu réponds uniquement au format structuré demandé, sans texte hors schéma.
 """
 
@@ -91,11 +110,15 @@ def _atelier1_block(w2_input: Workshop2Input) -> str:
 
 
 def _sources_base_block(base: EbiosBase) -> str:
+    # finalites_typiques travels with the category: the quality checker warns on a
+    # couple whose finalité is not typical of its actor, so the model is shown the
+    # same table it will be judged against instead of guessing at it.
     return json.dumps(
         [
             {
                 "categorie_id": c.id, "libelle": c.libelle, "definition": c.definition,
                 "indices_de_pertinence": c.indices_pertinence,
+                "finalites_typiques": c.finalites_typiques,
             }
             for c in base.sources_risque
         ],
@@ -137,14 +160,21 @@ def sources_prompt(w2_input: Workshop2Input, base: EbiosBase,
     return (
         "Parmi les catégories de sources de risque de la base méthodologique ci-dessous, "
         "lesquelles sont plausibles pour CETTE organisation, dans CE périmètre ?\n"
-        "Pour chacune que tu proposes : reprends son categorie_id tel quel, donne un nom "
-        "contextualisé (l'acteur tel qu'il se présenterait ici), sa motivation dans ce "
-        "contexte, un statut ('retenu' si clairement plausible, 'secondaire' si plausible "
-        "mais marginale, 'ecarte' si tu l'examines et la rejettes), une justification "
-        "appuyée sur le contexte, et les champs de contexte utilisés dans "
-        f"derived_from_fact_fields (uniquement parmi : {_known_fields(w2_input)}).\n"
-        "Écarter explicitement une catégorie est un résultat utile : garde-la avec sa "
-        "raison plutôt que de l'omettre."
+        "Procède catégorie par catégorie : confronte ses indices_de_pertinence au "
+        "contexte, écris la justification, puis conclus par le statut.\n"
+        "Pour chaque catégorie que tu examines :\n"
+        "  - categorie_id : repris tel quel depuis la base ;\n"
+        "  - nom : l'acteur tel qu'il se présenterait ici, sans nommer ni technique "
+        "d'attaque ni bien support ;\n"
+        "  - motivation : ce qu'il chercherait dans CE contexte ;\n"
+        "  - justification : le raisonnement, appuyé sur des éléments du contexte ;\n"
+        "  - derived_from_fact_fields : au moins un champ, uniquement parmi : "
+        f"{_known_fields(w2_input)} ;\n"
+        "  - statut : 'retenu' si clairement plausible, 'secondaire' si plausible mais "
+        "marginale, 'ecarte' si tu l'examines et la rejettes.\n"
+        "Sois sélectif : en pratique 3 à 6 catégories retenues. Écarter explicitement "
+        "une catégorie est un résultat utile : garde-la avec sa raison plutôt que de "
+        "l'omettre."
         + _revision_block(revision_notes)
         + f"\n\nBASE MÉTHODOLOGIQUE — CATÉGORIES DE SOURCES DE RISQUE:\n{_sources_base_block(base)}"
         + f"\n\nCONTEXTE DE L'ORGANISATION:\n{_context_block(w2_input)}"
@@ -155,21 +185,33 @@ def sources_prompt(w2_input: Workshop2Input, base: EbiosBase,
 def objectifs_prompt(w2_input: Workshop2Input, base: EbiosBase, sources: list[RiskSource],
                      revision_notes: list[str] | None = None) -> str:
     sources_block = json.dumps(
-        [{"id": s.id, "nom": s.nom, "categorie": s.categorie_libelle, "motivation": s.motivation}
+        [{"id": s.id, "nom": s.nom, "categorie": s.categorie_libelle,
+          "categorie_id": s.categorie_id, "motivation": s.motivation}
          for s in sources],
         ensure_ascii=False, indent=2,
+    )
+    known_be = json.dumps(
+        [{"id": a.id, "nom": a.nom} for a in w2_input.biens_essentiels], ensure_ascii=False
     )
     return (
         "Quels objectifs ces sources de risque pourraient-elles viser dans cette "
         "organisation ?\n"
         "Raisonne selon la chaîne : valeur métier -> bien essentiel -> enjeu de sécurité "
         "-> objectif plausible pour une source de risque. Un objectif est une FINALITÉ, "
-        "pas une technique.\n"
-        "Pour chaque objectif : reprends un finalite_id de la base tel quel, décris "
-        "l'objectif en une phrase concrète propre à cette organisation, indique l'enjeu "
-        "de l'atelier 1 concerné, la liste des id de biens essentiels visés (ils doivent "
-        "exister dans l'atelier 1), un statut, une justification, et les champs de "
-        f"contexte utilisés (uniquement parmi : {_known_fields(w2_input)})."
+        "pas une technique : « obtenir une rançon » est un objectif, « rançongiciel » "
+        "n'en est pas un.\n"
+        "Pour chaque objectif :\n"
+        "  - finalite_id : repris tel quel depuis la base ;\n"
+        "  - description : l'objectif en une phrase concrète propre à cette "
+        "organisation, sans nommer de technique ;\n"
+        "  - enjeu : l'enjeu de sécurité de l'atelier 1 concerné ;\n"
+        f"  - biens_essentiels_vises : au moins un id pris dans {known_be} ; un objectif "
+        "qui ne vise aucun bien essentiel connu est supprimé ;\n"
+        "  - justification, puis statut ('retenu', 'secondaire' ou 'ecarte') ;\n"
+        "  - derived_from_fact_fields : au moins un champ, uniquement parmi : "
+        f"{_known_fields(w2_input)}.\n"
+        "Reste sélectif : un à trois objectifs par source retenue suffisent en général, "
+        "et deux formulations du même objectif comptent pour une."
         + _revision_block(revision_notes)
         + f"\n\nBASE MÉTHODOLOGIQUE — FINALITÉS:\n{_finalites_base_block(base)}"
         + f"\n\nSOURCES DE RISQUE RETENUES:\n{sources_block}"
@@ -194,9 +236,14 @@ def couples_prompt(w2_input: Workshop2Input, sources: list[RiskSource],
     return (
         "Associe les sources de risque et les objectifs visés qui forment ensemble une "
         "intention cohérente. NE PRODUIS PAS toutes les combinaisons : ne garde que "
-        "celles qui ont un sens pour cette organisation.\n"
+        "celles qui ont un sens pour cette organisation — un acteur ne poursuit pas "
+        "n'importe quelle finalité, et une finalité inhabituelle pour cet acteur doit "
+        "être argumentée dans la justification.\n"
+        "N'emploie que les id listés ci-dessous : un couple citant un id absent de ces "
+        "listes est supprimé.\n"
         "Pour chaque couple : source_risque_id, objectif_vise_id, une justification, un "
-        "statut ('retenu' ou 'secondaire'), et trois cotations entières de 1 à 4 :\n"
+        "statut ('retenu' ou 'secondaire'), et trois cotations entières de 1 à 4 "
+        "(une cotation hors de 1..4, ou absente, fait supprimer le couple) :\n"
         "  - motivation : à quel point cette source veut CET objectif ICI (1 = très peu, "
         "4 = très fortement) ;\n"
         "  - ressources : les moyens dont cette source dispose (1 = très limités, "
