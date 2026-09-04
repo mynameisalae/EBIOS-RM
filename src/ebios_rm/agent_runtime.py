@@ -13,6 +13,7 @@ import json
 import os
 import re
 import time
+import unicodedata
 from pathlib import Path
 from typing import Callable, TypeVar
 
@@ -84,7 +85,11 @@ def manual_call(
     # Numbered from what the directory already holds, not from a process counter: a
     # relaunched run continues the series instead of overwriting 001 again.
     seq = len(list(directory.glob("*.prompt.md"))) + 1
-    stem = f"{seq:03d}_{re.sub(r'[^a-z0-9]+', '-', what.lower()).strip('-')[:40]}"
+    # Accents folded before the slug, not dropped by it: « scénarios stratégiques »
+    # became "sc-narios-strat-giques", and the human answering has to type that name.
+    plain = unicodedata.normalize("NFKD", what.lower())
+    slug = re.sub(r"[^a-z0-9]+", "-", "".join(c for c in plain if not unicodedata.combining(c)))
+    stem = f"{seq:03d}_{slug.strip('-')[:40]}"
     request, answer = directory / f"{stem}.prompt.md", directory / f"{stem}.response.json"
 
     request.write_text(
