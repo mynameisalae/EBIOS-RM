@@ -68,7 +68,7 @@ def run_structured(
     *,
     what: str,
     max_attempts: int = 4,
-    base_delay: float = 3.0,
+    base_delay: float = 20.0,
     progress: Callable[[str], None] = print,
 ) -> T:
     """Run one structured call, retrying transient failures with backoff.
@@ -93,7 +93,7 @@ def run_structured(
                 return content
             last = content  # raw string: API error or parse failure — retry
         if attempt < max_attempts:
-            time.sleep(base_delay * attempt)
+            time.sleep(min(base_delay * attempt, 30.0))
     raise StructuredCallFailed(
         f"Model did not return {schema.__name__} for {what} after {max_attempts} attempts. "
         f"Last result: {str(last)[:300]!r}"

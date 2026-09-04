@@ -22,7 +22,11 @@ def load_dotenv(path: str | Path = ".env") -> None:
     env_path = Path(path)
     if not env_path.exists():
         return
-    for raw in env_path.read_text(encoding="utf-8").splitlines():
+    # utf-8-sig: strips a leading BOM if present (e.g. a .env saved by Notepad on
+    # Windows) and behaves exactly like utf-8 otherwise. Without this, a BOM'd
+    # first line becomes "﻿KEY=value" and the resulting environment variable
+    # is silently named wrong, with os.environ.get("KEY") always returning None.
+    for raw in env_path.read_text(encoding="utf-8-sig").splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -65,6 +69,20 @@ def load_settings() -> Settings:
     )
 
 
+def fix_openrouter_errors(response):
+    """Intercept OpenRouter fake 200 OK responses that contain 5xx errors."""
+    if response.status_code == 200:
+        response.read()
+        try:
+            import json
+            data = response.json()
+            if 'error' in data and isinstance(data['error'], dict):
+                code = data['error'].get('code')
+                if code in [502, 503, 504, 522]:
+                    response.status_code = code
+        except Exception:
+            pass
+
 def get_model():
     """Return the single Agno model instance — the only code that names a model (conception §3.2).
 
@@ -72,13 +90,19 @@ def get_model():
     matrix, mission context) can be used and tested without Agno installed.
     """
     from agno.models.openrouter import OpenRouter  # noqa: PLC0415 — lazy on purpose
+    import httpx
 
     settings = load_settings()
     # api_key defaults to OPENROUTER_API_KEY from the environment when omitted.
     # max_tokens raised well above the provider default so structured JSON outputs
     # (asset lists, batched extractions) are never truncated mid-object.
+    # We use a custom http_client to translate OpenRouter's 200 OK + JSON error body 
+    # into a real HTTP error so the OpenAI SDK can properly retry it automatically.
+    client = httpx.Client(event_hooks={'response': [fix_openrouter_errors]}, timeout=60.0)
+    
     return OpenRouter(
         id=settings.model_id,
         api_key=settings.openrouter_api_key,
         max_tokens=settings.max_output_tokens,
+        http_client=client,
     )
