@@ -49,12 +49,28 @@ _SCORE_RANGE = range(1, 5)  # motivation / ressources / activité are rated 1..4
 
 
 # --- text helpers -----------------------------------------------------------
+# --- text helpers -----------------------------------------------------------
 
 def normalise(text: str) -> str:
-    """Lowercase, accent-free, single-spaced — for comparisons only, never for display."""
+    """Standardise le texte en minuscules, sans accents, sans ponctuation ni caractères
+
+    spéciaux, avec des espaces simples. Utilisé exclusivement pour la déduplication.
+    """
+    # 1. Décomposition des caractères Unicode pour séparer les accents des lettres
     stripped = unicodedata.normalize("NFKD", text or "")
+    
+    # 2. Retrait des accents (on ne garde que le caractère de base)
     ascii_text = "".join(c for c in stripped if not unicodedata.combining(c))
-    return re.sub(r"\s+", " ", ascii_text.casefold()).strip()
+    
+    # 3. Passage en minuscules
+    lowercase_text = ascii_text.casefold()
+    
+    # 4. Remplacement de TOUS les caractères spéciaux et de la ponctuation par un espace.
+    #    Le pattern [^a-z0-9\s] signifie : "tout ce qui n'est pas une lettre de a à z, un chiffre ou un espace".
+    clean_alphanumeric = re.sub(r"[^a-z0-9\s]", " ", lowercase_text)
+    
+    # 5. Remplacement des espaces multiples par un seul espace et nettoyage des extrémités
+    return re.sub(r"\s+", " ", clean_alphanumeric).strip()
 
 
 # Attack techniques and modalities. An objectif visé phrased as one of these is a
@@ -158,19 +174,32 @@ def validate_atelier1(w1: Workshop1Output) -> list[Atelier1Alert]:
                 ),
             ))
 
+# --- Vérifications de complétude globale de l'Atelier 1 ---
+
+    # 1. Absence de Biens Essentiels (Bloquant)
     if not w1.biens_essentiels:
         alerts.append(Atelier1Alert(
             reference="atelier1",
-            probleme="Aucun bien essentiel : l'atelier 2 n'a rien sur quoi raisonner.",
+            probleme="Aucun bien essentiel : l'Atelier 1 est incomplet et l'Atelier 2 n'a aucun actif sur quoi raisonner.",
+            bloquant=True,
         ))
-    # Non-blocking: the objectives are built from the essential assets, so the study
-    # can proceed, but the auditor should know the atelier 1 output is thin.
+
+    # 2. Absence de Biens Supports (Bloquant - Ajouté pour corriger la faille)
+    if not w1.biens_supports:
+        alerts.append(Atelier1Alert(
+            reference="atelier1",
+            probleme="Aucun bien support : les dépendances matérielles ou logicielles de l'Atelier 1 doivent être identifiées.",
+            bloquant=True,
+        ))
+
+    # 3. Absence d'Événements Redoutés (Bloquant - Corrigé pour interdire l'exécution sans ER)
     if not w1.evenements_redoutes:
         alerts.append(Atelier1Alert(
             reference="atelier1",
-            probleme="Aucun événement redouté : les enjeux de sécurité ne sont pas explicités.",
-            bloquant=False,
+            probleme="Aucun événement redouté : les enjeux de sécurité de l'Atelier 1 doivent obligatoirement être explicités.",
+            bloquant=True,
         ))
+
     return alerts
 
 
@@ -362,7 +391,16 @@ def vraisemblance_of(pertinence: Pertinence, activite: int) -> VraisemblanceInit
     that is also observed to be active against this sector is likelier to come.
     """
     base = {Pertinence.FAIBLE: 1, Pertinence.MOYEN: 2, Pertinence.ELEVE: 3}[pertinence]
-    level = min(4, base + (1 if activite >= 3 else 0))
+    
+    # Échelle de bonus progressive pour exploiter la granularité de 1 à 4 :
+    if activite == 4:
+        bonus = 2       # Activité critique : forte augmentation de la vraisemblance
+    elif activite in (2, 3):
+        bonus = 1       # Activité modérée ou importante : augmentation standard
+    else:
+        bonus = 0       # Activité inexistante (1) : pas de bonus
+        
+    level = min(4, base + bonus)
     return VraisemblanceInitiale(f"V{level}")
 
 
@@ -609,5 +647,42 @@ def run_quality_checks(
     check("Incertitude", [f"champ cité absent du contexte : {u}" for u in unknown],
           statut=STATUT_AVERTISSEMENT,
           ok_message="Faits et hypothèses restent distinguables.")
+# NOUVEAU CONTROLE 11 À AJOUTER JUSTE AVANT LE "return QualityReport(checks=checks)" :
 
+    # 11. Alignement Événements Redoutés — Chaque couple doit mener à un enjeu de sécurité de l'Atelier 1.
+    # On liste les biens essentiels qui possèdent au moins un événement redouté (ER) associé :
+    be_avec_er = {e.bien_essentiel_id for e in w2_input.evenements_redoutes}
+    
+    er_problems = [
+        f"{c.id} cible des biens essentiels {c.biens_essentiels_ids} "
+        f"pour lesquels aucun événement redouté n'a été défini à l'Atelier 1"
+        for c in all_couples
+        if not any(be_id in be_avec_er for be_id in c.biens_essentiels_ids)
+    ]
+    
+    check(
+        "Alignement Événements Redoutés", 
+        er_problems, 
+        statut=STATUT_AVERTISSEMENT,
+        ok_message="Tous les couples sont reliés à des événements redoutés de l'Atelier 1."
+    )
+# 12. Volumétrie et Priorisation — Alerte lorsque le nombre de scénarios réalistes est trop élevé.
+    # Aucun couple n'est supprimé automatiquement, l'auditeur doit intervenir pour arbitrer.
+    SEUIL_CONCENTRATION_ANALYSE = 10
+    prioritisation_problems = []
+    
+    if len(couples) > SEUIL_CONCENTRATION_ANALYSE:
+        prioritisation_problems.append(
+            f"L'assistant a écarté les associations incohérentes et a retenu un nombre important "
+            f"de couples plausibles ({len(couples)} couples). Pour éviter une surcharge de travail lors "
+            f"des ateliers suivants, l'auditeur doit intervenir pour prioriser les scénarios majeurs et "
+            f"éventuellement reclasser certains couples en 'secondaire' ou 'ecarte'."
+        )
+        
+    check(
+        "Priorisation des couples",
+        prioritisation_problems,
+        statut=STATUT_AVERTISSEMENT,
+        ok_message=f"Le nombre de couples retenus est condensé et directement exploitable ({len(couples)}/10 couples)."
+    )
     return QualityReport(checks=checks)

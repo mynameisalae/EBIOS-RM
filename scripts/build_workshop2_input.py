@@ -59,6 +59,13 @@ def main() -> int:
         print("Mission incomplète : il faut un Mission Context ET un résultat d'atelier 1 enregistrés.")
         return 1
 
+# AJOUTEZ ce contrôle de statut juste en dessous :
+    if mission.status != "w1_approved":
+        print(
+            f"Erreur : Impossible de préparer l'Atelier 2 car l'Atelier 1 n'est pas approuvé "
+            f"(Statut actuel de la mission : {mission.status})."
+        )
+        return 1
     w2_input = build_workshop2_input(mission_context, w1_output)
 
     out_path = Path(args.out) if args.out else Path(

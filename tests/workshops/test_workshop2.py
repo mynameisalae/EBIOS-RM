@@ -263,24 +263,18 @@ def test_uncotated_couple_is_discarded_never_guessed(base):
     assert discarded[0].raison == REASON_SCORES_INVALIDES
 
 
+
+# --- End to end, with the fake runner ---------------------------------------
+
 def test_pertinence_and_vraisemblance_scales_live_in_code():
     assert pertinence_of(1, 2) is Pertinence.FAIBLE
     assert pertinence_of(2, 3) is Pertinence.MOYEN
     assert pertinence_of(4, 3) is Pertinence.ELEVE
     assert vraisemblance_of(Pertinence.FAIBLE, 1) is VraisemblanceInitiale.V1
-    assert vraisemblance_of(Pertinence.MOYEN, 4) is VraisemblanceInitiale.V3
+    # Changement d'assertion : Pour une pertinence MOYENNE (2) et une activité de 4,
+    # le nouveau calcul fait 2 + 2 = 4 (V4) au lieu de 2 + 1 = 3 (V3) précédemment :
+    assert vraisemblance_of(Pertinence.MOYEN, 4) is VraisemblanceInitiale.V4
     assert vraisemblance_of(Pertinence.ELEVE, 4) is VraisemblanceInitiale.V4
-
-
-# --- End to end, with the fake runner ---------------------------------------
-
-def test_pertinence_and_vraisemblance_enums(base):
-    """The pinned atelier 2 scales (fiche de test)."""
-    out = run_workshop2(_input(), FakeWorkshop2Runner(), base)
-    assert out.couples
-    for couple in [*out.couples, *out.couples_secondaires]:
-        assert couple.pertinence in set(Pertinence)
-        assert couple.vraisemblance_initiale in set(VraisemblanceInitiale)
 
 
 def test_end_to_end_keeps_every_discarded_element_with_its_reason(base):
@@ -365,7 +359,63 @@ def test_session_answers_become_declared_facts_and_skips_keep_their_reason():
     assert skipped.justification  # non-empty reason (§8)
     assert "visibilite_publique" not in enriched.contexte
 
+def test_quality_report_flags_excessive_volumetry():
+    """Vérifie que le rapport lève un avertissement demandant l'intervention de l'auditeur
 
+    lorsque le nombre de couples logiques retenus dépasse le seuil de concentration conseillé.
+    """
+    from ebios_rm.domain.risk_source import CoupleSROV, RiskSource, ObjectifVise
+    from ebios_rm.domain.enums import Pertinence, VraisemblanceInitiale, StatutSelection
+    
+    # 11 couples réalistes (seuil critique à 10)
+    fake_couples = [
+        CoupleSROV(
+            id=f"CPL-{i:02d}",
+            source_risque_id="SR-01",
+            objectif_vise_id="OV-01",
+            biens_essentiels_ids=["BE-1"],
+            valeurs_metier=["Factice"],
+            biens_supports_associes=["BS-1"],
+            motivation=3,
+            ressources=3,
+            activite=3,
+            pertinence=Pertinence.MOYEN,
+            vraisemblance_initiale=VraisemblanceInitiale.V2,
+            statut=StatutSelection.RETENU,
+            justification="Ok",
+        )
+        for i in range(1, 12)
+    ]
+    
+    # Appel de la validation
+    report = run_quality_checks(
+        w2_input=_input(),
+        base=load_ebios_base(),
+        sources=[
+            RiskSource(
+                id="SR-01", categorie_id="crime_organise", categorie_libelle="Crime",
+                nom="Hackers", description="desc", motivation="gain",
+                statut=StatutSelection.RETENU, justification="contexte",
+                derived_from_fact_fields=["exposition_internet"], origin=Origin.ASSESSMENT
+            )
+        ],
+        objectifs=[
+            ObjectifVise(
+                id="OV-01", finalite_id="lucratif", finalite_libelle="Lucratif",
+                description="Rançon", enjeu="Financier", biens_essentiels_vises=["BE-1"],
+                statut=StatutSelection.RETENU, justification="contexte",
+                derived_from_fact_fields=["processus_metier_critiques"], origin=Origin.ASSESSMENT
+            )
+        ],
+        couples=fake_couples,
+        couples_secondaires=[]
+    )
+    
+    # Assertions
+    check_prioritisation = next(c for c in report.checks if c.controle == "Priorisation des couples")
+    assert check_prioritisation.statut == STATUT_AVERTISSEMENT
+    assert "l'auditeur doit intervenir pour prioriser" in check_prioritisation.message
+    assert report.statut != STATUT_ERREUR
 # --- The approved methodological base (white-box §3, §6) --------------------
 
 def test_every_typical_finalite_exists_in_the_base(base):

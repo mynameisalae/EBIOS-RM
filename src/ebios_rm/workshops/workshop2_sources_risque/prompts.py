@@ -16,30 +16,42 @@ from ebios_rm.plugins.registry import EbiosBase
 from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Input
 
 SYSTEM_INSTRUCTIONS = """\
-Tu es un assistant méthodologique EBIOS Risk Manager pour l'atelier 2 (sources de \
-risque et objectifs visés). Tu es assisté par l'humain, jamais l'inverse.
+Tu es un assistant méthodologique EBIOS Risk Manager dédié exclusivement à l'Atelier 2 (Sources de risque et Objectifs visés). L'utilisateur humain valide tes propositions et garde le contrôle décisionnel.
 
-Règles absolues :
-- Une source de risque est une CATÉGORIE D'ACTEUR MOTIVÉ (cybercriminel, \
-concurrent, État, employé mécontent...). Un serveur, une base de données, un \
-annuaire, une faille ou une technique d'attaque n'est JAMAIS une source de risque.
-- Un objectif visé est une FINALITÉ (espionner, entraver, obtenir de l'argent, \
-se venger...). « Injection SQL », « PowerShell », « phishing », « vol \
-d'identifiants » décrivent des modalités techniques : ce ne sont pas des \
-objectifs visés.
-- Tu ne choisis QUE parmi les catégories et finalités de la base méthodologique \
-fournie. Tu n'en inventes aucune.
-- Une catégorie n'est pas retenue parce qu'elle existe dans la base : elle doit \
-être plausible POUR CETTE ORGANISATION, et tu dois le justifier.
-- Toute justification s'appuie sur le contexte fourni. Tu cites les champs \
-utilisés dans derived_from_fact_fields, avec leur nom exact. Tu n'inventes aucune \
-information sur l'organisation.
-- Un bien support ne devient pas automatiquement une source de risque ni un \
-objectif visé.
-- Tu ne produis pas toutes les combinaisons possibles : tu sélectionnes.
-- Tu n'inventes ni score, ni échelle, ni formule. Les cotations demandées sont \
-des entiers de 1 à 4, et le calcul de la pertinence ne t'appartient pas.
-- Tu réponds uniquement au format structuré demandé, sans texte hors schéma.
+---
+
+### 1. DÉFINITIONS ET NATURE DES OBJETS (RÈGLES ABSOLUES)
+* **Source de risque (SR) :** Représente exclusivement une CATÉGORIE D'ACTEUR MOTIVÉ (ex. : cybercriminel, concurrent, État, employé mécontent). 
+  * *Interdiction :* Un équipement (serveur, base de données, annuaire), une vulnérabilité ou un vecteur/technique d'attaque (phishing, injection SQL) n'est JAMAIS une source de risque.
+* **Objectif visé (OV) :** Représente uniquement une FINALITÉ STRATÉGIQUE (ex. : espionner, entraver le service, extorquer des fonds, se venger).
+  * *Interdiction :* Les modalités ou outils techniques (« PowerShell », « vol d'identifiants ») ne sont JAMAIS des objectifs visés.
+* **Biens supports :** Un bien support ne devient pas automatiquement une source de risque ni un objectif visé.
+
+---
+
+### 2. UTILISATION DU RÉFÉRENTIEL ET DU CONTEXTE
+* **Strict respect de la base :** Tu choisis UNIQUEMENT parmi les catégories d'acteurs et les finalités définies dans la base méthodologique fournie. Aucune création ou modification de libellé n'est autorisée.
+* **Plausibilité & Sélectivité :** Ne retiens pas une catégorie simplement parce qu'elle existe dans la base. Tu dois sélectionner les combinaisons les plus cohérentes et plausibles pour l'organisation étudiée. Ne génère pas toutes les combinaisons théoriques.
+* **Justification factuelle obligatoire :**
+  * Toute justification doit s'appuyer exclusivement sur des faits réels et explicites décrits dans le contexte fourni.
+  * Les justifications génériques, théoriques ou creuses (ex. : "La menace existe toujours", "Tout le monde est cible") sont FORMELLEMENT INTERDITES.
+* **Traçabilité stricte (`derived_from_fact_fields`) :**
+  * Tu dois citer le nom exact des champs de contexte exploités dans le paramètre `derived_from_fact_fields`.
+  * TOUT champ cité doit figurer STRICTEMENT et MOT À MOT dans la liste des clés de contexte fournies dans le prompt. Il est interdit d'inventer, d'altérer ou d'isoler des clés absentes.
+
+---
+
+### 3. COTATIONS ET CALCULS
+* **Cotations :** Les cotations demandées sont obligatoirement des entiers compris entre 1 et 4.
+* **Interdiction :** N'invente aucun score, aucune échelle personnalisée, ni aucune formule de calcul. La pertinence globale ne t'appartient pas et sera calculée en dehors.
+
+---
+
+### 4. FORMAT STRICT DE RÉPONSE
+* Ta réponse doit être EXCLUSIVEMENT un flux JSON valide respectant le schéma attendu.
+* **ZÉRO texte hors JSON :** Aucune phrase d'introduction, aucun commentaire, aucun texte d'accompagnement, aucune formule de politesse.
+* **ZÉRO balise de code Markdown :** Ne commence PAS par ```json ou ``` et ne termine PAS par ```. 
+* Le premier caractère de ta réponse doit être `{` ou `[` et le dernier caractère doit être `}` ou `]`.
 """
 
 
@@ -177,32 +189,39 @@ def objectifs_prompt(w2_input: Workshop2Input, base: EbiosBase, sources: list[Ri
         + f"\n\nRÉSULTAT DE L'ATELIER 1:\n{_atelier1_block(w2_input)}"
     )
 
-
-def couples_prompt(w2_input: Workshop2Input, sources: list[RiskSource],
-                   objectifs: list[ObjectifVise],
-                   revision_notes: list[str] | None = None) -> str:
+def couples_prompt(
+    w2_input: Workshop2Input,
+    sources: list[RiskSource],
+    objectifs: list[ObjectifVise],
+    revision_notes: list[str] | None = None,
+) -> str:
     sources_block = json.dumps(
-        [{"id": s.id, "nom": s.nom, "categorie": s.categorie_libelle,
-          "motivation": s.motivation} for s in sources],
-        ensure_ascii=False, indent=2,
+        [{"id": s.id, "nom": s.nom, "categorie": s.categorie_libelle, "motivation": s.motivation} for s in sources],
+        ensure_ascii=False,
+        indent=2,
     )
     objectifs_block = json.dumps(
-        [{"id": o.id, "finalite": o.finalite_libelle, "description": o.description,
-          "biens_essentiels_vises": o.biens_essentiels_vises} for o in objectifs],
-        ensure_ascii=False, indent=2,
+        [{"id": o.id, "finalite": o.finalite_libelle, "description": o.description, "biens_essentiels_vises": o.biens_essentiels_vises} for o in objectifs],
+        ensure_ascii=False,
+        indent=2,
     )
     return (
         "Associe les sources de risque et les objectifs visés qui forment ensemble une "
-        "intention cohérente. NE PRODUIS PAS toutes les combinaisons : ne garde que "
-        "celles qui ont un sens pour cette organisation.\n"
+        "intention cohérente. ÉLIMINE toutes les combinaisons théoriques ou absurdes "
+        "qui n'ont aucun sens pratique pour cette organisation au vu du contexte.\n"
+        "En revanche, CONSERVE et propose toutes les associations qui sont réellement "
+        "logiques, pertinentes et réalistes pour cette organisation. Ne t'impose pas de "
+        "limite chiffrée stricte si plusieurs scénarios sont crédibles ; l'auditeur humain "
+        "interviendra pour faire le tri final et prioriser si la liste de couples plausibles "
+        "est trop longue.\n\n"
+        "Veille à ce que chaque couple retenu permette de déclencher de manière logique "
+        "au moins un des événements redoutés (ER) listés dans l'Atelier 1 pour les "
+        "biens essentiels ciblés par l'objectif.\n\n"
         "Pour chaque couple : source_risque_id, objectif_vise_id, une justification, un "
         "statut ('retenu' ou 'secondaire'), et trois cotations entières de 1 à 4 :\n"
-        "  - motivation : à quel point cette source veut CET objectif ICI (1 = très peu, "
-        "4 = très fortement) ;\n"
-        "  - ressources : les moyens dont cette source dispose (1 = très limités, "
-        "4 = considérables) ;\n"
-        "  - activite : à quel point cette source est active contre ce secteur "
-        "aujourd'hui (1 = jamais observée, 4 = très active).\n"
+        " - motivation : (1=Opportuniste, 2=Intérêt indirect/rebond, 3=Intérêt direct/lucratif, 4=Cible de choix/déterminé) ;\n"
+        " - ressources : (1=Individuelles/Outils publics, 2=Groupe limité/Outils standard, 3=Professionnelles/Moyens cyber, 4=Illimitées/Étatiques) ;\n"
+        " - activite : (1=Jamais observée, 2=Faible/Sporadique, 3=Active/Fréquente, 4=Intense/Généralisée dans le secteur).\n"
         "Ne calcule ni pertinence ni vraisemblance : elles sont dérivées de tes cotations."
         + _revision_block(revision_notes)
         + f"\n\nSOURCES DE RISQUE:\n{sources_block}"
