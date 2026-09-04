@@ -38,13 +38,9 @@ from ebios_rm.config import load_settings  # noqa: E402
 from ebios_rm.orchestrator import mission_state  # noqa: E402
 from ebios_rm.plugins.registry import load_ebios_base  # noqa: E402
 from ebios_rm.repositories.mission_repository import MissionRepository, connect  # noqa: E402
-from ebios_rm.workshops.workshop1_cadrage.human_edit import EditError, apply_edit, get_value  # noqa: E402
-from ebios_rm.workshops.workshop1_cadrage.human_interface import (  # noqa: E402
-    CLIHumanInterface,
-    approve_workshop,
-)
+from ebios_rm.orchestrator.approval_cli import ApprovalLoop, prior_rejection_reasons  # noqa: E402
+from ebios_rm.workshops.workshop1_cadrage.human_interface import CLIHumanInterface  # noqa: E402
 from ebios_rm.workshops.workshop2_sources_risque import (  # noqa: E402
-    ALL_BLOCKS,
     BLOCK_COUPLES,
     BLOCK_OBJECTIFS,
     BLOCK_SOURCES,
@@ -120,14 +116,6 @@ def _print_output(output) -> None:
         print(f"  {marker} {check.controle} : {check.message}")
 
 
-# --- Reject -> redo loop, bounded by the rollback cap (mirrors run_workshop1_from_docs.py) ---
-
-def _prior_rejection_reasons(repo: MissionRepository, mission_id: str) -> list[str]:
-    """Reject reasons already logged, so a redo (even after --resume) carries full feedback."""
-    return [d.justification_given for d in repo.decisions(mission_id)
-            if d.stage == STAGE and d.action_taken == "rejected"]
-
-
 def _run_workshop(repo, mission_id, w2_input, base, revision_notes=None, blocks=None, previous=None):
     """Run the workshop and save its output. Not complete yet — no auditor decision recorded."""
     print("\n=== Atelier 2 ===")
@@ -145,160 +133,26 @@ def _run_workshop(repo, mission_id, w2_input, base, revision_notes=None, blocks=
     return output
 
 
-def _quality_override(output: Workshop2Output, io_in=input, io_out=print) -> bool:
-    """A quality error blocks approval unless the auditor overrides it explicitly (§14, §19).
-
-    Without this the checker is decorative: the erreurs print above the same
-    two-keystroke approval as a clean run, and get approved past.
-    """
-    errors = output.quality_report.erreurs
-    if not errors:
-        return True
-    io_out("\n=== Contrôle qualité EN ERREUR — approbation bloquée (§14) ===")
-    for check in errors:
-        io_out(f"   XX {check.controle} : {check.message}")
-    io_out("Corrigez ces points (rejet puis reprise, ou correction manuelle).")
-    io_out("Tapez CONFIRMER pour approuver malgré tout, toute autre saisie pour refuser.")
-    return io_in("> ").strip() == "CONFIRMER"
-
-
-def _review_and_approve(repo, mission_id, output) -> tuple[bool, str]:
-    _print_output(output)
-    version = repo.latest_output(mission_id, mission_state.WORKSHOP_2)
-    if _quality_override(output):
-        approved, reason = approve_workshop("l'atelier 2")
-    else:
-        approved, reason = False, "Contrôle qualité en erreur, non levé par l'auditeur"
-    if approved:
-        repo.log_decision(mission_id, stage=STAGE, action="approved", justification="Approuvé par l'auditeur")
-        repo.set_status(mission_id, "w2_approved")
-        if version:
-            repo.set_version_status(mission_id, mission_state.WORKSHOP_2, version.version_number, "approved")
-        totals = repo.token_totals(mission_id)
-        print(f"Atelier 2 approuvé. Mission {mission_id} sauvegardée.")
-        print(f"Tokens consommés : {totals['input_tokens']} entrée / "
-              f"{totals['output_tokens']} sortie sur {totals['llm_calls']} appels.")
-    else:
-        repo.log_decision(mission_id, stage=STAGE, action="rejected", justification=reason)
-        repo.set_status(mission_id, "w2_rejected")
-        if version:
-            repo.set_version_status(mission_id, mission_state.WORKSHOP_2, version.version_number, "rejected")
-        print(f"Atelier 2 non approuvé : {reason}")
-    return approved, reason
-
-
-def _reinforced_confirm(io_in=input, io_out=print) -> bool:
-    """Rollback cap reached (conception §12.6) — require an explicit typed confirmation to go further."""
-    io_out(f"\nPlafond de {mission_state.ROLLBACK_CAP} versions atteint pour l'atelier 2 (§12.6).")
-    io_out("Une nouvelle reprise est inhabituelle. Tapez CONFIRMER pour relancer malgré tout,")
-    io_out("ou toute autre saisie pour arrêter et conserver la dernière version.")
-    return io_in("> ").strip() == "CONFIRMER"
-
-
-def _ask_blocks(io_in=input, io_out=print) -> set[str]:
-    """Which parts of the output to regenerate — the rest is kept verbatim (§12.6)."""
-    labels = {
-        "1": (BLOCK_SOURCES, "sources de risque"),
-        "2": (BLOCK_OBJECTIFS, "objectifs visés"),
-        "3": (BLOCK_COUPLES, "couples SR/OV"),
-    }
-    io_out("\nQuelles parties faut-il refaire ? (numéros séparés par des virgules, vide = tout)")
-    for key, (_, label) in labels.items():
-        io_out(f"   [{key}] {label}")
-    while True:
-        answer = io_in("> ").strip()
-        if not answer:
-            return set(ALL_BLOCKS)
-        keys = [k.strip() for k in answer.split(",") if k.strip()]
-        if keys and all(k in labels for k in keys):
-            return {labels[k][0] for k in keys}
-        io_out(f"    Réponse attendue : {', '.join(labels)} (ou vide pour tout refaire).")
-
-
-def _ask_choice(question: str, options: dict[str, str], io_in=input, io_out=print) -> str:
-    while True:
-        io_out(f"\n{question}")
-        for key, label in options.items():
-            io_out(f"   [{key}] {label}")
-        answer = io_in("> ").strip().casefold()
-        if answer in options:
-            return answer
-        io_out(f"    Réponse attendue : {', '.join(options)}.")
-
-
-def _edit_output(repo, mission_id, output: Workshop2Output) -> Workshop2Output:
-    """Let the auditor correct values directly, each with a mandatory justification (§2, §8)."""
-    data = output.model_dump(mode="json")
-    changed = False
-    print("\n=== Correction manuelle ===")
-    print("Indiquez le chemin du champ à corriger, par exemple :")
-    print("   couples.0.pertinence        sources_risque.1.justification")
-    print("Entrée vide pour terminer.")
-
-    while True:
-        path = input("Chemin : ").strip()
-        if not path:
-            break
-        try:
-            current = get_value(data, path)
-        except EditError as exc:
-            print(f"   {exc}")
-            continue
-        print(f"   Valeur actuelle : {current!r}")
-        new_raw = input("   Nouvelle valeur : ").strip()
-        if not new_raw:
-            continue
-        reason = input("   Justification (obligatoire, §8) : ").strip()
-        try:
-            data = apply_edit(data, path, new_raw, justification=reason)
-        except EditError as exc:
-            print(f"   {exc}")
-            continue
-        repo.log_decision(mission_id, stage=STAGE, action=f"edited:{path}", justification=reason)
-        print("   Modification enregistrée.")
-        changed = True
-
-    if not changed:
-        return output
-    edited = Workshop2Output.model_validate(data)
-    mission_state.save_w2_output(repo, mission_id, edited)
-    repo.set_status(mission_id, "w2_awaiting_approval")
-    print("Version corrigée sauvegardée.")
-    return edited
-
-
-def _approval_loop(repo, mission_id, w2_input, base, output) -> int:
-    """Review the given output, and on rejection loop into redo (conception §12.6).
-
-    Runs entirely within this process invocation, exactly like atelier 1's
-    _approval_loop: reject -> choose (correct / relaunch / stop) -> redo -> review
-    again, bounded by the rollback cap.
-    """
-    while True:
-        approved, _reason = _review_and_approve(repo, mission_id, output)
-        if approved:
-            return 0
-
-        choice = _ask_choice(
-            "Que voulez-vous faire ?",
-            {"c": "corriger vous-même un ou plusieurs champs",
-             "r": "relancer l'agent en tenant compte du motif",
-             "q": "en rester là (dernière version conservée, non approuvée)"},
-        )
-        if choice == "q":
-            print("Dernière version conservée (non approuvée).")
-            return 1
-        if choice == "c":
-            output = _edit_output(repo, mission_id, output)
-            continue
-
-        if not mission_state.can_redo(repo, mission_id, mission_state.WORKSHOP_2) and not _reinforced_confirm():
-            print("Dernière version conservée (non approuvée).")
-            return 1
-
-        blocks = _ask_blocks()
-        notes = _prior_rejection_reasons(repo, mission_id)  # includes the reason just logged
-        output = _run_workshop(repo, mission_id, w2_input, base, notes, blocks, output)
+def _loop(repo, mission_id, w2_input, base, output) -> int:
+    """The auditor's review loop for atelier 2, on the shared implementation."""
+    return ApprovalLoop(
+        repo=repo,
+        mission_id=mission_id,
+        stage=STAGE,
+        workshop_number=mission_state.WORKSHOP_2,
+        label="l'atelier 2",
+        print_output=_print_output,
+        rerun=lambda notes, blocks, previous: _run_workshop(
+            repo, mission_id, w2_input, base, notes, blocks, previous),
+        save=lambda corrected: mission_state.save_w2_output(repo, mission_id, corrected),
+        model_cls=Workshop2Output,
+        edit_examples="couples.0.pertinence        sources_risque.1.justification",
+        block_labels={
+            "1": (BLOCK_SOURCES, "sources de risque"),
+            "2": (BLOCK_OBJECTIFS, "objectifs visés"),
+            "3": (BLOCK_COUPLES, "couples SR/OV"),
+        },
+    ).run(output)
 
 
 def main() -> int:
@@ -356,14 +210,14 @@ def main() -> int:
         # would pay for three LLM calls nobody asked for, and the session questions
         # are already answered in the Mission Context.
         print(f"Atelier 2 exécuté mais non finalisé (statut : {mission.status}) — reprise de la validation.")
-        return _approval_loop(repo, args.mission_id, w2_input, base, saved)
+        return _loop(repo, args.mission_id, w2_input, base, saved)
 
     if not args.no_session:
         enriched = ask_session_questions(w2_input, CLIHumanInterface())
         _persist_session_answers(repo, args.mission_id, mission_context, w2_input, enriched)
         w2_input = enriched
 
-    notes = _prior_rejection_reasons(repo, args.mission_id)  # carries feedback across a rerun
+    notes = prior_rejection_reasons(repo, args.mission_id, STAGE)  # carries feedback across a rerun
     try:
         output = _run_workshop(repo, args.mission_id, w2_input, base, notes)
     except Atelier1DataError as exc:
@@ -371,7 +225,7 @@ def main() -> int:
         print("Corrigez l'atelier 1 avant de relancer — l'atelier 2 ne répare rien de lui-même (§4).")
         return 1
 
-    return _approval_loop(repo, args.mission_id, w2_input, base, output)
+    return _loop(repo, args.mission_id, w2_input, base, output)
 
 
 def _interrupted(mission_id: str) -> int:
