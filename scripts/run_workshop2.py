@@ -38,7 +38,11 @@ from ebios_rm.config import load_settings  # noqa: E402
 from ebios_rm.orchestrator import mission_state  # noqa: E402
 from ebios_rm.plugins.registry import load_ebios_base  # noqa: E402
 from ebios_rm.repositories.mission_repository import MissionRepository, connect  # noqa: E402
-from ebios_rm.orchestrator.approval_cli import ApprovalLoop, prior_rejection_reasons  # noqa: E402
+from ebios_rm.orchestrator.approval_cli import (  # noqa: E402
+    ApprovalLoop,
+    interrupted,
+    prior_rejection_reasons,
+)
 from ebios_rm.workshops.workshop1_cadrage.human_interface import CLIHumanInterface  # noqa: E402
 from ebios_rm.workshops.workshop2_sources_risque import (  # noqa: E402
     BLOCK_COUPLES,
@@ -228,24 +232,14 @@ def main() -> int:
     return _loop(repo, args.mission_id, w2_input, base, output)
 
 
-def _interrupted(mission_id: str) -> int:
-    """Ctrl+C, or a model that cannot answer: everything saved so far is a version.
-
-    Stopping is a normal way out (the auditor may have nothing to rule on today), so
-    say how to come back instead of dumping a traceback.
-    """
-    print("\n\nAtelier 2 mis en pause — la dernière version enregistrée est conservée.")
-    print(f"  Pour reprendre :  python scripts/run_workshop2.py {mission_id}")
-    return 130  # conventional exit code for SIGINT
-
-
 if __name__ == "__main__":
+    _resume = f"python scripts/run_workshop2.py {sys.argv[1] if len(sys.argv) > 1 else '<mission_id>'}"
     try:
         raise SystemExit(main())
     except (KeyboardInterrupt, EOFError):
-        raise SystemExit(_interrupted(sys.argv[1] if len(sys.argv) > 1 else "<mission_id>")) from None
+        raise SystemExit(interrupted("l'atelier 2", _resume)) from None
     except (Workshop2AgentError, StructuredCallFailed) as exc:
         # A failed LLM call is never reinterpreted as a methodology outcome — and it can
         # come from the redo inside the approval loop, not only from the first run.
         print(f"\nAppel au modèle en échec : {exc}")
-        raise SystemExit(_interrupted(sys.argv[1] if len(sys.argv) > 1 else "<mission_id>")) from None
+        raise SystemExit(interrupted("l'atelier 2", _resume)) from None

@@ -40,10 +40,6 @@ class Estimate:
     seconds: float
     options: tuple[str, ...]
 
-    @property
-    def minutes(self) -> float:
-        return self.seconds / 60
-
 
 def options_for(n: int) -> tuple[str, ...]:
     """The actions §17 allows at the count gate for ``n`` scenarios."""

@@ -31,32 +31,6 @@ from ebios_rm.workshops.workshop2_sources_risque.models import (
     QualityReport,
 )
 
-__all__ = [
-    "CONTEXT_FIELDS",
-    "ECARTE_REASON_LABELS",
-    "REASON_COUPLE_INCONNU",
-    "REASON_DOUBLON",
-    "REASON_FUSIONNE",
-    "REASON_HORS_SOUS_ENSEMBLE",
-    "REASON_PARTIE_PRENANTE_INCONNUE",
-    "REASON_QUASI_DOUBLON",
-    "REASON_SANS_ANCRAGE_CONTEXTE",
-    "REASON_SANS_JUSTIFICATION",
-    "STATUT_AVERTISSEMENT",
-    "STATUT_ERREUR",
-    "STATUT_OK",
-    "Atelier2Alert",
-    "CritiqueBatch",
-    "CritiqueVerdict",
-    "ElementEcarte",
-    "GateDecision",
-    "QualityCheck",
-    "QualityReport",
-    "ScenarioBatch",
-    "ScenarioProposal",
-    "Workshop3Input",
-    "Workshop3Output",
-]
 
 
 # --- Input contract --------------------------------------------------------

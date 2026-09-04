@@ -12,7 +12,7 @@ with that work; ateliers 2 and 3 share this one so the copy count stops at two.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable
 
 from ebios_rm.orchestrator import mission_state
@@ -74,6 +74,17 @@ def prior_rejection_reasons(repo: MissionRepository, mission_id: str, stage: str
             if d.stage == stage and d.action_taken == "rejected"]
 
 
+def interrupted(label: str, resume_command: str) -> int:
+    """Ctrl+C, or a model that cannot answer: everything saved so far is a version.
+
+    Stopping is a normal way out — the auditor may have nothing to rule on today —
+    so say how to come back instead of dumping a traceback.
+    """
+    print(f"\n\n{label.capitalize()} mis en pause — la dernière version enregistrée est conservée.")
+    print(f"  Pour reprendre :  {resume_command}")
+    return 130  # conventional exit code for SIGINT
+
+
 def quality_errors(output: Any) -> list[Any]:
     """The blocking quality-check failures of an output, if it carries a report at all."""
     report = getattr(output, "quality_report", None)
@@ -121,7 +132,6 @@ class ApprovalLoop:
     block_labels: dict[str, tuple[str, str]] | None = None
     io_in: Ask = input
     io_out: Say = print
-    _decisions: list[str] = field(default_factory=list)
 
     # --- pieces ---
 

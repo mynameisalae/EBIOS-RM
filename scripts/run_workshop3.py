@@ -36,6 +36,7 @@ from ebios_rm.orchestrator.approval_cli import (  # noqa: E402
     ApprovalLoop,
     ask_choice,
     ask_ids,
+    interrupted,
     prior_rejection_reasons,
 )
 from ebios_rm.repositories.mission_repository import MissionRepository, connect  # noqa: E402
@@ -292,20 +293,13 @@ def main() -> int:
     return _loop(repo, args.mission_id, w3_input, output)
 
 
-def _interrupted(mission_id: str) -> int:
-    """Ctrl+C, or a model that cannot answer: everything saved so far is a version."""
-    print("\n\nAtelier 3 mis en pause — la dernière version enregistrée est conservée.")
-    print(f"  Pour reprendre :  python scripts/run_workshop3.py {mission_id}")
-    return 130  # conventional exit code for SIGINT
-
-
 if __name__ == "__main__":
-    _mission = sys.argv[1] if len(sys.argv) > 1 else "<mission_id>"
+    _resume = f"python scripts/run_workshop3.py {sys.argv[1] if len(sys.argv) > 1 else '<mission_id>'}"
     try:
         raise SystemExit(main())
     except (KeyboardInterrupt, EOFError):
-        raise SystemExit(_interrupted(_mission)) from None
+        raise SystemExit(interrupted("l'atelier 3", _resume)) from None
     except (Workshop3AgentError, StructuredCallFailed) as exc:
         # A failed LLM call is never reinterpreted as a methodology outcome.
         print(f"\nAppel au modèle en échec : {exc}")
-        raise SystemExit(_interrupted(_mission)) from None
+        raise SystemExit(interrupted("l'atelier 3", _resume)) from None
