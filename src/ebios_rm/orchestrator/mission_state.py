@@ -50,6 +50,21 @@ def load_w2_output(repo: MissionRepository, mission_id: str) -> Workshop2Output 
     return Workshop2Output.model_validate(version.output) if version else None
 
 
+def is_approved(repo: MissionRepository, mission_id: str, workshop_number: int) -> bool:
+    """Whether this workshop's latest version is the one the auditor approved (§2).
+
+    The durable answer to « is that atelier done ». The mission's status string
+    tracks the stage in progress and moves on — the moment atelier 3 runs, a
+    mission that was w2_approved reads w3_awaiting_approval — so it cannot answer
+    the question for a workshop already behind. The version status can.
+
+    Latest, not any: an approved version followed by a newer rejected one means
+    the auditor reopened the atelier, and the next workshop must wait.
+    """
+    version = repo.latest_output(mission_id, workshop_number)
+    return version is not None and version.status == "approved"
+
+
 def can_redo(repo: MissionRepository, mission_id: str, workshop_number: int) -> bool:
     """False once the rollback cap is reached — the caller must ask for reinforced confirmation (§12.6)."""
     return repo.version_count(mission_id, workshop_number) < ROLLBACK_CAP

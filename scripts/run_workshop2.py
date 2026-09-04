@@ -61,10 +61,6 @@ from ebios_rm.workshops.workshop2_sources_risque.agent import (  # noqa: E402
 
 STAGE = "workshop_2"
 
-# Statuses the workshop ran under but nobody ruled on: rerunning must resume at the
-# approval gate, never re-execute the agent behind the auditor's back.
-RESUMABLE = {"w2_awaiting_approval", "w2_rejected"}
-
 
 def _persist_session_answers(repo, mission_id, mission_context, w2_input, enriched) -> None:
     """Session answers are facts about the organisation — they belong to the mission.
@@ -326,9 +322,11 @@ def main() -> int:
     if mission_context is None or w1_output is None:
         print("Mission incomplète : il faut un Mission Context ET un résultat d'atelier 1 enregistrés.")
         return 1
-    if mission.status not in {"w1_approved", *RESUMABLE, "w2_approved"}:
+    if not mission_state.is_approved(repo, args.mission_id, mission_state.WORKSHOP_1):
         # The auditor has the last word (§2): atelier 2 built on an unapproved atelier 1
-        # would have to be redone entirely once the atelier 1 result changes.
+        # would have to be redone entirely once the atelier 1 result changes. Asked of
+        # the version, not of mission.status, which has moved on by the time atelier 3
+        # runs and would then refuse a legitimate return to atelier 2.
         print(f"Statut de la mission : {mission.status} — l'atelier 1 n'est pas approuvé.")
         print("Approuvez-le d'abord : python scripts/run_workshop1_from_docs.py --resume " + args.mission_id)
         return 1
@@ -348,11 +346,11 @@ def main() -> int:
     base = load_ebios_base()
 
     saved = mission_state.load_w2_output(repo, args.mission_id)
-    if mission.status == "w2_approved" and saved is not None:
+    if saved is not None and mission_state.is_approved(repo, args.mission_id, mission_state.WORKSHOP_2):
         print("Atelier 2 déjà approuvé. Résultat sauvegardé :")
         _print_output(saved)
         return 0
-    if mission.status in RESUMABLE and saved is not None:
+    if saved is not None:
         # The workshop already ran and is NOT complete: resume at the approval gate on
         # what is saved, and only redo if the auditor rejects. Rerunning it up front
         # would pay for three LLM calls nobody asked for, and the session questions
