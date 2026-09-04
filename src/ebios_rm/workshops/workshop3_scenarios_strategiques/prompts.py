@@ -66,14 +66,28 @@ def _context_block(w3_input: Workshop3Input) -> str:
 
 
 def _couples_block(w3_input: Workshop3Input) -> str:
-    """Each couple with both its ends spelled out — the scenario is written from these."""
+    """Each couple with both its ends spelled out — the scenario is written from these.
+
+    The feared events travel with the assets they concern. A scenario ends on what
+    it would cost the organisation, and that sentence is already written in atelier
+    1: without it the model invents its own consequence, in its own words, next to a
+    gravité that was computed from the real one.
+    """
     sources = {s.id: s for s in w3_input.sources_risque}
     objectifs = {o.id: o for o in w3_input.objectifs_vises}
     assets = {a.id: a for a in w3_input.biens_essentiels}
+    events: dict[str, list[dict]] = {}
+    for event in w3_input.evenements_redoutes:
+        events.setdefault(event.bien_essentiel_id, []).append(
+            {"description": event.description, "gravite": event.gravite.value}
+        )
     return json.dumps(
         [
             {
                 "couple_id": c.id,
+                "evenements_redoutes_associes": [
+                    e for b in c.biens_essentiels_ids for e in events.get(b, [])
+                ],
                 "source_de_risque": (
                     {"nom": sources[c.source_risque_id].nom,
                      "categorie": sources[c.source_risque_id].categorie_libelle,
@@ -126,12 +140,21 @@ def scenarios_prompt(w3_input: Workshop3Input, revision_notes: list[str] | None 
         "Pour chaque scénario :\n"
         "  - couple_id : repris tel quel dans la liste ci-dessous ;\n"
         "  - resume : le chemin en une à deux phrases, dans les termes de cette "
-        "organisation, sans aucune technique d'attaque ;\n"
+        "organisation, terminé par ce que cela produit — reprends l'événement "
+        "redouté associé au couple plutôt que d'en formuler un autre ;\n"
         "  - parties_prenantes : les entités du dossier empruntées par ce chemin, "
         "avec la formulation du contexte ; liste vide si l'attaque est directe ;\n"
         "  - justification : pourquoi ce chemin est le plus plausible ici ;\n"
         "  - derived_from_fact_fields : au moins un champ, uniquement parmi : "
         f"{_known_fields(w3_input)}.\n"
+        "Les parties prenantes se lisent dans le contexte, principalement sous "
+        "interconnexions_tiers, fournisseurs_tiers_critiques, sous_traitants_donnees, "
+        "fournisseurs_cloud et infogerance. Une entité qui n'y figure pas fait "
+        "supprimer le scénario, même si elle est vraisemblable.\n"
+        "Attendu : « le concurrent obtient la liste confidentielle en visant les "
+        "échanges avec le ministère qui la fournit » — un chemin, avec qui il passe "
+        "et ce qu'il obtient. Refusé : « exploitation d'une faille du portail de "
+        "réservation » — une technique, qui relève de l'atelier 4.\n"
         "Un scénario par couple, au plus. Un couple pour lequel aucun chemin "
         "plausible ne se dégage est omis : c'est un résultat, pas un oubli."
         + _revision_block(revision_notes)
@@ -159,7 +182,7 @@ def critique_prompt(
         "même histoire — même type d'acteur, même chemin, même finalité — au point "
         "que les traiter séparément en atelier 4 produirait deux fois le même "
         "travail.\n"
-        "Pour chaque scénario de la liste, renvoie un verdict :\n"
+        "Renvoie exactement un verdict par scénario de la liste, ni plus ni moins :\n"
         "  - scenario_id : son id ;\n"
         "  - raison : ce qui justifie ton verdict ;\n"
         "  - doublon_de : vide si le scénario doit être conservé ; sinon l'id du "

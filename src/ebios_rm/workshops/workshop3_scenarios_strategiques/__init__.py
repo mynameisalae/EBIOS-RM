@@ -13,6 +13,7 @@ than judged again.
 
 Public entry points:
     build_workshop3_input(mission_context, w1_output, w2_output) -> Workshop3Input
+    ask_session_questions(w3_input, human) -> Workshop3Input
     run_workshop3(w3_input, runner) -> Workshop3Output
     gate_for(scenarios) / assemble_output(...)  — the count gate, applied by the caller
 """
@@ -21,6 +22,10 @@ from ebios_rm.workshops.workshop3_scenarios_strategiques.models import (
     GateDecision,
     Workshop3Input,
     Workshop3Output,
+)
+from ebios_rm.workshops.workshop3_scenarios_strategiques.questions import (
+    ask_session_questions,
+    session_questions,
 )
 from ebios_rm.workshops.workshop3_scenarios_strategiques.workshop import (
     Atelier2DataError,
@@ -35,8 +40,10 @@ __all__ = [
     "GateDecision",
     "Workshop3Input",
     "Workshop3Output",
+    "ask_session_questions",
     "assemble_output",
     "build_workshop3_input",
     "gate_for",
     "run_workshop3",
+    "session_questions",
 ]

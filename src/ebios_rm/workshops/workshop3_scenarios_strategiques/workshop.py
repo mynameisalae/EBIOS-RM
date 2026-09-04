@@ -31,6 +31,7 @@ from ebios_rm.workshops.workshop3_scenarios_strategiques.assessment import (
 )
 from ebios_rm.workshops.workshop3_scenarios_strategiques.models import (
     CONTEXT_FIELDS,
+    REASON_NON_TRAITE,
     ElementEcarte,
     GateDecision,
     Workshop3Input,
@@ -169,6 +170,20 @@ def run_workshop3(
     verdicts = runner.critique_scenarios(w3_input, scenarios)
     scenarios, pruned = apply_critique(scenarios, verdicts)
     ecartes.extend(pruned)
+
+    # A couple the agent simply never wrote about leaves a trace too. The quality
+    # checker warns about the gap, but a warning is a count; the auditor also needs
+    # to see *which* couple went unanswered, in the same list as everything else
+    # that did not make it (§19).
+    covered = {s.couple_id for s in scenarios} | {e.reference for e in ecartes}
+    ecartes.extend(
+        ElementEcarte(
+            reference=couple.id,
+            libelle=f"{couple.source_risque_id} -> {couple.objectif_vise_id}",
+            raison=REASON_NON_TRAITE,
+        )
+        for couple in w3_input.couples if couple.id not in covered
+    )
 
     return assemble_output(
         w3_input, scenarios, gate_for(scenarios), ecartes,

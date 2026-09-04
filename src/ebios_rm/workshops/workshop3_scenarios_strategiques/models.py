@@ -167,6 +167,8 @@ REASON_DOUBLON = "doublon"
 REASON_QUASI_DOUBLON = "quasi_doublon"
 REASON_FUSIONNE = "fusionne"
 REASON_HORS_SOUS_ENSEMBLE = "hors_sous_ensemble"
+REASON_ECARTE_PAR_AUDITEUR = "ecarte_par_auditeur"
+REASON_NON_TRAITE = "non_traite"
 
 ECARTE_REASON_LABELS = {
     REASON_COUPLE_INCONNU: "Couple SR/OV inconnu ou non retenu en atelier 2",
@@ -177,6 +179,8 @@ ECARTE_REASON_LABELS = {
     REASON_QUASI_DOUBLON: "Quasi-doublon écarté par la passe de critique",
     REASON_FUSIONNE: "Fusionné dans un autre scénario au point de comptage",
     REASON_HORS_SOUS_ENSEMBLE: "Hors du sous-ensemble retenu au point de comptage",
+    REASON_ECARTE_PAR_AUDITEUR: "Couple écarté par l'auditeur avant la génération",
+    REASON_NON_TRAITE: "Aucun scénario proposé par l'agent pour ce couple",
 }
 
 

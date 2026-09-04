@@ -61,6 +61,26 @@ def load_w3_output(repo: MissionRepository, mission_id: str) -> Workshop3Output 
     return Workshop3Output.model_validate(version.output) if version else None
 
 
+def persist_session_answers(repo, mission_id, mission_context, before, after, *, stage: str) -> int:
+    """Write the session's new Facts back into the Mission Context. Returns how many.
+
+    Session answers are facts about the organisation, not workshop scratch: stored
+    here, a rerun does not ask them again and the report agent sees them with their
+    provenance intact.
+    """
+    known = {f.field_name for f in before.faits_contexte}
+    new_facts = [f for f in after.faits_contexte if f.field_name not in known]
+    if not new_facts:
+        return 0
+    updated = mission_context.model_copy(update={"facts": [*mission_context.facts, *new_facts]})
+    save_mission_context(repo, mission_id, updated)
+    repo.log_decision(
+        mission_id, stage=stage, action=f"session_answers:{len(new_facts)}",
+        justification="; ".join(f.field_name for f in new_facts),
+    )
+    return len(new_facts)
+
+
 def is_approved(repo: MissionRepository, mission_id: str, workshop_number: int) -> bool:
     """Whether this workshop's latest version is the one the auditor approved (§2).
 

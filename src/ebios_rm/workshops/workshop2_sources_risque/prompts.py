@@ -223,14 +223,18 @@ def objectifs_prompt(w2_input: Workshop2Input, base: EbiosBase, sources: list[Ri
 def couples_prompt(w2_input: Workshop2Input, sources: list[RiskSource],
                    objectifs: list[ObjectifVise],
                    revision_notes: list[str] | None = None) -> str:
+    # The statut travels with each end: a couple cannot be more firmly retained than
+    # the source it rests on (assessment.py forces it down), so the model has to see
+    # which ends are already secondaires before it rates the pair.
     sources_block = json.dumps(
         [{"id": s.id, "nom": s.nom, "categorie": s.categorie_libelle,
-          "motivation": s.motivation} for s in sources],
+          "statut": s.statut.value, "motivation": s.motivation} for s in sources],
         ensure_ascii=False, indent=2,
     )
     objectifs_block = json.dumps(
         [{"id": o.id, "finalite": o.finalite_libelle, "description": o.description,
-          "biens_essentiels_vises": o.biens_essentiels_vises} for o in objectifs],
+          "statut": o.statut.value, "biens_essentiels_vises": o.biens_essentiels_vises}
+         for o in objectifs],
         ensure_ascii=False, indent=2,
     )
     return (
@@ -242,7 +246,8 @@ def couples_prompt(w2_input: Workshop2Input, sources: list[RiskSource],
         "N'emploie que les id listés ci-dessous : un couple citant un id absent de ces "
         "listes est supprimé.\n"
         "Pour chaque couple : source_risque_id, objectif_vise_id, une justification, un "
-        "statut ('retenu' ou 'secondaire'), et trois cotations entières de 1 à 4 "
+        "statut ('retenu' ou 'secondaire' — un couple dont une extrémité est déjà "
+        "'secondaire' ne peut pas être 'retenu'), et trois cotations entières de 1 à 4 "
         "(une cotation hors de 1..4, ou absente, fait supprimer le couple) :\n"
         "  - motivation : à quel point cette source veut CET objectif ICI (1 = très peu, "
         "4 = très fortement) ;\n"

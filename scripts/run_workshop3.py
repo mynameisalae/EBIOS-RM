@@ -3,9 +3,13 @@
     # run atelier 3 on a mission whose atelier 2 is approved
     python scripts/run_workshop3.py <mission_id>
 
+    # skip the client session (use the context as-is)
+    python scripts/run_workshop3.py <mission_id> --no-session
+
 Reads the Mission Context and the approved w1/w2 outputs from the mission DB, runs
-the two agent passes, holds the count gate on N, saves the w3_output as a new
-version, and asks the auditor to approve it.
+the ecosystem session, puts the retained couples to the auditor before spending
+anything on them, runs the two agent passes, holds the count gate on N, saves the
+w3_output as a new version, and asks the auditor to approve it.
 
 The same command resumes: a mission whose atelier 3 ran but was never approved
 picks up where it stopped — at the count gate if the count was never ruled on,
@@ -40,10 +44,14 @@ from ebios_rm.orchestrator.approval_cli import (  # noqa: E402
     prior_rejection_reasons,
 )
 from ebios_rm.repositories.mission_repository import MissionRepository, connect  # noqa: E402
-from ebios_rm.workshops.workshop1_cadrage.human_interface import ask_justification  # noqa: E402
+from ebios_rm.workshops.workshop1_cadrage.human_interface import (  # noqa: E402
+    CLIHumanInterface,
+    ask_justification,
+)
 from ebios_rm.workshops.workshop3_scenarios_strategiques import (  # noqa: E402
     Atelier2DataError,
     Workshop3Output,
+    ask_session_questions,
     assemble_output,
     build_workshop3_input,
     gate_for,
@@ -58,6 +66,8 @@ from ebios_rm.workshops.workshop3_scenarios_strategiques.assessment import (  # 
     merge_scenarios,
 )
 from ebios_rm.workshops.workshop3_scenarios_strategiques.models import (  # noqa: E402
+    REASON_ECARTE_PAR_AUDITEUR,
+    ElementEcarte,
     ACTION_CANCEL,
     ACTION_CHOOSE_SUBSET,
     ACTION_MERGE,
@@ -127,6 +137,45 @@ def _run_workshop(repo, mission_id, w3_input, revision_notes=None, blocks=None, 
     # Deliberately NOT "approved": the auditor has not ruled on it yet (§2).
     repo.set_status(mission_id, "w3_awaiting_approval")
     return output
+
+
+def _choose_couples(repo, mission_id, w3_input):
+    """Put the couples to the auditor before a single call is paid for (§2).
+
+    Atelier 2 decided which couples exist and the auditor approved them there; this
+    is the narrower question of which of them atelier 3 works on now. Dropping one
+    here costs a justification and leaves an écarté entry, exactly like a rejection
+    anywhere else — and it is the cheapest possible place to shorten the study,
+    before the generation rather than after it.
+    """
+    print(f"\n=== Couples SR/OV à traiter ({len(w3_input.couples)}) ===")
+    sources = {s.id: s for s in w3_input.sources_risque}
+    objectifs = {o.id: o for o in w3_input.objectifs_vises}
+    for couple in w3_input.couples:
+        source = sources.get(couple.source_risque_id)
+        objectif = objectifs.get(couple.objectif_vise_id)
+        print(f"  [{couple.id}] {source.nom if source else couple.source_risque_id} "
+              f"-> {objectif.description if objectif else couple.objectif_vise_id}")
+        print(f"        pertinence {couple.pertinence.value}, "
+              f"vraisemblance {couple.vraisemblance_initiale.value}, "
+              f"biens essentiels {', '.join(couple.biens_essentiels_ids) or '—'}")
+
+    print("\n[Entrée] pour tous les traiter, ou les identifiants à écarter (ex. CPL-02).")
+    dropped = ask_ids("À écarter :", {c.id for c in w3_input.couples})
+    if not dropped:
+        return w3_input, []
+
+    justification = ask_justification("Motif du retrait (obligatoire, §8) : ")
+    repo.log_decision(mission_id, stage=STAGE, action=f"couples_ecartes:{len(dropped)}",
+                      justification=f"{', '.join(dropped)} : {justification}")
+    exclusions = [
+        ElementEcarte(reference=c.id, libelle=f"{c.source_risque_id} -> {c.objectif_vise_id}",
+                      raison=REASON_ECARTE_PAR_AUDITEUR, detail=justification)
+        for c in w3_input.couples if c.id in dropped
+    ]
+    kept = [c for c in w3_input.couples if c.id not in dropped]
+    print(f"{len(kept)} couple(s) transmis à l'agent, {len(dropped)} écarté(s) avec leur motif.")
+    return w3_input.model_copy(update={"couples": kept}), exclusions
 
 
 # --- The count gate (§17 steps 19-21) --------------------------------------
@@ -225,6 +274,8 @@ def _loop(repo, mission_id, w3_input, output) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run atelier 3 on a saved mission.")
     parser.add_argument("mission_id")
+    parser.add_argument("--no-session", action="store_true",
+                        help="skip the ecosystem session questions")
     args = parser.parse_args()
 
     settings = load_settings()
@@ -273,6 +324,21 @@ def main() -> int:
         print(f"Atelier 3 exécuté mais non finalisé (statut : {mission.status}) — reprise.")
         output = saved
     else:
+        # The client session, then the auditor's ruling on the couples — both before
+        # a single call is paid for.
+        if not args.no_session:
+            enriched = ask_session_questions(w3_input, CLIHumanInterface())
+            answered = mission_state.persist_session_answers(
+                repo, args.mission_id, mission_context, w3_input, enriched, stage=STAGE)
+            if answered:
+                print(f"  {answered} réponse(s) de séance enregistrée(s) dans le contexte de la mission.")
+            w3_input = enriched
+
+        w3_input, exclusions = _choose_couples(repo, args.mission_id, w3_input)
+        if not w3_input.couples:
+            print("Aucun couple à traiter : l'atelier 3 n'a rien à construire.")
+            return 1
+
         notes = prior_rejection_reasons(repo, args.mission_id, STAGE)
         try:
             output = _run_workshop(repo, args.mission_id, w3_input, notes)
@@ -280,6 +346,15 @@ def main() -> int:
             print(f"\n{exc}")
             print("Corrigez l'atelier 2 avant de relancer — l'atelier 3 ne répare rien de lui-même.")
             return 1
+
+        if exclusions:
+            # What the auditor removed belongs in the same écartés list as everything
+            # else that did not make it, and the quality report is re-run over it.
+            output = assemble_output(
+                w3_input, output.scenarios, output.gate_decision,
+                [*exclusions, *output.elements_ecartes], human_edits=output.human_edits,
+            )
+            mission_state.save_w3_output(repo, args.mission_id, output)
 
     # The count was never ruled on (fresh run, or a stop in the middle of the gate).
     if not output.gate_decision.action:

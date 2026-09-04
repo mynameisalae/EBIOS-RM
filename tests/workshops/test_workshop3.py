@@ -9,7 +9,7 @@ the critique pass, the count gate and its thresholds, and the quality checker.
 from __future__ import annotations
 
 import pytest
-from fakes import FakeWorkshop3Runner
+from fakes import FakeWorkshop3Runner, ScriptedHuman
 
 from ebios_rm.domain.enums import (
     CategorieImpact,
@@ -50,6 +50,7 @@ from ebios_rm.workshops.workshop3_scenarios_strategiques.models import (
     REASON_DOUBLON,
     REASON_FUSIONNE,
     REASON_HORS_SOUS_ENSEMBLE,
+    REASON_NON_TRAITE,
     REASON_PARTIE_PRENANTE_INCONNUE,
     REASON_QUASI_DOUBLON,
     REASON_SANS_ANCRAGE_CONTEXTE,
@@ -57,6 +58,10 @@ from ebios_rm.workshops.workshop3_scenarios_strategiques.models import (
     STATUT_ERREUR,
     CritiqueVerdict,
     ScenarioProposal,
+)
+from ebios_rm.workshops.workshop3_scenarios_strategiques.questions import (
+    ask_session_questions,
+    session_questions,
 )
 from ebios_rm.workshops.workshop3_scenarios_strategiques.workshop import (
     Atelier2DataError,
@@ -421,3 +426,45 @@ def test_human_edits_survive_a_redo():
     previous.human_edits.append({"path": "scenarios.0.resume", "justification": "reformulé"})
     redone = run_workshop3(_input(), FakeWorkshop3Runner(), None, previous)
     assert redone.human_edits == previous.human_edits
+
+
+# --- The ecosystem session and the auditor's couple choice ------------------
+
+def test_the_session_only_asks_what_the_ecosystem_context_does_not_answer():
+    asked = {q.field_name for q in session_questions(_input())}
+    assert "sous_traitants_donnees" in asked        # nothing in the dossier covers it
+    assert "interconnexions_tiers" not in asked     # already answered
+    assert all(not q.blocking for q in session_questions(_input()))  # none may block
+
+
+def test_a_session_answer_becomes_a_declared_fact_and_a_skip_is_not_re_asked():
+    human = ScriptedHuman(
+        answers={"sous_traitants_donnees": "Hébergeur HDS pour les sauvegardes"},
+        skips={"clauses_securite_contrats": "À demander au service juridique"},
+    )
+    enriched = ask_session_questions(_input(), human)
+
+    assert enriched.contexte["sous_traitants_donnees"].startswith("Hébergeur")
+    answered = next(f for f in enriched.faits_contexte if f.field_name == "sous_traitants_donnees")
+    assert answered.origin is Origin.DECLARATION and answered.question
+    still_asked = {q.field_name for q in session_questions(enriched)}
+    assert "sous_traitants_donnees" not in still_asked
+    assert "clauses_securite_contrats" not in still_asked  # skipped, with its reason
+
+
+def test_a_couple_the_agent_never_answered_is_recorded_not_just_counted():
+    """Everything that does not make it keeps its reason — silence included (§19)."""
+
+    class SilentRunner:
+        def propose_scenarios(self, w3_input, revision_notes=None):
+            return []
+
+        def critique_scenarios(self, w3_input, scenarios):
+            return []
+
+    output = run_workshop3(_input(), SilentRunner())
+
+    assert output.scenarios == []
+    assert {e.reference for e in output.elements_ecartes} == {"CPL-01", "CPL-02"}
+    assert all(e.raison == REASON_NON_TRAITE for e in output.elements_ecartes)
+    assert all(e.raison_label for e in output.elements_ecartes)

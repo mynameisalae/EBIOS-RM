@@ -62,25 +62,6 @@ from ebios_rm.workshops.workshop2_sources_risque.agent import (  # noqa: E402
 STAGE = "workshop_2"
 
 
-def _persist_session_answers(repo, mission_id, mission_context, w2_input, enriched) -> None:
-    """Session answers are facts about the organisation — they belong to the mission.
-
-    Written back to the Mission Context so a rerun does not ask them again, and so
-    the report agent sees them with their provenance intact.
-    """
-    known = {f.field_name for f in w2_input.faits_contexte}
-    new_facts = [f for f in enriched.faits_contexte if f.field_name not in known]
-    if not new_facts:
-        return
-    updated = mission_context.model_copy(update={"facts": [*mission_context.facts, *new_facts]})
-    mission_state.save_mission_context(repo, mission_id, updated)
-    repo.log_decision(
-        mission_id, stage=STAGE, action=f"session_answers:{len(new_facts)}",
-        justification="; ".join(f.field_name for f in new_facts),
-    )
-    print(f"  {len(new_facts)} réponse(s) de séance enregistrée(s) dans le contexte de la mission.")
-
-
 def _print_output(output) -> None:
     print("\n=== Atelier 2 — sources de risque ===")
     for source in output.sources_risque:
@@ -218,7 +199,10 @@ def main() -> int:
 
     if not args.no_session:
         enriched = ask_session_questions(w2_input, CLIHumanInterface())
-        _persist_session_answers(repo, args.mission_id, mission_context, w2_input, enriched)
+        saved_answers = mission_state.persist_session_answers(
+            repo, args.mission_id, mission_context, w2_input, enriched, stage=STAGE)
+        if saved_answers:
+            print(f"  {saved_answers} réponse(s) de séance enregistrée(s) dans le contexte de la mission.")
         w2_input = enriched
 
     notes = prior_rejection_reasons(repo, args.mission_id, STAGE)  # carries feedback across a rerun
