@@ -64,9 +64,6 @@ def _record_tokens(response: object) -> None:
         pass
 
 
-_manual_seq = 0
-
-
 def manual_call(
     prompt: str,
     schema: type[T],
@@ -82,11 +79,12 @@ def manual_call(
     running the workshop with no API credit: the audit trail is unaffected, since
     every answer still has to satisfy the same pydantic model.
     """
-    global _manual_seq
-    _manual_seq += 1
     directory = Path(os.environ.get("MANUAL_LLM_DIR", "data/manual"))
     directory.mkdir(parents=True, exist_ok=True)
-    stem = f"{_manual_seq:03d}_{re.sub(r'[^a-z0-9]+', '-', what.lower()).strip('-')[:40]}"
+    # Numbered from what the directory already holds, not from a process counter: a
+    # relaunched run continues the series instead of overwriting 001 again.
+    seq = len(list(directory.glob("*.prompt.md"))) + 1
+    stem = f"{seq:03d}_{re.sub(r'[^a-z0-9]+', '-', what.lower()).strip('-')[:40]}"
     request, answer = directory / f"{stem}.prompt.md", directory / f"{stem}.response.json"
 
     request.write_text(
@@ -102,9 +100,11 @@ def manual_call(
             try:
                 return schema.model_validate_json(answer.read_text(encoding="utf-8"))
             except (ValidationError, ValueError) as exc:
+                # Removed before anything else: a rejected answer must not survive the
+                # message that announces its rejection, or it is read again as valid.
+                answer.unlink()
                 progress(f"   [MANUEL] réponse invalide : {str(exc)[:300]}")
                 progress(f"   [MANUEL] corrigez {answer.name} — nouvelle lecture dans {poll}s")
-                answer.unlink()
         time.sleep(poll)
 
 

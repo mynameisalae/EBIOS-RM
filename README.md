@@ -179,3 +179,39 @@ question; if the workshop already ran, it just shows the saved result.
 
 > The data lives in that one `.db` file — back it up by copying it. In Docker it
 > lives in the `mission_db_data` volume instead (same file, conception §13.3).
+
+## Running Workshop 2 — sources de risque et objectifs visés
+
+Runs on a mission whose Workshop 1 is **approved**; it reads the saved Mission
+Context and `w1_output` from the same DB.
+
+```bash
+python scripts/run_workshop2.py <mission_id>
+python scripts/run_workshop2.py <mission_id> --no-session   # skip the client session
+```
+
+It first holds the **atelier 2 session**: eight questions the intake does not
+cover (competitors, conflictual departures, public exposure, past incidents…),
+each one there to make a particular actor category plausible or not. Answers are
+written back to the Mission Context, so a later run does not ask them again — a
+skip keeps its reason and is not put again either.
+
+Then the agent proposes risk-source categories, the objectives they might pursue,
+and the SR/OV couples with three 1..4 ratings. It only ever *proposes*: the
+category must come from the approved base, carry a justification anchored in a
+named context field, and describe an actor rather than a technique or a support
+asset. Everything else is dropped **with its reason**, listed under *Éléments
+écartés*. Pertinence and initial likelihood are computed in code from the
+ratings, never by the model.
+
+The approval gate works exactly like Workshop 1's (`c` correct / `r` redo the
+parts you name / `q` stop, same rollback cap). Two differences:
+
+- the **quality checker** runs on every result; an output in `erreur` cannot be
+  approved without typing `CONFIRMER`;
+- if `w1_output` has a broken reference, atelier 2 **refuses to start** — fix it
+  in atelier 1, since a data error is not a reasoning error.
+
+Rerunning the same command resumes: a mission left at `w2_awaiting_approval` or
+`w2_rejected` picks up at the approval gate on the saved output, with no LLM call
+paid for up front.

@@ -106,15 +106,20 @@ class Workshop2Input(BaseModel):
 # --- LLM proposal models (structured output) ---
 
 class RiskSourceProposal(BaseModel):
-    """One candidate source de risque, as the model proposes it (white-box §6, §7)."""
+    """One candidate source de risque, as the model proposes it (white-box §6, §7).
+
+    Field order is the generation order of the structured reply: the justification
+    and its context anchors come before ``statut`` so the verdict is written after
+    the reasoning that supports it, not before.
+    """
 
     categorie_id: str            # must exist in the approved base — checked in code (§6)
     nom: str
     description: str = ""
     motivation: str = ""
-    statut: str = "retenu"       # 'retenu' | 'secondaire' | 'ecarte'
     justification: str = ""      # why plausible in THIS context — non-empty or écarté
     derived_from_fact_fields: list[str] = Field(default_factory=list)
+    statut: str = "retenu"       # 'retenu' | 'secondaire' | 'ecarte'
 
 
 class RiskSourceBatch(BaseModel):
@@ -128,9 +133,9 @@ class ObjectifViseProposal(BaseModel):
     description: str
     enjeu: str = ""
     biens_essentiels_vises: list[str] = Field(default_factory=list)
-    statut: str = "retenu"
     justification: str = ""
     derived_from_fact_fields: list[str] = Field(default_factory=list)
+    statut: str = "retenu"
 
 
 class ObjectifViseBatch(BaseModel):

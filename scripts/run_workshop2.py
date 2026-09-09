@@ -3,18 +3,16 @@
     # run atelier 2 on a mission whose atelier 1 is approved
     python scripts/run_workshop2.py <mission_id>
 
-    # redo after a rejection, with the auditor's reasons
-    python scripts/run_workshop2.py <mission_id> --revision "Trop de sources retenues"
-
-    # redo one part only, keeping the rest verbatim
-    python scripts/run_workshop2.py <mission_id> --blocks couples --revision "Priorités à revoir"
-
     # skip the client session (use the context as-is)
     python scripts/run_workshop2.py <mission_id> --no-session
 
 Reads the Mission Context and the approved w1_output from the mission DB, runs the
 session questions, runs the workshop, saves the w2_output as a new version, and
 asks the auditor to approve it.
+
+The same command resumes: a mission left at w2_awaiting_approval or w2_rejected
+picks up at the approval gate on the saved output — no LLM call is paid for again
+up front, and the redo (which parts, with the auditor's reasons) is asked there.
 
 Requires OPENROUTER_API_KEY (.env) and `pip install -r requirements.txt`. Run from
 a real terminal so the interactive prompts work. The reference DB is not needed:
@@ -35,7 +33,7 @@ for _stream in (sys.stdout, sys.stderr, sys.stdin):
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ebios_rm.agent_runtime import set_token_sink  # noqa: E402
+from ebios_rm.agent_runtime import StructuredCallFailed, set_token_sink  # noqa: E402
 from ebios_rm.config import load_settings  # noqa: E402
 from ebios_rm.orchestrator import mission_state  # noqa: E402
 from ebios_rm.plugins.registry import load_ebios_base  # noqa: E402
@@ -147,10 +145,30 @@ def _run_workshop(repo, mission_id, w2_input, base, revision_notes=None, blocks=
     return output
 
 
+def _quality_override(output: Workshop2Output, io_in=input, io_out=print) -> bool:
+    """A quality error blocks approval unless the auditor overrides it explicitly (§14, §19).
+
+    Without this the checker is decorative: the erreurs print above the same
+    two-keystroke approval as a clean run, and get approved past.
+    """
+    errors = output.quality_report.erreurs
+    if not errors:
+        return True
+    io_out("\n=== Contrôle qualité EN ERREUR — approbation bloquée (§14) ===")
+    for check in errors:
+        io_out(f"   XX {check.controle} : {check.message}")
+    io_out("Corrigez ces points (rejet puis reprise, ou correction manuelle).")
+    io_out("Tapez CONFIRMER pour approuver malgré tout, toute autre saisie pour refuser.")
+    return io_in("> ").strip() == "CONFIRMER"
+
+
 def _review_and_approve(repo, mission_id, output) -> tuple[bool, str]:
     _print_output(output)
     version = repo.latest_output(mission_id, mission_state.WORKSHOP_2)
-    approved, reason = approve_workshop("l'atelier 2")
+    if _quality_override(output):
+        approved, reason = approve_workshop("l'atelier 2")
+    else:
+        approved, reason = False, "Contrôle qualité en erreur, non levé par l'auditeur"
     if approved:
         repo.log_decision(mission_id, stage=STAGE, action="approved", justification="Approuvé par l'auditeur")
         repo.set_status(mission_id, "w2_approved")
@@ -304,9 +322,11 @@ def main() -> int:
     if mission_context is None or w1_output is None:
         print("Mission incomplète : il faut un Mission Context ET un résultat d'atelier 1 enregistrés.")
         return 1
-    if mission.status != "w1_approved":
+    if not mission_state.is_approved(repo, args.mission_id, mission_state.WORKSHOP_1):
         # The auditor has the last word (§2): atelier 2 built on an unapproved atelier 1
-        # would have to be redone entirely once the atelier 1 result changes.
+        # would have to be redone entirely once the atelier 1 result changes. Asked of
+        # the version, not of mission.status, which has moved on by the time atelier 3
+        # runs and would then refuse a legitimate return to atelier 2.
         print(f"Statut de la mission : {mission.status} — l'atelier 1 n'est pas approuvé.")
         print("Approuvez-le d'abord : python scripts/run_workshop1_from_docs.py --resume " + args.mission_id)
         return 1
@@ -321,15 +341,28 @@ def main() -> int:
         tag = "BLOQUANT" if alert.bloquant else "avertissement"
         print(f"  [{tag}] {alert.reference} — {alert.probleme}")
 
+    set_token_sink(lambda inp, out, model: repo.log_tokens(
+        args.mission_id, input_tokens=inp, output_tokens=out, model_used=model))
+    base = load_ebios_base()
+
+    saved = mission_state.load_w2_output(repo, args.mission_id)
+    if saved is not None and mission_state.is_approved(repo, args.mission_id, mission_state.WORKSHOP_2):
+        print("Atelier 2 déjà approuvé. Résultat sauvegardé :")
+        _print_output(saved)
+        return 0
+    if saved is not None:
+        # The workshop already ran and is NOT complete: resume at the approval gate on
+        # what is saved, and only redo if the auditor rejects. Rerunning it up front
+        # would pay for three LLM calls nobody asked for, and the session questions
+        # are already answered in the Mission Context.
+        print(f"Atelier 2 exécuté mais non finalisé (statut : {mission.status}) — reprise de la validation.")
+        return _approval_loop(repo, args.mission_id, w2_input, base, saved)
+
     if not args.no_session:
         enriched = ask_session_questions(w2_input, CLIHumanInterface())
         _persist_session_answers(repo, args.mission_id, mission_context, w2_input, enriched)
         w2_input = enriched
 
-    set_token_sink(lambda inp, out, model: repo.log_tokens(
-        args.mission_id, input_tokens=inp, output_tokens=out, model_used=model))
-
-    base = load_ebios_base()
     notes = _prior_rejection_reasons(repo, args.mission_id)  # carries feedback across a rerun
     try:
         output = _run_workshop(repo, args.mission_id, w2_input, base, notes)
@@ -337,13 +370,28 @@ def main() -> int:
         print(f"\n{exc}")
         print("Corrigez l'atelier 1 avant de relancer — l'atelier 2 ne répare rien de lui-même (§4).")
         return 1
-    except Workshop2AgentError as exc:
-        # A failed LLM call is never reinterpreted as a methodology outcome.
-        print(f"\nAppel au modèle en échec : {exc}")
-        return 1
 
     return _approval_loop(repo, args.mission_id, w2_input, base, output)
 
 
+def _interrupted(mission_id: str) -> int:
+    """Ctrl+C, or a model that cannot answer: everything saved so far is a version.
+
+    Stopping is a normal way out (the auditor may have nothing to rule on today), so
+    say how to come back instead of dumping a traceback.
+    """
+    print("\n\nAtelier 2 mis en pause — la dernière version enregistrée est conservée.")
+    print(f"  Pour reprendre :  python scripts/run_workshop2.py {mission_id}")
+    return 130  # conventional exit code for SIGINT
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (KeyboardInterrupt, EOFError):
+        raise SystemExit(_interrupted(sys.argv[1] if len(sys.argv) > 1 else "<mission_id>")) from None
+    except (Workshop2AgentError, StructuredCallFailed) as exc:
+        # A failed LLM call is never reinterpreted as a methodology outcome — and it can
+        # come from the redo inside the approval loop, not only from the first run.
+        print(f"\nAppel au modèle en échec : {exc}")
+        raise SystemExit(_interrupted(sys.argv[1] if len(sys.argv) > 1 else "<mission_id>")) from None

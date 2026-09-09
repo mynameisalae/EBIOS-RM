@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections import Counter
 
 from ebios_rm.domain.enums import Origin, Pertinence, StatutSelection, VraisemblanceInitiale
 from ebios_rm.domain.risk_source import CoupleSROV, ObjectifVise, RiskSource
@@ -50,28 +51,20 @@ _SCORE_RANGE = range(1, 5)  # motivation / ressources / activité are rated 1..4
 
 # --- text helpers -----------------------------------------------------------
 # --- text helpers -----------------------------------------------------------
-
 def normalise(text: str) -> str:
-    """Standardise le texte en minuscules, sans accents, sans ponctuation ni caractères
+    """Lowercase, accent-free, single-spaced — for comparisons only, never for display.
 
-    spéciaux, avec des espaces simples. Utilisé exclusivement pour la déduplication.
+    Apostrophes count as separators: « système d'information » and « systeme d
+    information » are the same phrase. All punctuation and special characters
+    are normalized to spaces to ensure robust comparisons.
     """
-    # 1. Décomposition des caractères Unicode pour séparer les accents des lettres
     stripped = unicodedata.normalize("NFKD", text or "")
-    
-    # 2. Retrait des accents (on ne garde que le caractère de base)
     ascii_text = "".join(c for c in stripped if not unicodedata.combining(c))
-    
-    # 3. Passage en minuscules
     lowercase_text = ascii_text.casefold()
     
-    # 4. Remplacement de TOUS les caractères spéciaux et de la ponctuation par un espace.
-    #    Le pattern [^a-z0-9\s] signifie : "tout ce qui n'est pas une lettre de a à z, un chiffre ou un espace".
-    clean_alphanumeric = re.sub(r"[^a-z0-9\s]", " ", lowercase_text)
-    
-    # 5. Remplacement des espaces multiples par un seul espace et nettoyage des extrémités
-    return re.sub(r"\s+", " ", clean_alphanumeric).strip()
-
+    # On remplace la ponctuation, les apostrophes et les espaces multiples par un espace simple
+    clean_text = re.sub(r"[^a-z0-9]", " ", lowercase_text)
+    return re.sub(r"\s+", " ", clean_text).strip()
 
 # Attack techniques and modalities. An objectif visé phrased as one of these is a
 # forbidden confusion (white-box §9, §17): « injection SQL », « PowerShell » and
@@ -83,12 +76,12 @@ def normalise(text: str) -> str:
 # only if real runs show false positives — a legitimate objective mentioning one of
 # these words in passing.
 _TECHNIQUE_TERMS = (
-    "phishing", "hameconnage", "spear", "injection sql", "sql", "xss", "csrf",
+    "phishing", "hameconnage", "spear", "sql", "xss", "csrf",
     "powershell", "ransomware", "rancongiciel", "malware", "logiciel malveillant",
     "ddos", "deni de service", "force brute", "brute force", "exploit",
-    "vulnerabilite", "faille", "cve-", "0-day", "zero day", "backdoor",
+    "vulnerabilite", "faille", "cve", "0-day", "zero day", "backdoor",
     "porte derobee", "keylogger", "rootkit", "credential stuffing",
-    "vol d identifiants", "vol didentifiants", "escalade de privileges",
+    "vol d identifiants", "escalade de privileges",
     "mouvement lateral", "scan de ports", "ingenierie sociale",
 )
 
@@ -603,8 +596,8 @@ def run_quality_checks(
           ok_message="Chaque couple forme une intention cohérente.")
 
     # 7. Doublons.
-    pairs = [(c.source_risque_id, c.objectif_vise_id) for c in all_couples]
-    duplicates = sorted({f"{sr}/{ov}" for (sr, ov) in pairs if pairs.count((sr, ov)) > 1})
+    counts = Counter((c.source_risque_id, c.objectif_vise_id) for c in all_couples)
+    duplicates = sorted(f"{sr}/{ov}" for (sr, ov), n in counts.items() if n > 1)
     check("Doublons", [f"couple en double : {d}" for d in duplicates],
           ok_message="Aucun couple équivalent.")
 
