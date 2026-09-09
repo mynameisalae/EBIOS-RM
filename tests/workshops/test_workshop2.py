@@ -39,7 +39,9 @@ from ebios_rm.workshops.workshop2_sources_risque.assessment import (
     filter_sources,
     pertinence_of,
     validate_atelier1,
-    vraisemblance_of,
+    vraisemblance_of,   
+    run_quality_checks,  
+
 )
 from ebios_rm.workshops.workshop2_sources_risque.models import (
     REASON_BIEN_ESSENTIEL_INCONNU,
