@@ -28,22 +28,10 @@ without any of these — none of them blocks.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
-from ebios_rm.domain.enums import Confidence, FactStatus, Origin, PriorityLevel
-from ebios_rm.domain.fact import Fact
 from ebios_rm.mission_context.priority_matrix import FollowUpQuestion
-from ebios_rm.workshops.workshop1_cadrage.human_interface import HumanInterface, SkipRequested
+from ebios_rm.mission_context.session import SessionQuestion, ask_questions, pending_questions
+from ebios_rm.workshops.workshop1_cadrage.human_interface import HumanInterface
 from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Input
-
-
-@dataclass(frozen=True)
-class SessionQuestion:
-    """One atelier 2 session question and what it is there to decide."""
-
-    field_name: str
-    question: str
-    help_text: str
 
 
 # Ordered as a conversation, not as a form: who would come for us, how, and then
@@ -92,69 +80,11 @@ SESSION_QUESTIONS: tuple[SessionQuestion, ...] = (
 )
 
 
-def _is_answered(value: object) -> bool:
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return bool(value.strip())
-    if isinstance(value, (list, tuple, set, dict)):
-        return len(value) > 0
-    return True
-
-
 def session_questions(w2_input: Workshop2Input) -> list[FollowUpQuestion]:
-    """The session questions the context does not already answer.
-
-    All Important: atelier 2 can be conducted without any single one of them, so
-    none may block the study. A skip still costs a justification (§8).
-
-    A skipped question counts as settled. Its Fact carries no value, so it never
-    reaches ``contexte`` — asking on the strength of that alone would put the same
-    question again at every rerun, and the auditor already said why they passed.
-    """
-    skipped = {
-        f.field_name for f in w2_input.faits_contexte if f.status is FactStatus.SKIPPED
-    }
-    return [
-        FollowUpQuestion(
-            field_name=q.field_name,
-            question=q.question,
-            priority=PriorityLevel.IMPORTANT,
-            help_text=q.help_text,
-        )
-        for q in SESSION_QUESTIONS
-        if q.field_name not in skipped and not _is_answered(w2_input.contexte.get(q.field_name))
-    ]
+    """The atelier 2 session questions the context does not already answer."""
+    return pending_questions(SESSION_QUESTIONS, w2_input)
 
 
 def ask_session_questions(w2_input: Workshop2Input, human: HumanInterface) -> Workshop2Input:
-    """Run the session and return the enriched input — the original is left untouched.
-
-    Returning a new value rather than mutating keeps the workshop a pure function
-    over typed input, which is what makes pause/resume and replay the orchestrator's
-    business instead of this module's.
-    """
-    enriched = w2_input.model_copy(deep=True)
-    for question in session_questions(w2_input):
-        outcome = human.ask_followup(question)
-        if isinstance(outcome, SkipRequested):
-            # The refusal is recorded, not discarded: an auditor reading the study
-            # must see that the question was put and why it went unanswered.
-            enriched.faits_contexte.append(Fact(
-                field_name=question.field_name,
-                value=None,
-                origin=Origin.DECLARATION,
-                confidence=Confidence.LOW,
-                status=FactStatus.SKIPPED,
-                justification=outcome.reason,
-                question=question.question,
-            ))
-            continue
-        answer = str(outcome).strip()
-        if not answer:
-            continue
-        enriched.contexte[question.field_name] = answer
-        enriched.faits_contexte.append(
-            Fact.declaration(question.field_name, answer, question=question.question)
-        )
-    return enriched
+    """Run the atelier 2 session and return the enriched input."""
+    return ask_questions(SESSION_QUESTIONS, w2_input, human)

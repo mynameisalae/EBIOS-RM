@@ -11,10 +11,12 @@ from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.repositories.mission_repository import ROLLBACK_CAP, MissionRepository
 from ebios_rm.workshops.workshop1_cadrage.models import Workshop1Output
 from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Output
+from ebios_rm.workshops.workshop3_scenarios_strategiques.models import Workshop3Output
 
 WORKSHOP_CONTEXT = 0  # the Mission Context (intake result)
 WORKSHOP_1 = 1
 WORKSHOP_2 = 2
+WORKSHOP_3 = 3
 
 
 def save_mission_context(repo: MissionRepository, mission_id: str, mc: MissionContext) -> None:
@@ -48,6 +50,35 @@ def save_w2_output(repo: MissionRepository, mission_id: str, output: Workshop2Ou
 def load_w2_output(repo: MissionRepository, mission_id: str) -> Workshop2Output | None:
     version = repo.latest_output(mission_id, WORKSHOP_2)
     return Workshop2Output.model_validate(version.output) if version else None
+
+
+def save_w3_output(repo: MissionRepository, mission_id: str, output: Workshop3Output, *, status: str = "current") -> int:
+    return repo.save_output(mission_id, WORKSHOP_3, output.model_dump(mode="json"), status=status)
+
+
+def load_w3_output(repo: MissionRepository, mission_id: str) -> Workshop3Output | None:
+    version = repo.latest_output(mission_id, WORKSHOP_3)
+    return Workshop3Output.model_validate(version.output) if version else None
+
+
+def persist_session_answers(repo, mission_id, mission_context, before, after, *, stage: str) -> int:
+    """Write the session's new Facts back into the Mission Context. Returns how many.
+
+    Session answers are facts about the organisation, not workshop scratch: stored
+    here, a rerun does not ask them again and the report agent sees them with their
+    provenance intact.
+    """
+    known = {f.field_name for f in before.faits_contexte}
+    new_facts = [f for f in after.faits_contexte if f.field_name not in known]
+    if not new_facts:
+        return 0
+    updated = mission_context.model_copy(update={"facts": [*mission_context.facts, *new_facts]})
+    save_mission_context(repo, mission_id, updated)
+    repo.log_decision(
+        mission_id, stage=stage, action=f"session_answers:{len(new_facts)}",
+        justification="; ".join(f.field_name for f in new_facts),
+    )
+    return len(new_facts)
 
 
 def is_approved(repo: MissionRepository, mission_id: str, workshop_number: int) -> bool:

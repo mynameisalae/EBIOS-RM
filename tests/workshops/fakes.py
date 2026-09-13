@@ -24,6 +24,10 @@ from ebios_rm.workshops.workshop2_sources_risque.models import (
     ObjectifViseProposal,
     RiskSourceProposal,
 )
+from ebios_rm.workshops.workshop3_scenarios_strategiques.models import (
+    CritiqueVerdict,
+    ScenarioProposal,
+)
 
 
 class ScriptedHuman:
@@ -287,3 +291,62 @@ class FakeAuditorReviewRunner:
     def review(self, mission_context, round_number):
         self.rounds_seen.append(round_number)
         return list(self.proposals_by_round.get(round_number, []))
+
+
+class FakeWorkshop3Runner:
+    """A Workshop3AgentRunner returning canned scenarios — no LLM involved.
+
+    Mixes valid scenarios with the failures the real model produces: a couple that
+    does not exist, a scenario with no context anchor, a stakeholder invented whole,
+    and a second scenario on a couple already covered.
+    """
+
+    def __init__(self, verdicts: list[CritiqueVerdict] | None = None) -> None:
+        self.revision_notes_seen: list[str] | None = None
+        self.calls: list[str] = []
+        self.verdicts = verdicts
+
+    def propose_scenarios(self, w3_input, revision_notes=None) -> list[ScenarioProposal]:
+        self.calls.append("scenarios")
+        self.revision_notes_seen = revision_notes
+        couples = [c.id for c in w3_input.couples]
+        proposals = [
+            ScenarioProposal(
+                couple_id=couples[0],
+                resume="Le groupe cybercriminel entre par la télémaintenance de l'éditeur du SIH "
+                       "et bloque la prise en charge des patients.",
+                parties_prenantes=["éditeur du SIH"],
+                justification="La liaison de télémaintenance est permanente et l'activité dépend du SIH.",
+                derived_from_fact_fields=["interconnexions_tiers"],
+            ),
+            # No context field cited: nothing anchors the route (§8).
+            ScenarioProposal(
+                couple_id=couples[0] if len(couples) < 2 else couples[1],
+                resume="Le concurrent obtient les conditions commerciales.",
+                parties_prenantes=[],
+                justification="Plausible sur ce marché.",
+                derived_from_fact_fields=[],
+            ),
+            # A couple atelier 2 never retained.
+            ScenarioProposal(
+                couple_id="CPL-99",
+                resume="Un scénario sur un couple inexistant.",
+                justification="Inventé.",
+                derived_from_fact_fields=["interconnexions_tiers"],
+            ),
+            # A stakeholder the dossier never mentions.
+            ScenarioProposal(
+                couple_id=couples[0],
+                resume="Passage par un partenaire inconnu du dossier.",
+                parties_prenantes=["Consortium Zephyr"],
+                justification="Chemin supposé.",
+                derived_from_fact_fields=["interconnexions_tiers"],
+            ),
+        ]
+        return proposals
+
+    def critique_scenarios(self, w3_input, scenarios) -> list[CritiqueVerdict]:
+        self.calls.append("critique")
+        if self.verdicts is not None:
+            return list(self.verdicts)
+        return [CritiqueVerdict(scenario_id=s.id, raison="Scénario distinct.") for s in scenarios]

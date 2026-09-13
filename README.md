@@ -215,3 +215,41 @@ parts you name / `q` stop, same rollback cap). Two differences:
 Rerunning the same command resumes: a mission left at `w2_awaiting_approval` or
 `w2_rejected` picks up at the approval gate on the saved output, with no LLM call
 paid for up front.
+
+## Running Workshop 3 — scénarios stratégiques
+
+Runs on a mission whose Workshop 2 is **approved** — checked on the atelier 2
+version itself, so it stays true however far the mission moves on afterwards.
+
+```bash
+python scripts/run_workshop3.py <mission_id>
+```
+
+For each SR/OV couple retained in atelier 2, the agent writes the route: which
+source de risque, through which parties prenantes of the ecosystem, to reach which
+essential asset. It runs twice — propose, then criticise its own list and fold the
+near-duplicates. Nothing is re-rated here: gravité comes from atelier 1's feared
+events, pertinence and initial likelihood from atelier 2's couples, all carried
+forward in code. A stakeholder the dossier never mentions gets the scenario
+discarded, with its reason.
+
+Then the **count gate**, the study's one validation point on the scenario count N
+(atelier 4 fans out one LLM call per scenario, so N is the size of what comes
+next):
+
+- **N ≤ 6** — validate the list, or stop.
+- **6 < N ≤ 12** — validate anyway (with a reason), merge scenarios, choose a
+  subset, or stop.
+- **N > 12** — merge, choose a subset, or stop. "Run anyway" is not offered.
+
+Merging and subsetting each require a justification and re-enter the gate with the
+new count, so a list reduced from 14 to 13 gets exactly the options 13 deserves.
+
+Approval works as in the other ateliers (`c` correct / `r` redo / `q` stop, same
+rollback cap, quality errors need a typed `CONFIRMER`). Rerunning resumes: at the
+count gate if the count was never ruled on, at the approval gate otherwise.
+
+> No API credit? `MANUAL_LLM=1` writes each prompt to `data/manual/*.prompt.md`
+> and waits for you to drop the matching `.response.json` beside it. The schema
+> travels with the prompt and is enforced on what you write, so the audit trail is
+> the same as a model run.
