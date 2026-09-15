@@ -1,4 +1,4 @@
-"""Orchestrator (conception section 10.2, section 17): atelier 1 -> 2 -> 3 handoffs.
+"""Orchestrator (conception section 10.2, sections 17-18): atelier 1 -> 2 -> 3 -> 4 handoffs.
 
 Absolute rule: Workshop N -> Mission State -> Orchestrator -> Workshop N+1.
 Never a direct call from one workshop to the next.
@@ -15,9 +15,16 @@ for now, and this code says so explicitly rather than guessing at them.
 
 from __future__ import annotations
 
+from ebios_rm.config import load_settings
 from ebios_rm.orchestrator import mission_state
 from ebios_rm.orchestrator.approval_cli import ApprovalLoop, ask_choice
+from ebios_rm.orchestrator.workshop4_flow import Workshop4NotReady, run_workshop4
 from ebios_rm.plugins.registry import load_ebios_base
+from ebios_rm.repositories.attack_repository import (
+    AttackRepository,
+    AttackRepositoryError,
+    connect_readonly,
+)
 from ebios_rm.repositories.mission_repository import MissionRepository
 from ebios_rm.workshops.workshop1_cadrage.human_interface import ask_justification
 from ebios_rm.workshops.workshop2_sources_risque import (
@@ -50,6 +57,11 @@ from ebios_rm.workshops.workshop3_scenarios_strategiques.models import (
     ACTION_CANCEL,
     ACTION_RUN,
     ACTION_RUN_ANYWAY,
+)
+from ebios_rm.workshops.workshop4_scenarios_operationnels import Atelier3DataError
+from ebios_rm.workshops.workshop4_scenarios_operationnels.agent import (
+    AgnoWorkshop4Runner,
+    Workshop4AgentError,
 )
 
 
@@ -249,3 +261,28 @@ def advance_to_workshop3(repo: MissionRepository, mission_id: str) -> str:
     ).run(gated)
 
     return "w3_approved" if exit_code == 0 else "w3_rejected"
+
+
+# ============================================================================
+# Atelier 3 -> Atelier 4
+# ============================================================================
+
+def advance_to_workshop4(repo: MissionRepository, mission_id: str) -> str:
+    """Run or resume atelier 4 on an approved atelier 3 (fan-out, batch review, coherence, approval).
+
+    The straightforward path, like the two handoffs above: no session questions and
+    no clarification loop — scripts/run_workshop4.py has both. The flow itself is
+    shared (orchestrator/workshop4_flow.py). Returns "w4_approved" or "w4_paused".
+    """
+    try:
+        catalogue = AttackRepository(connect_readonly(load_settings().attack_db_path)).catalogue()
+        code = run_workshop4(repo, mission_id, catalogue, AgnoWorkshop4Runner())
+    except (Workshop4NotReady, AttackRepositoryError) as exc:
+        raise OrchestratorError(str(exc)) from exc
+    except Atelier3DataError as exc:
+        repo.set_status(mission_id, "blocked")
+        repo.log_decision(mission_id, stage="workshop_4", action="blocked", justification=str(exc))
+        raise OrchestratorError(f"Atelier 3 comporte des anomalies bloquantes : {exc}") from exc
+    except Workshop4AgentError as exc:
+        raise OrchestratorError(f"Appel au modele en echec : {exc}") from exc
+    return "w4_approved" if code == 0 else "w4_paused"

@@ -83,6 +83,32 @@ class VraisemblanceInitiale(str, Enum):
     V4 = "V4"
 
 
+class NiveauRisque(str, Enum):
+    """Risk level of an operational scenario (atelier 4, conception §18 step 29).
+
+    Read from a fixed gravité × vraisemblance matrix in code, never worded by the
+    model. Where each level sits against the organisation's risk acceptance is
+    atelier 5's decision, not this scale's.
+    """
+
+    FAIBLE = "Faible"
+    MOYEN = "Moyen"
+    ELEVE = "Élevé"
+    CRITIQUE = "Critique"
+
+
+class ImpactType(str, Enum):
+    """How one baseline gap bears on one operational scenario (conception §18).
+
+    Every value owes a non-empty impact_on_scenario — not_relevant included.
+    """
+
+    INCREASES_LIKELIHOOD = "increases_likelihood"  # makes a step of the path possible or easier
+    INCREASES_IMPACT = "increases_impact"          # worsens the consequence, not the access
+    NO_IMPACT = "no_impact"                        # on the path's ground, but changes nothing here
+    NOT_RELEVANT = "not_relevant"                  # concerns nothing in this scenario
+
+
 class StatutSelection(str, Enum):
     """Outcome of an atelier 2 filter (white-box §7, §10, §11).
 

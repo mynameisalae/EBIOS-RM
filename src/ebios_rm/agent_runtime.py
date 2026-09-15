@@ -9,6 +9,7 @@ This module holds that loop once.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -148,8 +149,54 @@ def run_structured(
             last = content  # raw string: API error or parse failure — retry
         if attempt < max_attempts:
             time.sleep(base_delay * attempt)
-    raise StructuredCallFailed(
-        f"Model did not return {schema.__name__} for {what} after {max_attempts} attempts. "
+    raise _failed(schema, what, max_attempts, last)
+
+
+async def arun_structured(
+    agent_factory: Callable[[], object],
+    prompt: str,
+    schema: type[T],
+    *,
+    what: str,
+    max_attempts: int = 4,
+    base_delay: float = 3.0,
+    progress: Callable[[str], None] = print,
+) -> T:
+    """Async twin of run_structured, for the atelier 4 fan-out (conception §3.1, §18).
+
+    Same retries, type check and token accounting — awaited, so N sub-agents wait on
+    the network together, and every token record is still written from the one
+    thread that owns the mission database.
+
+    Under MANUAL_LLM the answer file is awaited synchronously, on purpose: one human
+    answers one prompt at a time, and prompt files are numbered by counting the
+    directory, which concurrent writers would race on.
+    """
+    if os.environ.get("MANUAL_LLM"):
+        return manual_call(prompt, schema, what=what, progress=progress)
+    progress(f"   {what}...")
+    last: object = None
+    for attempt in range(1, max_attempts + 1):
+        if attempt > 1:
+            progress(f"   ... nouvel essai {attempt}/{max_attempts} ({what})")
+        try:
+            response = await agent_factory().arun(prompt)
+            _record_tokens(response)
+            content = response.content
+        except Exception as exc:  # noqa: BLE001 — Agno/network errors are heterogeneous
+            last = exc
+        else:
+            if isinstance(content, schema):
+                return content
+            last = content
+        if attempt < max_attempts:
+            await asyncio.sleep(base_delay * attempt)
+    raise _failed(schema, what, max_attempts, last)
+
+
+def _failed(schema: type[BaseModel], what: str, attempts: int, last: object) -> StructuredCallFailed:
+    return StructuredCallFailed(
+        f"Model did not return {schema.__name__} for {what} after {attempts} attempts. "
         f"Last result: {str(last)[:300]!r}"
     )
 

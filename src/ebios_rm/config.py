@@ -51,6 +51,7 @@ class Settings:
     openrouter_api_key: str | None
     reference_db_path: str
     mission_db_path: str
+    attack_db_path: str
     max_output_tokens: int
 
 
@@ -61,6 +62,7 @@ def load_settings() -> Settings:
         openrouter_api_key=os.environ.get("OPENROUTER_API_KEY"),
         reference_db_path=os.environ.get("REFERENCE_DB_PATH", "data/reference/reference.db"),
         mission_db_path=os.environ.get("MISSION_DB_PATH", "data/mission/mission.db"),
+        attack_db_path=os.environ.get("ATTACK_DB_PATH", "mitre_attack_complete.db"),
         max_output_tokens=int(os.environ.get("MAX_OUTPUT_TOKENS", "8000")),
     )
 

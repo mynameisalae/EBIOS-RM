@@ -12,11 +12,13 @@ from ebios_rm.repositories.mission_repository import ROLLBACK_CAP, MissionReposi
 from ebios_rm.workshops.workshop1_cadrage.models import Workshop1Output
 from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Output
 from ebios_rm.workshops.workshop3_scenarios_strategiques.models import Workshop3Output
+from ebios_rm.workshops.workshop4_scenarios_operationnels.models import Workshop4Output
 
 WORKSHOP_CONTEXT = 0  # the Mission Context (intake result)
 WORKSHOP_1 = 1
 WORKSHOP_2 = 2
 WORKSHOP_3 = 3
+WORKSHOP_4 = 4
 
 
 def save_mission_context(repo: MissionRepository, mission_id: str, mc: MissionContext) -> None:
@@ -59,6 +61,27 @@ def save_w3_output(repo: MissionRepository, mission_id: str, output: Workshop3Ou
 def load_w3_output(repo: MissionRepository, mission_id: str) -> Workshop3Output | None:
     version = repo.latest_output(mission_id, WORKSHOP_3)
     return Workshop3Output.model_validate(version.output) if version else None
+
+
+def save_w4_output(repo: MissionRepository, mission_id: str, output: Workshop4Output, *, status: str = "current") -> int:
+    """A new attempt at atelier 4 — the first run, or a redo decided at the approval gate."""
+    return repo.save_output(mission_id, WORKSHOP_4, output.model_dump(mode="json"), status=status)
+
+
+def checkpoint_w4_output(repo: MissionRepository, mission_id: str, output: Workshop4Output) -> int:
+    """Progress within one attempt, in place: every returned analysis, every review decision.
+
+    Atelier 4 pays one call per scenario and the review can span days; a new version
+    per result would also exhaust the rollback cap (§12.6) before the auditor ever
+    reached the approval gate. An attempt whose version was already ruled on starts
+    a new version instead.
+    """
+    return repo.save_output(mission_id, WORKSHOP_4, output.model_dump(mode="json"), status="current", overwrite=True)
+
+
+def load_w4_output(repo: MissionRepository, mission_id: str) -> Workshop4Output | None:
+    version = repo.latest_output(mission_id, WORKSHOP_4)
+    return Workshop4Output.model_validate(version.output) if version else None
 
 
 def persist_session_answers(repo, mission_id, mission_context, before, after, *, stage: str) -> int:
