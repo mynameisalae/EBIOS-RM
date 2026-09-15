@@ -13,8 +13,7 @@ catalogue, in assessment.py.
 
 from __future__ import annotations
 
-from ebios_rm.agent_runtime import StructuredCallFailed, arun_structured, run_structured
-from ebios_rm.config import get_model
+from ebios_rm.agent_runtime import AgnoRunner
 from ebios_rm.domain.operational_scenario import OperationalScenario
 from ebios_rm.repositories.attack_repository import AttackCatalogue
 from ebios_rm.workshops.workshop4_scenarios_operationnels import prompts
@@ -26,56 +25,35 @@ from ebios_rm.workshops.workshop4_scenarios_operationnels.models import (
 )
 
 
-class Workshop4AgentError(RuntimeError):
-    """The model could not return the expected structured output.
+class AgnoWorkshop4Runner(AgnoRunner):
+    """Concrete Workshop4AgentRunner backed by Agno + OpenRouter.
 
-    Raised rather than swallowed: a failed call is never an analysis (an empty path,
-    a scenario nobody could attack) nor a clean coherence review.
+    Two roles, two sets of instructions: the sub-agent that analyses one scenario,
+    and the reviewer that reads the confirmed set together. A call that cannot
+    produce its schema raises StructuredCallFailed (agent_runtime) — never an
+    analysis (an empty path, a scenario nobody could attack) nor a clean coherence
+    review.
     """
 
-
-class AgnoWorkshop4Runner:
-    """Concrete Workshop4AgentRunner backed by Agno + OpenRouter."""
-
-    def __init__(self, model=None, *, max_attempts: int = 4, base_delay: float = 3.0,
-                 progress=print) -> None:
-        self._model = model or get_model()
-        self._max_attempts = max_attempts
-        self._base_delay = base_delay
-        self._progress = progress
-
-    def _agent(self, instructions: str, output_schema):
-        from agno.agent import Agent  # noqa: PLC0415 — lazy so tests don't need Agno
-
-        return Agent(model=self._model, instructions=instructions,
-                     output_schema=output_schema, markdown=False)
+    INSTRUCTIONS = prompts.SYSTEM_INSTRUCTIONS
 
     async def analyse_scenario(
         self, w4_input: Workshop4Input, pending: OperationalScenario, catalogue: AttackCatalogue,
     ) -> ScenarioAnalysisProposal:
         redo = f", reprise {pending.iterations}" if pending.iterations else ""
-        try:
-            return await arun_structured(
-                lambda: self._agent(prompts.SYSTEM_INSTRUCTIONS, ScenarioAnalysisProposal),
-                prompts.analysis_prompt(w4_input, pending, catalogue),
-                ScenarioAnalysisProposal,
-                what=f"analyse opérationnelle {pending.scenario_strategique_id}{redo}",
-                max_attempts=self._max_attempts, base_delay=self._base_delay, progress=self._progress,
-            )
-        except StructuredCallFailed as exc:
-            raise Workshop4AgentError(str(exc)) from exc
+        return await self._arun_structured(
+            ScenarioAnalysisProposal,
+            prompts.analysis_prompt(w4_input, pending, catalogue),
+            what=f"analyse opérationnelle {pending.scenario_strategique_id}{redo}",
+        )
 
     def check_coherence(
         self, w4_input: Workshop4Input, scenarios: list[OperationalScenario],
     ) -> list[CoherenceFindingProposal]:
-        try:
-            batch = run_structured(
-                lambda: self._agent(prompts.COHERENCE_INSTRUCTIONS, CoherenceBatch),
-                prompts.coherence_prompt(w4_input, scenarios),
-                CoherenceBatch,
-                what="vérification de cohérence des scénarios opérationnels",
-                max_attempts=self._max_attempts, base_delay=self._base_delay, progress=self._progress,
-            )
-        except StructuredCallFailed as exc:
-            raise Workshop4AgentError(str(exc)) from exc
+        batch = self._run_structured(
+            CoherenceBatch,
+            prompts.coherence_prompt(w4_input, scenarios),
+            what="vérification de cohérence des scénarios opérationnels",
+            instructions=prompts.COHERENCE_INSTRUCTIONS,
+        )
         return batch.constats

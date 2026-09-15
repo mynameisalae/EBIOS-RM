@@ -49,7 +49,7 @@ from ebios_rm.workshops.workshop4_scenarios_operationnels.models import (
     STATUT_AVERTISSEMENT,
     STATUT_ERREUR,
     STATUT_OK,
-    Atelier3Alert,
+    AtelierAlert,
     CoherenceFinding,
     CoherenceFindingProposal,
     ElementEcarte,
@@ -195,19 +195,19 @@ def risk_level(gravite: Gravite, vraisemblance: VraisemblanceInitiale | None) ->
 
 # --- Étape 0: the approved atelier 3 output must hold up --------------------
 
-def validate_atelier3(w3: Workshop3Output, w2: Workshop2Output, w1: Workshop1Output) -> list[Atelier3Alert]:
+def validate_atelier3(w3: Workshop3Output, w2: Workshop2Output, w1: Workshop1Output) -> list[AtelierAlert]:
     """Check that every scenario resolves to what ateliers 1 and 2 actually hold (§2).
 
     Produces alerts, never repairs: a scenario pointing at a source de risque that no
     longer exists is fixed in atelier 3, not quietly worked around by N sub-agents.
     """
-    alerts: list[Atelier3Alert] = []
+    alerts: list[AtelierAlert] = []
     if not w3.scenarios:
-        alerts.append(Atelier3Alert(
+        alerts.append(AtelierAlert(
             reference="atelier3",
             probleme="Aucun scénario stratégique : l'atelier 4 n'a rien à analyser."))
     if w3.gate_decision.action not in {ACTION_RUN, ACTION_RUN_ANYWAY}:
-        alerts.append(Atelier3Alert(
+        alerts.append(AtelierAlert(
             reference="point_de_comptage",
             probleme=(f"Le point de comptage n'a pas validé la liste (décision « "
                       f"{w3.gate_decision.action or 'aucune'} ») : l'atelier 4 n'en a pas le droit (§17)."),
@@ -220,25 +220,25 @@ def validate_atelier3(w3: Workshop3Output, w2: Workshop2Output, w1: Workshop1Out
     seen: set[str] = set()
     for scenario in w3.scenarios:
         if scenario.id in seen:
-            alerts.append(Atelier3Alert(reference=scenario.id, probleme="Identifiant de scénario en double."))
+            alerts.append(AtelierAlert(reference=scenario.id, probleme="Identifiant de scénario en double."))
         seen.add(scenario.id)
         if scenario.source_risque_id not in sources:
-            alerts.append(Atelier3Alert(
+            alerts.append(AtelierAlert(
                 reference=scenario.id,
                 probleme=f"Source de risque inconnue de l'atelier 2 : '{scenario.source_risque_id}'."))
         if scenario.objectif_vise_id not in objectifs:
-            alerts.append(Atelier3Alert(
+            alerts.append(AtelierAlert(
                 reference=scenario.id,
                 probleme=f"Objectif visé inconnu de l'atelier 2 : '{scenario.objectif_vise_id}'."))
         unknown = [b for b in scenario.biens_essentiels_ids if b not in assets]
         unknown += [e for e in scenario.evenements_redoutes_ids if e not in events]
         if unknown:
-            alerts.append(Atelier3Alert(
+            alerts.append(AtelierAlert(
                 reference=scenario.id,
                 probleme=f"Biens essentiels ou événements redoutés inconnus de l'atelier 1 : {unknown}."))
 
     if w3.scenarios and not w1.baseline_gaps_for_w4():
-        alerts.append(Atelier3Alert(
+        alerts.append(AtelierAlert(
             reference="atelier1",
             probleme=("Aucun écart du socle transmis : la vraisemblance sera appréciée sur le seul "
                       "contexte. Vérifiez que c'est un socle sans écart, et non un socle non évalué."),

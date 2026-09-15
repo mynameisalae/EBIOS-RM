@@ -15,6 +15,7 @@ for now, and this code says so explicitly rather than guessing at them.
 
 from __future__ import annotations
 
+from ebios_rm.agent_runtime import StructuredCallFailed
 from ebios_rm.config import load_settings
 from ebios_rm.orchestrator import mission_state
 from ebios_rm.orchestrator.approval_cli import ApprovalLoop, ask_choice
@@ -26,43 +27,32 @@ from ebios_rm.repositories.attack_repository import (
     connect_readonly,
 )
 from ebios_rm.repositories.mission_repository import MissionRepository
+from ebios_rm.workshops.common import AtelierDataError
 from ebios_rm.workshops.workshop1_cadrage.human_interface import ask_justification
 from ebios_rm.workshops.workshop2_sources_risque import (
     ALL_BLOCKS,
     BLOCK_COUPLES,
     BLOCK_OBJECTIFS,
     BLOCK_SOURCES,
-    Atelier1DataError,
     Workshop2Output,
     build_workshop2_input,
     run_workshop2,
 )
-from ebios_rm.workshops.workshop2_sources_risque.agent import (
-    AgnoWorkshop2Runner,
-    Workshop2AgentError,
-)
+from ebios_rm.workshops.workshop2_sources_risque.agent import AgnoWorkshop2Runner
 from ebios_rm.workshops.workshop3_scenarios_strategiques import (
-    Atelier2DataError,
     Workshop3Output,
     assemble_output,
     build_workshop3_input,
     gate_for,
     run_workshop3,
 )
-from ebios_rm.workshops.workshop3_scenarios_strategiques.agent import (
-    AgnoWorkshop3Runner,
-    Workshop3AgentError,
-)
+from ebios_rm.workshops.workshop3_scenarios_strategiques.agent import AgnoWorkshop3Runner
 from ebios_rm.workshops.workshop3_scenarios_strategiques.models import (
     ACTION_CANCEL,
     ACTION_RUN,
     ACTION_RUN_ANYWAY,
 )
-from ebios_rm.workshops.workshop4_scenarios_operationnels import Atelier3DataError
-from ebios_rm.workshops.workshop4_scenarios_operationnels.agent import (
-    AgnoWorkshop4Runner,
-    Workshop4AgentError,
-)
+from ebios_rm.workshops.workshop4_scenarios_operationnels.agent import AgnoWorkshop4Runner
 
 
 class OrchestratorError(RuntimeError):
@@ -123,11 +113,11 @@ def advance_to_workshop2(repo: MissionRepository, mission_id: str) -> str:
     repo.set_status(mission_id, "w2_running")
     try:
         output = _run_w2(repo, mission_id, w2_input, base)
-    except Atelier1DataError as exc:
+    except AtelierDataError as exc:
         repo.set_status(mission_id, "blocked")
         repo.log_decision(mission_id, stage=STAGE_W2, action="blocked", justification=str(exc))
         raise OrchestratorError(f"Atelier 1 comporte des anomalies bloquantes : {exc}") from exc
-    except Workshop2AgentError as exc:
+    except StructuredCallFailed as exc:
         raise OrchestratorError(f"Appel au modele en echec : {exc}") from exc
 
     exit_code = ApprovalLoop(
@@ -236,11 +226,11 @@ def advance_to_workshop3(repo: MissionRepository, mission_id: str) -> str:
 
     try:
         output = _run_w3(repo, mission_id, w3_input)
-    except Atelier2DataError as exc:
+    except AtelierDataError as exc:
         repo.set_status(mission_id, "blocked")
         repo.log_decision(mission_id, stage=STAGE_W3, action="blocked", justification=str(exc))
         raise OrchestratorError(f"Atelier 2 comporte des anomalies bloquantes : {exc}") from exc
-    except Workshop3AgentError as exc:
+    except StructuredCallFailed as exc:
         raise OrchestratorError(f"Appel au modele en echec : {exc}") from exc
 
     gated = _handle_w3_gate(repo, mission_id, w3_input, output)
@@ -279,10 +269,10 @@ def advance_to_workshop4(repo: MissionRepository, mission_id: str) -> str:
         code = run_workshop4(repo, mission_id, catalogue, AgnoWorkshop4Runner())
     except (Workshop4NotReady, AttackRepositoryError) as exc:
         raise OrchestratorError(str(exc)) from exc
-    except Atelier3DataError as exc:
+    except AtelierDataError as exc:
         repo.set_status(mission_id, "blocked")
         repo.log_decision(mission_id, stage="workshop_4", action="blocked", justification=str(exc))
         raise OrchestratorError(f"Atelier 3 comporte des anomalies bloquantes : {exc}") from exc
-    except Workshop4AgentError as exc:
+    except StructuredCallFailed as exc:
         raise OrchestratorError(f"Appel au modele en echec : {exc}") from exc
     return "w4_approved" if code == 0 else "w4_paused"

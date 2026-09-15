@@ -29,7 +29,6 @@ from ebios_rm.workshops.workshop4_scenarios_operationnels.questions import (
     session_questions,
 )
 from ebios_rm.workshops.workshop4_scenarios_operationnels.workshop import (
-    Atelier3DataError,
     assemble_output,
     build_workshop4_input,
     initial_output,
@@ -39,7 +38,6 @@ from ebios_rm.workshops.workshop4_scenarios_operationnels.workshop import (
 )
 
 __all__ = [
-    "Atelier3DataError",
     "Workshop4Input",
     "Workshop4Output",
     "ask_session_questions",

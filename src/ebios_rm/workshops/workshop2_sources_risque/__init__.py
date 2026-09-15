@@ -28,7 +28,6 @@ from ebios_rm.workshops.workshop2_sources_risque.workshop import (
     BLOCK_COUPLES,
     BLOCK_OBJECTIFS,
     BLOCK_SOURCES,
-    Atelier1DataError,
     build_workshop2_input,
     run_workshop2,
 )
@@ -38,7 +37,6 @@ __all__ = [
     "BLOCK_COUPLES",
     "BLOCK_OBJECTIFS",
     "BLOCK_SOURCES",
-    "Atelier1DataError",
     "Workshop2Input",
     "Workshop2Output",
     "ask_session_questions",

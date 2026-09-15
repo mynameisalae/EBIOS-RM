@@ -12,6 +12,8 @@ Three families, same shape as atelier 2:
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from pydantic import BaseModel, Field
 
 from ebios_rm.domain.essential_asset import EssentialAsset
@@ -19,6 +21,7 @@ from ebios_rm.domain.fact import Fact
 from ebios_rm.domain.feared_event import FearedEvent
 from ebios_rm.domain.risk_source import CoupleSROV, ObjectifVise, RiskSource
 from ebios_rm.domain.strategic_scenario import StrategicScenario
+from ebios_rm.workshops.common import AtelierAlert, ElementEcarteBase
 
 # The quality report shape is atelier 2's, reused rather than restated. ponytail:
 # one definition, imported across the two workshops; move it to domain/ when a
@@ -75,19 +78,6 @@ CONTEXT_FIELDS: tuple[str, ...] = (
 )
 
 
-class Atelier2Alert(BaseModel):
-    """A defect found in the atelier 2 output, raised for the auditor, never repaired.
-
-    Same rule as atelier 2 applies to atelier 1 (white-box §4): « erreur de donnée
-    n'est pas erreur de raisonnement ». A couple pointing at a source de risque
-    that does not exist is fixed in atelier 2, not quietly worked around here.
-    """
-
-    reference: str
-    probleme: str
-    bloquant: bool = True
-
-
 class Workshop3Input(BaseModel):
     """Everything atelier 3 may see, and nothing else (conception §17).
 
@@ -114,10 +104,10 @@ class Workshop3Input(BaseModel):
     # The Facts behind ``contexte``, provenance intact (§8).
     faits_contexte: list[Fact] = Field(default_factory=list)
 
-    alertes_atelier2: list[Atelier2Alert] = Field(default_factory=list)
+    alertes_atelier2: list[AtelierAlert] = Field(default_factory=list)
 
     @property
-    def alertes_bloquantes(self) -> list[Atelier2Alert]:
+    def alertes_bloquantes(self) -> list[AtelierAlert]:
         return [a for a in self.alertes_atelier2 if a.bloquant]
 
 
@@ -184,18 +174,16 @@ ECARTE_REASON_LABELS = {
 }
 
 
-class ElementEcarte(BaseModel):
-    """A candidate that did not make it, with why (§19)."""
+class ElementEcarte(ElementEcarteBase):
+    """A candidate that did not make it, with why (§19).
 
+    Atelier 3 produces one kind of element, so ``type`` has a default the callers
+    do not repeat.
+    """
+
+    LABELS: ClassVar[dict[str, str]] = ECARTE_REASON_LABELS
     type: str = "scenario"
-    reference: str
-    libelle: str = ""
     raison: str = REASON_QUASI_DOUBLON
-    detail: str = ""
-
-    @property
-    def raison_label(self) -> str:
-        return ECARTE_REASON_LABELS.get(self.raison, self.raison)
 
 
 # --- The count gate (§17) --------------------------------------------------
@@ -237,5 +225,5 @@ class Workshop3Output(BaseModel):
     gate_decision: GateDecision = Field(default_factory=GateDecision)
     elements_ecartes: list[ElementEcarte] = Field(default_factory=list)
     quality_report: QualityReport = Field(default_factory=QualityReport)
-    alertes_atelier2: list[Atelier2Alert] = Field(default_factory=list)
+    alertes_atelier2: list[AtelierAlert] = Field(default_factory=list)
     human_edits: list[dict] = Field(default_factory=list)

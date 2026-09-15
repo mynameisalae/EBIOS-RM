@@ -201,6 +201,56 @@ def _failed(schema: type[BaseModel], what: str, attempts: int, last: object) -> 
     )
 
 
+class AgnoRunner:
+    """What every Agno-backed runner shares (conception §3.2, §10.1).
+
+    Resolving the model, holding the retry budget, building the Agent and routing
+    the call through run_structured is the same code in every runner of the
+    project; only the instructions, the schema and the prompt differ. Subclasses
+    set ``INSTRUCTIONS`` (or pass instructions per call, when one runner drives two
+    roles) and keep nothing but their prompt methods.
+
+    A call that cannot produce its schema raises StructuredCallFailed. It is not
+    re-wrapped per workshop: a failed call is a failed call, and the runners that
+    can degrade (clarification, intake review) catch it where they choose to.
+    """
+
+    INSTRUCTIONS: str = ""
+    MAX_ATTEMPTS: int = 4
+    BASE_DELAY: float = 3.0
+
+    def __init__(self, model=None, *, max_attempts: int | None = None,
+                 base_delay: float | None = None, progress: Callable[[str], None] = print) -> None:
+        from ebios_rm.config import get_model  # noqa: PLC0415 — lazy: MANUAL_LLM needs no provider
+
+        self._model = model or get_model()
+        self._max_attempts = self.MAX_ATTEMPTS if max_attempts is None else max_attempts
+        self._base_delay = self.BASE_DELAY if base_delay is None else base_delay
+        self._progress = progress  # called with a short status string before each LLM call
+
+    def _agent(self, output_schema, instructions: str | None = None):
+        from agno.agent import Agent  # noqa: PLC0415 — lazy so tests don't need Agno
+
+        return Agent(model=self._model, instructions=instructions or self.INSTRUCTIONS,
+                     output_schema=output_schema, markdown=False)
+
+    def _run_structured(self, output_schema: type[T], prompt: str, *, what: str,
+                        instructions: str | None = None) -> T:
+        return run_structured(
+            lambda: self._agent(output_schema, instructions), prompt, output_schema,
+            what=what, max_attempts=self._max_attempts, base_delay=self._base_delay,
+            progress=self._progress,
+        )
+
+    async def _arun_structured(self, output_schema: type[T], prompt: str, *, what: str,
+                               instructions: str | None = None) -> T:
+        return await arun_structured(
+            lambda: self._agent(output_schema, instructions), prompt, output_schema,
+            what=what, max_attempts=self._max_attempts, base_delay=self._base_delay,
+            progress=self._progress,
+        )
+
+
 def facts_as_json(facts: list[Fact], *, with_origin: bool = False) -> str:
     """Serialise Facts for a prompt: the known field_name -> value view."""
     if with_origin:

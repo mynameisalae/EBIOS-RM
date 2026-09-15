@@ -35,7 +35,7 @@ from ebios_rm.workshops.workshop2_sources_risque.models import (
     STATUT_AVERTISSEMENT,
     STATUT_ERREUR,
     STATUT_OK,
-    Atelier1Alert,
+    AtelierAlert,
     CoupleProposal,
     ElementEcarte,
     ObjectifViseProposal,
@@ -115,24 +115,24 @@ def looks_like_asset_or_vuln(text: str) -> str | None:
 
 # --- Étape 0: validate the atelier 1 output before reasoning (white-box §4) ---
 
-def validate_atelier1(w1: Workshop1Output) -> list[Atelier1Alert]:
+def validate_atelier1(w1: Workshop1Output) -> list[AtelierAlert]:
     """Check ids, relations and mandatory fields of the atelier 1 output (white-box §4).
 
     Produces alerts; never repairs. « Erreur de donnée n'est pas erreur de
     raisonnement » — a broken reference is the auditor's to fix in atelier 1, and
     silently patching it here would hide a defect in the study.
     """
-    alerts: list[Atelier1Alert] = []
+    alerts: list[AtelierAlert] = []
     be_ids: set[str] = set()
 
     for asset in w1.biens_essentiels:
         if not asset.id or not asset.nom.strip():
-            alerts.append(Atelier1Alert(
+            alerts.append(AtelierAlert(
                 reference=asset.id or "(bien essentiel sans id)",
                 probleme="Bien essentiel sans identifiant ou sans nom.",
             ))
         if asset.id in be_ids:
-            alerts.append(Atelier1Alert(
+            alerts.append(AtelierAlert(
                 reference=asset.id, probleme="Identifiant de bien essentiel en double.",
             ))
         be_ids.add(asset.id)
@@ -140,13 +140,13 @@ def validate_atelier1(w1: Workshop1Output) -> list[Atelier1Alert]:
     bs_ids: set[str] = set()
     for support in w1.biens_supports:
         if support.id in bs_ids:
-            alerts.append(Atelier1Alert(
+            alerts.append(AtelierAlert(
                 reference=support.id, probleme="Identifiant de bien support en double.",
             ))
         bs_ids.add(support.id)
         for be_id in support.biens_essentiels_supportes:
             if be_id not in be_ids:
-                alerts.append(Atelier1Alert(
+                alerts.append(AtelierAlert(
                     reference=support.id,
                     probleme=f"Le bien support référence un bien essentiel inconnu : '{be_id}'.",
                 ))
@@ -154,12 +154,12 @@ def validate_atelier1(w1: Workshop1Output) -> list[Atelier1Alert]:
     er_ids: set[str] = set()
     for event in w1.evenements_redoutes:
         if event.id in er_ids:
-            alerts.append(Atelier1Alert(
+            alerts.append(AtelierAlert(
                 reference=event.id, probleme="Identifiant d'événement redouté en double.",
             ))
         er_ids.add(event.id)
         if event.bien_essentiel_id not in be_ids:
-            alerts.append(Atelier1Alert(
+            alerts.append(AtelierAlert(
                 reference=event.id,
                 probleme=(
                     f"L'événement redouté référence un bien essentiel inconnu : "
@@ -171,7 +171,7 @@ def validate_atelier1(w1: Workshop1Output) -> list[Atelier1Alert]:
 
     # 1. Absence de Biens Essentiels (Bloquant)
     if not w1.biens_essentiels:
-        alerts.append(Atelier1Alert(
+        alerts.append(AtelierAlert(
             reference="atelier1",
             probleme="Aucun bien essentiel : l'Atelier 1 est incomplet et l'Atelier 2 n'a aucun actif sur quoi raisonner.",
             bloquant=True,
@@ -179,7 +179,7 @@ def validate_atelier1(w1: Workshop1Output) -> list[Atelier1Alert]:
 
     # 2. Absence de Biens Supports (Bloquant - Ajouté pour corriger la faille)
     if not w1.biens_supports:
-        alerts.append(Atelier1Alert(
+        alerts.append(AtelierAlert(
             reference="atelier1",
             probleme="Aucun bien support : les dépendances matérielles ou logicielles de l'Atelier 1 doivent être identifiées.",
             bloquant=True,
@@ -187,7 +187,7 @@ def validate_atelier1(w1: Workshop1Output) -> list[Atelier1Alert]:
 
     # 3. Absence d'Événements Redoutés (Bloquant - Corrigé pour interdire l'exécution sans ER)
     if not w1.evenements_redoutes:
-        alerts.append(Atelier1Alert(
+        alerts.append(AtelierAlert(
             reference="atelier1",
             probleme="Aucun événement redouté : les enjeux de sécurité de l'Atelier 1 doivent obligatoirement être explicités.",
             bloquant=True,

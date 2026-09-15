@@ -11,6 +11,8 @@ Same three families as ateliers 2 and 3:
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from pydantic import BaseModel, Field
 
 from ebios_rm.domain.essential_asset import EssentialAsset, SupportAsset
@@ -19,6 +21,7 @@ from ebios_rm.domain.feared_event import FearedEvent
 from ebios_rm.domain.operational_scenario import OperationalScenario
 from ebios_rm.domain.risk_source import ObjectifVise, RiskSource
 from ebios_rm.domain.strategic_scenario import StrategicScenario
+from ebios_rm.workshops.common import AtelierAlert, ElementEcarteBase
 from ebios_rm.workshops.workshop1_cadrage.models import BaselineGapForW4
 from ebios_rm.workshops.workshop2_sources_risque.models import (  # noqa: F401 — re-exported
     STATUT_AVERTISSEMENT,
@@ -109,14 +112,6 @@ RISK_CATEGORIES: tuple[str, ...] = (
 )
 
 
-class Atelier3Alert(BaseModel):
-    """A defect in the approved atelier 3 output, raised for the auditor and never repaired (§2)."""
-
-    reference: str
-    probleme: str
-    bloquant: bool = True
-
-
 class Workshop4Input(BaseModel):
     """Everything an atelier 4 sub-agent may see, and nothing else (conception §9, §18).
 
@@ -146,10 +141,10 @@ class Workshop4Input(BaseModel):
     # Stripped of framework and control_id; legal-only rows already excluded (§12.3, §15).
     baseline_gaps: list[BaselineGapForW4] = Field(default_factory=list)
 
-    alertes_atelier3: list[Atelier3Alert] = Field(default_factory=list)
+    alertes_atelier3: list[AtelierAlert] = Field(default_factory=list)
 
     @property
-    def alertes_bloquantes(self) -> list[Atelier3Alert]:
+    def alertes_bloquantes(self) -> list[AtelierAlert]:
         return [a for a in self.alertes_atelier3 if a.bloquant]
 
 
@@ -229,18 +224,10 @@ ECARTE_REASON_LABELS = {
 }
 
 
-class ElementEcarte(BaseModel):
+class ElementEcarte(ElementEcarteBase):
     """Something that did not make it into w4_output, with why (§16, §19)."""
 
-    type: str
-    reference: str
-    libelle: str = ""
-    raison: str
-    detail: str = ""
-
-    @property
-    def raison_label(self) -> str:
-        return ECARTE_REASON_LABELS.get(self.raison, self.raison)
+    LABELS: ClassVar[dict[str, str]] = ECARTE_REASON_LABELS
 
 
 # --- The coherence review (§18 step 28) ------------------------------------
@@ -283,6 +270,6 @@ class Workshop4Output(BaseModel):
     coherence: CoherenceReview | None = None
     elements_ecartes: list[ElementEcarte] = Field(default_factory=list)
     quality_report: QualityReport = Field(default_factory=QualityReport)
-    alertes_atelier3: list[Atelier3Alert] = Field(default_factory=list)
+    alertes_atelier3: list[AtelierAlert] = Field(default_factory=list)
     attck_version: str = ""
     human_edits: list[dict] = Field(default_factory=list)

@@ -43,9 +43,9 @@ from ebios_rm.orchestrator.approval_cli import ApprovalLoop, ask_choice, ask_ids
 from ebios_rm.repositories.attack_repository import AttackCatalogue
 from ebios_rm.repositories.mission_repository import MissionRepository
 from ebios_rm.services.cost_estimation_service import estimate_cost_and_time
+from ebios_rm.workshops.common import AtelierDataError
 from ebios_rm.workshops.workshop1_cadrage.human_interface import HumanInterface, ask_justification
 from ebios_rm.workshops.workshop4_scenarios_operationnels import (
-    Atelier3DataError,
     Workshop4Input,
     Workshop4Output,
     ask_session_questions,
@@ -130,7 +130,7 @@ def run_workshop4(
     for alert in w4_input.alertes_atelier3:
         io_out(f"  [{'BLOQUANT' if alert.bloquant else 'avertissement'}] {alert.reference} — {alert.probleme}")
     if w4_input.alertes_bloquantes:
-        raise Atelier3DataError(w4_input.alertes_bloquantes)
+        raise AtelierDataError(3, w4_input.alertes_bloquantes)
 
     saved = mission_state.load_w4_output(repo, mission_id)
     if saved is not None and mission_state.is_approved(repo, mission_id, mission_state.WORKSHOP_4):

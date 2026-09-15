@@ -20,8 +20,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, Field
 
-from ebios_rm.agent_runtime import StructuredCallFailed, facts_as_json, run_structured
-from ebios_rm.config import get_model
+from ebios_rm.agent_runtime import AgnoRunner, StructuredCallFailed, facts_as_json
 from ebios_rm.domain.fact import Fact
 from ebios_rm.mission_context.priority_matrix import FollowUpQuestion
 
@@ -76,19 +75,12 @@ Réponds uniquement au format structuré demandé.
 """
 
 
-class AgnoIntakeReviewRunner:
+class AgnoIntakeReviewRunner(AgnoRunner):
     """Concrete IntakeReviewRunner backed by Agno + OpenRouter."""
 
-    def __init__(self, model=None, *, max_attempts: int = 4, base_delay: float = 3.0,
-                 progress=print) -> None:
-        self._model = model or get_model()
-        self._max_attempts = max_attempts
-        self._base_delay = base_delay
-        self._progress = progress
+    INSTRUCTIONS = _SYSTEM
 
     def review(self, facts: list[Fact], pending: list[FollowUpQuestion]) -> list[QuestionReview]:
-        from agno.agent import Agent  # noqa: PLC0415
-
         out: list[QuestionReview] = []
         slices = [pending[i:i + QUESTIONS_PER_CALL] for i in range(0, len(pending), QUESTIONS_PER_CALL)]
         for i, chunk in enumerate(slices, 1):
@@ -98,15 +90,10 @@ class AgnoIntakeReviewRunner:
             )
             self._progress(f"   relecture du dossier, lot {i}/{len(slices)}...")
             try:
-                batch = run_structured(
-                    lambda: Agent(model=self._model, instructions=_SYSTEM,
-                                  output_schema=IntakeReviewBatch, markdown=False),
-                    f"FAITS CONNUS :\n{facts_as_json(facts)}\n\nQUESTIONS EN ATTENTE :\n{questions}",
+                batch = self._run_structured(
                     IntakeReviewBatch,
-                    what=f"relecture du dossier {i}/{len(slices)}",
-                    max_attempts=self._max_attempts, base_delay=self._base_delay,
-                    progress=self._progress,
-                )
+                    f"FAITS CONNUS :\n{facts_as_json(facts)}\n\nQUESTIONS EN ATTENTE :\n{questions}",
+                    what=f"relecture du dossier {i}/{len(slices)}")
             except StructuredCallFailed as exc:
                 # A failed review is not a finding: every question of this slice stays
                 # pending and gets asked normally. Never treated as 'already answered'.

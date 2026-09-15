@@ -31,7 +31,7 @@ from ebios_rm.workshops.workshop3_scenarios_strategiques.models import (
     STATUT_AVERTISSEMENT,
     STATUT_ERREUR,
     STATUT_OK,
-    Atelier2Alert,
+    AtelierAlert,
     CritiqueVerdict,
     ElementEcarte,
     GateDecision,
@@ -62,20 +62,20 @@ _GENERIC_WORDS = frozenset({
 
 # --- Étape 0: validate the atelier 2 output before reasoning ---------------
 
-def validate_atelier2(w2: Workshop2Output, w1: Workshop1Output) -> list[Atelier2Alert]:
+def validate_atelier2(w2: Workshop2Output, w1: Workshop1Output) -> list[AtelierAlert]:
     """Check that the approved atelier 2 output can be reasoned on (§17, white-box §4).
 
     Produces alerts; never repairs. A couple pointing at a source that does not
     exist is an atelier 2 defect, and building a scenario on it would carry the
     defect into atelier 4 wearing an atelier 3 id.
     """
-    alerts: list[Atelier2Alert] = []
+    alerts: list[AtelierAlert] = []
     sources = {s.id for s in w2.sources_risque}
     objectifs = {o.id: o for o in w2.objectifs_vises}
     known_be = {a.id for a in w1.biens_essentiels}
 
     if not w2.couples:
-        alerts.append(Atelier2Alert(
+        alerts.append(AtelierAlert(
             reference="atelier2",
             probleme="Aucun couple SR/OV retenu : l'atelier 3 n'a aucun scénario à construire.",
         ))
@@ -83,22 +83,22 @@ def validate_atelier2(w2: Workshop2Output, w1: Workshop1Output) -> list[Atelier2
     seen: set[str] = set()
     for couple in w2.couples:
         if couple.id in seen:
-            alerts.append(Atelier2Alert(
+            alerts.append(AtelierAlert(
                 reference=couple.id, probleme="Identifiant de couple SR/OV en double."))
         seen.add(couple.id)
         if couple.source_risque_id not in sources:
-            alerts.append(Atelier2Alert(
+            alerts.append(AtelierAlert(
                 reference=couple.id,
                 probleme=f"Le couple référence une source de risque inconnue : '{couple.source_risque_id}'.",
             ))
         if couple.objectif_vise_id not in objectifs:
-            alerts.append(Atelier2Alert(
+            alerts.append(AtelierAlert(
                 reference=couple.id,
                 probleme=f"Le couple référence un objectif visé inconnu : '{couple.objectif_vise_id}'.",
             ))
         unknown = [b for b in couple.biens_essentiels_ids if b not in known_be]
         if unknown:
-            alerts.append(Atelier2Alert(
+            alerts.append(AtelierAlert(
                 reference=couple.id,
                 probleme=f"Le couple vise des biens essentiels inconnus de l'atelier 1 : {unknown}.",
             ))
@@ -111,7 +111,7 @@ def validate_atelier2(w2: Workshop2Output, w1: Workshop1Output) -> list[Atelier2
         if be in known_be and be not in with_events
     })
     if orphans:
-        alerts.append(Atelier2Alert(
+        alerts.append(AtelierAlert(
             reference="atelier1",
             probleme=(
                 "Aucun événement redouté sur ces biens essentiels, la gravité des scénarios "

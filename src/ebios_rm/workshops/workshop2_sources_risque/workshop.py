@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.plugins.registry import EbiosBase
+from ebios_rm.workshops.common import AtelierDataError
 from ebios_rm.workshops.workshop1_cadrage.models import Workshop1Output
 from ebios_rm.workshops.workshop2_sources_risque.agent_runner import Workshop2AgentRunner
 from ebios_rm.workshops.workshop2_sources_risque.assessment import (
@@ -42,22 +43,6 @@ BLOCK_SOURCES = "sources"        # les sources de risque retenues
 BLOCK_OBJECTIFS = "objectifs"    # les objectifs visés retenus
 BLOCK_COUPLES = "couples"        # les couples SR/OV, leur trace et leur priorisation
 ALL_BLOCKS = {BLOCK_SOURCES, BLOCK_OBJECTIFS, BLOCK_COUPLES}
-
-
-class Atelier1DataError(RuntimeError):
-    """The atelier 1 output cannot be reasoned on (white-box §4).
-
-    Raised, never worked around: « erreur de donnée n'est pas erreur de
-    raisonnement ». The auditor fixes atelier 1; the model must not silently
-    repair a broken reference, and the workshop must not build couples on top of it.
-    """
-
-    def __init__(self, alerts) -> None:
-        super().__init__(
-            "L'atelier 1 comporte des anomalies bloquantes :\n"
-            + "\n".join(f"  - [{a.reference}] {a.probleme}" for a in alerts)
-        )
-        self.alerts = list(alerts)
 
 
 # --- Mission Context + w1_output -> the narrow atelier 2 input (white-box §3) ---
@@ -114,9 +99,10 @@ def run_workshop2(
     if todo != ALL_BLOCKS and previous is None:
         raise ValueError("Un rejeu partiel a besoin du résultat précédent pour réutiliser les blocs conservés.")
 
-    # Étape 0 — validate atelier 1 before reasoning (white-box §4).
+    # Étape 0 — validate atelier 1 before reasoning (white-box §4). Raised, never
+    # worked around: « erreur de donnée n'est pas erreur de raisonnement ».
     if w2_input.alertes_bloquantes:
-        raise Atelier1DataError(w2_input.alertes_bloquantes)
+        raise AtelierDataError(1, w2_input.alertes_bloquantes)
 
     # Regenerating either end of a couple regenerates the couples: SR/OV ids are
     # assigned by the filters, so keeping old couples across a new source set would

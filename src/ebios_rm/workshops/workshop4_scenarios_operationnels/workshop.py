@@ -24,6 +24,7 @@ from typing import Callable
 from ebios_rm.domain.operational_scenario import STATUTS_EN_ATTENTE, OperationalScenario
 from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.repositories.attack_repository import AttackCatalogue
+from ebios_rm.workshops.common import AtelierDataError
 from ebios_rm.workshops.workshop1_cadrage.models import Workshop1Output
 from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Output
 from ebios_rm.workshops.workshop3_scenarios_strategiques.models import Workshop3Output
@@ -48,22 +49,6 @@ from ebios_rm.workshops.workshop4_scenarios_operationnels.models import (
 # raise it for a paid model. Every result is saved as it returns, so a throttled
 # call costs a retry, not the run.
 MAX_PARALLEL_ANALYSES = 4
-
-
-class Atelier3DataError(RuntimeError):
-    """The approved atelier 3 output cannot be analysed (§2).
-
-    Raised, never worked around: « erreur de donnée n'est pas erreur de
-    raisonnement ». N sub-agents building on a scenario whose source de risque no
-    longer exists would multiply the defect instead of surfacing it.
-    """
-
-    def __init__(self, alerts) -> None:
-        super().__init__(
-            "L'atelier 3 comporte des anomalies bloquantes :\n"
-            + "\n".join(f"  - [{a.reference}] {a.probleme}" for a in alerts)
-        )
-        self.alerts = list(alerts)
 
 
 # --- Mission Context + w1..w3 -> the narrow atelier 4 input -----------------
@@ -105,9 +90,13 @@ def build_workshop4_input(
 
 
 def initial_output(w4_input: Workshop4Input, attck_version: str) -> Workshop4Output:
-    """One scenario to analyse per strategic scenario, in atelier 3's order (worst first)."""
+    """One scenario to analyse per strategic scenario, in atelier 3's order (worst first).
+
+    Raised, never worked around: N sub-agents building on a scenario whose source de
+    risque no longer exists would multiply the defect instead of surfacing it.
+    """
     if w4_input.alertes_bloquantes:
-        raise Atelier3DataError(w4_input.alertes_bloquantes)
+        raise AtelierDataError(3, w4_input.alertes_bloquantes)
     return Workshop4Output(
         scenarios=[
             OperationalScenario(

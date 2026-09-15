@@ -49,7 +49,6 @@ from ebios_rm.workshops.workshop1_cadrage.human_interface import (  # noqa: E402
     ask_justification,
 )
 from ebios_rm.workshops.workshop3_scenarios_strategiques import (  # noqa: E402
-    Atelier2DataError,
     Workshop3Output,
     ask_session_questions,
     assemble_output,
@@ -57,10 +56,8 @@ from ebios_rm.workshops.workshop3_scenarios_strategiques import (  # noqa: E402
     gate_for,
     run_workshop3,
 )
-from ebios_rm.workshops.workshop3_scenarios_strategiques.agent import (  # noqa: E402
-    AgnoWorkshop3Runner,
-    Workshop3AgentError,
-)
+from ebios_rm.workshops.common import AtelierDataError  # noqa: E402
+from ebios_rm.workshops.workshop3_scenarios_strategiques.agent import AgnoWorkshop3Runner  # noqa: E402
 from ebios_rm.workshops.workshop3_scenarios_strategiques.assessment import (  # noqa: E402
     choose_subset,
     merge_scenarios,
@@ -342,7 +339,7 @@ def main() -> int:
         notes = prior_rejection_reasons(repo, args.mission_id, STAGE)
         try:
             output = _run_workshop(repo, args.mission_id, w3_input, notes)
-        except Atelier2DataError as exc:
+        except AtelierDataError as exc:
             print(f"\n{exc}")
             print("Corrigez l'atelier 2 avant de relancer — l'atelier 3 ne répare rien de lui-même.")
             return 1
@@ -374,7 +371,7 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except (KeyboardInterrupt, EOFError):
         raise SystemExit(interrupted("l'atelier 3", _resume)) from None
-    except (Workshop3AgentError, StructuredCallFailed) as exc:
+    except StructuredCallFailed as exc:
         # A failed LLM call is never reinterpreted as a methodology outcome.
         print(f"\nAppel au modèle en échec : {exc}")
         raise SystemExit(interrupted("l'atelier 3", _resume)) from None

@@ -20,8 +20,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, Field
 
-from ebios_rm.agent_runtime import StructuredCallFailed, facts_as_json, run_structured
-from ebios_rm.config import get_model
+from ebios_rm.agent_runtime import AgnoRunner, StructuredCallFailed, facts_as_json
 from ebios_rm.domain.enums import PriorityLevel
 from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.mission_context.priority_matrix import FollowUpQuestion
@@ -144,18 +143,12 @@ def grounded(proposals: list[AuditorFollowUp], mission_context: MissionContext) 
     return [p for p in proposals if not p.based_on_fact or p.based_on_fact in known]
 
 
-class AgnoAuditorReviewRunner:
+class AgnoAuditorReviewRunner(AgnoRunner):
     """Concrete AuditorReviewRunner backed by Agno + OpenRouter."""
 
-    def __init__(self, model=None, *, max_attempts: int = 4, base_delay: float = 3.0, progress=print) -> None:
-        self._model = model or get_model()
-        self._max_attempts = max_attempts
-        self._base_delay = base_delay
-        self._progress = progress
+    INSTRUCTIONS = _SYSTEM
 
     def review(self, mission_context: MissionContext, round_number: int) -> list[AuditorFollowUp]:
-        from agno.agent import Agent  # noqa: PLC0415
-
         asked = already_asked(mission_context)
         prompt = (
             f"RÉFÉRENTIELS DÉCLARÉS : {mission_context.applicable_frameworks}\n"
@@ -166,13 +159,9 @@ class AgnoAuditorReviewRunner:
             "NOUVELLES, ou une liste vide s'il n'y a plus rien de pertinent à demander."
         )
         try:
-            batch = run_structured(
-                lambda: Agent(model=self._model, instructions=_SYSTEM,
-                              output_schema=AuditorReviewBatch, markdown=False),
-                prompt, AuditorReviewBatch,
-                what=f"relecture experte (round {round_number}/{MAX_ROUNDS})",
-                max_attempts=self._max_attempts, base_delay=self._base_delay, progress=self._progress,
-            )
+            batch = self._run_structured(
+                AuditorReviewBatch, prompt,
+                what=f"relecture experte (round {round_number}/{MAX_ROUNDS})")
         except StructuredCallFailed as exc:
             # A failed review round is not a methodology outcome: no proposals, never invented.
             self._progress(f"   (relecture experte indisponible ce round : {str(exc)[:120]})")

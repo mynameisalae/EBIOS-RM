@@ -28,7 +28,6 @@ from ebios_rm.workshops.workshop3_scenarios_strategiques.questions import (
     session_questions,
 )
 from ebios_rm.workshops.workshop3_scenarios_strategiques.workshop import (
-    Atelier2DataError,
     assemble_output,
     build_workshop3_input,
     gate_for,
@@ -36,7 +35,6 @@ from ebios_rm.workshops.workshop3_scenarios_strategiques.workshop import (
 )
 
 __all__ = [
-    "Atelier2DataError",
     "GateDecision",
     "Workshop3Input",
     "Workshop3Output",

@@ -44,8 +44,7 @@ from ebios_rm.repositories.attack_repository import (  # noqa: E402
     connect_readonly,
 )
 from ebios_rm.repositories.mission_repository import MissionRepository, connect  # noqa: E402
-from ebios_rm.workshops.workshop4_scenarios_operationnels import Atelier3DataError  # noqa: E402
-from ebios_rm.workshops.workshop4_scenarios_operationnels.agent import Workshop4AgentError  # noqa: E402
+from ebios_rm.workshops.common import AtelierDataError  # noqa: E402
 
 
 def main() -> int:
@@ -91,7 +90,7 @@ def main() -> int:
     except Workshop4NotReady as exc:
         print(exc)
         return 1
-    except Atelier3DataError as exc:
+    except AtelierDataError as exc:
         print(f"\n{exc}")
         print("Corrigez l'atelier 3 avant de relancer — l'atelier 4 ne répare rien de lui-même.")
         return 1
@@ -103,7 +102,7 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except (KeyboardInterrupt, EOFError):
         raise SystemExit(interrupted("l'atelier 4", _resume)) from None
-    except (Workshop4AgentError, StructuredCallFailed) as exc:
+    except StructuredCallFailed as exc:
         # A failed call is never an analysis; the scenarios that succeeded are saved.
         print(f"\nAppel au modèle en échec : {exc}")
         raise SystemExit(interrupted("l'atelier 4", _resume)) from None
