@@ -70,7 +70,15 @@ def get_model():
 
     Imported lazily so the deterministic core (Fact model, validation, priority
     matrix, mission context) can be used and tested without Agno installed.
+
+    Under MANUAL_LLM there is no model: run_structured answers from files and never
+    builds an agent. Every runner resolves its model in __init__, so without this
+    the manual mode — the one meant to work with no API access at all — could not
+    start unless the provider stack imported cleanly.
     """
+    if os.environ.get("MANUAL_LLM"):
+        return None
+
     from agno.models.openrouter import OpenRouter  # noqa: PLC0415 — lazy on purpose
 
     settings = load_settings()

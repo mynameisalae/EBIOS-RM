@@ -40,6 +40,37 @@ def test_mission_context_roundtrips(repo):
     assert loaded.value("hebergement") == "hybride"
 
 
+def test_w2_output_roundtrips_in_its_own_slot(repo):
+    """Atelier 2 is versioned separately from atelier 1 — a w2 redo must not touch w1."""
+    from ebios_rm.domain.enums import Pertinence, VraisemblanceInitiale
+    from ebios_rm.domain.risk_source import CoupleSROV
+    from ebios_rm.workshops.workshop1_cadrage.models import Workshop1Output
+    from ebios_rm.workshops.workshop2_sources_risque.models import (
+        ElementEcarte,
+        Workshop2Output,
+    )
+
+    mid = repo.create_mission("M", ["ISO27001"])
+    mission_state.save_w1_output(repo, mid, Workshop1Output())
+    mission_state.save_w2_output(repo, mid, Workshop2Output(
+        couples=[CoupleSROV(
+            id="CPL-01", source_risque_id="SR-01", objectif_vise_id="OV-01",
+            motivation=4, ressources=3, activite=4,
+            pertinence=Pertinence.ELEVE, vraisemblance_initiale=VraisemblanceInitiale.V4,
+            justification="Mode d'action habituel sur ce secteur",
+        )],
+        elements_ecartes=[ElementEcarte(type="source_risque", reference="apt28",
+                                        raison="hors_catalogue")],
+    ))
+
+    loaded = mission_state.load_w2_output(repo, mid)
+    assert loaded is not None
+    assert loaded.couples[0].pertinence is Pertinence.ELEVE
+    assert loaded.couples[0].vraisemblance_initiale is VraisemblanceInitiale.V4
+    assert loaded.elements_ecartes[0].raison_label  # the reason survives the round trip
+    assert mission_state.load_w1_output(repo, mid) is not None  # w1 untouched
+
+
 def test_two_missions_are_isolated(repo):
     a = repo.create_mission("A", ["RGPD"])
     b = repo.create_mission("B", ["RGPD"])

@@ -10,10 +10,14 @@ This module holds that loop once.
 from __future__ import annotations
 
 import json
+import os
+import re
 import time
+import unicodedata
+from pathlib import Path
 from typing import Callable, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from ebios_rm.domain.fact import Fact
 
@@ -61,6 +65,54 @@ def _record_tokens(response: object) -> None:
         pass
 
 
+def manual_call(
+    prompt: str,
+    schema: type[T],
+    *,
+    what: str,
+    progress: Callable[[str], None] = print,
+    poll: float = 2.0,
+) -> T:
+    """MANUAL_LLM=1 — a human plays the model, via two files per call.
+
+    The prompt and the exact schema are written to ``<what>.prompt.md``; the run
+    blocks until a matching ``.response.json`` validates against that schema. For
+    running the workshop with no API credit: the audit trail is unaffected, since
+    every answer still has to satisfy the same pydantic model.
+    """
+    directory = Path(os.environ.get("MANUAL_LLM_DIR", "data/manual"))
+    directory.mkdir(parents=True, exist_ok=True)
+    # Numbered from what the directory already holds, not from a process counter: a
+    # relaunched run continues the series instead of overwriting 001 again.
+    seq = len(list(directory.glob("*.prompt.md"))) + 1
+    # Accents folded before the slug, not dropped by it: « scénarios stratégiques »
+    # became "sc-narios-strat-giques", and the human answering has to type that name.
+    plain = unicodedata.normalize("NFKD", what.lower())
+    slug = re.sub(r"[^a-z0-9]+", "-", "".join(c for c in plain if not unicodedata.combining(c)))
+    stem = f"{seq:03d}_{slug.strip('-')[:40]}"
+    request, answer = directory / f"{stem}.prompt.md", directory / f"{stem}.response.json"
+
+    request.write_text(
+        f"# {what}\n\n## Réponse attendue — JSON conforme à ce schéma\n\n```json\n"
+        f"{json.dumps(schema.model_json_schema(), ensure_ascii=False, indent=2)}\n```\n\n"
+        f"## Prompt\n\n{prompt}\n",
+        encoding="utf-8",
+    )
+    progress(f"   [MANUEL] {request}")
+    progress(f"   [MANUEL] en attente de {answer.name} (Ctrl+C pour arrêter)")
+    while True:
+        if answer.exists():
+            try:
+                return schema.model_validate_json(answer.read_text(encoding="utf-8"))
+            except (ValidationError, ValueError) as exc:
+                # Removed before anything else: a rejected answer must not survive the
+                # message that announces its rejection, or it is read again as valid.
+                answer.unlink()
+                progress(f"   [MANUEL] réponse invalide : {str(exc)[:300]}")
+                progress(f"   [MANUEL] corrigez {answer.name} — nouvelle lecture dans {poll}s")
+        time.sleep(poll)
+
+
 def run_structured(
     agent_factory: Callable[[], object],
     prompt: str,
@@ -77,6 +129,8 @@ def run_structured(
     not safely reusable across failures). Token usage of every attempt — including
     failed ones, which are paid for too — goes to the configured sink.
     """
+    if os.environ.get("MANUAL_LLM"):
+        return manual_call(prompt, schema, what=what, progress=progress)
     progress(f"   {what}...")
     last: object = None
     for attempt in range(1, max_attempts + 1):

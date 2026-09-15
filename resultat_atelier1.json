@@ -1,0 +1,1265 @@
+Model: meta-llama/llama-3.1-8b-instruct  (OpenRouter)
+Reprise de la mission 8d5b801535e6497fa7e6eb702252931d — statut : w1_approved
+Contexte rechargé : 101 faits déjà saisis.
+Atelier 1 déjà approuvé. Résultat sauvegardé :
+{
+  "biens_essentiels": [
+    {
+      "id": "donnees_personnelles",
+      "nom": "Données personnelles",
+      "description": "Données personnelles des clients, notamment leurs données d'identité, leurs données bancaires et leurs adresses.",
+      "nature": "sensible",
+      "processus_metier_associes": [
+        "processus_de_vente_en_ligne"
+      ],
+      "origin": "declaration",
+      "derived_from_fact_fields": [
+        "donnees_personnelles_traitees",
+        "donnees_personnelles_traitees"
+      ]
+    },
+    {
+      "id": "billets_physiques",
+      "nom": "Billets physiques",
+      "description": "Billets physiques sécurisés avec hologramme et numéro de série non prédictible.",
+      "nature": "sensible",
+      "processus_metier_associes": [
+        "processus_de_vente_en_ligne"
+      ],
+      "origin": "declaration",
+      "derived_from_fact_fields": [
+        "informations_sensibles"
+      ]
+    },
+    {
+      "id": "donnees_bancaires",
+      "nom": "Données bancaires",
+      "description": "Données bancaires des clients, notamment numéros de cartes et autorisations de débit.",
+      "nature": "sensible",
+      "processus_metier_associes": [
+        "processus_de_vente_en_ligne"
+      ],
+      "origin": "declaration",
+      "derived_from_fact_fields": [
+        "donnees_personnelles_traitees"
+      ]
+    }
+  ],
+  "biens_supports": [
+    {
+      "id": "serveurs",
+      "nom": "Serveurs",
+      "description": "Serveurs dédiés pour chaque fonctionnalité, notamment Serveur WEB de réservation, Serveur WEB de paiement, Serveur de base de données Billetterie, etc.",
+      "type_support": "matériel",
+      "biens_essentiels_supportes": [
+        "donnees_personnelles",
+        "billets_physiques",
+        "donnees_bancaires"
+      ],
+      "origin": "declaration",
+      "derived_from_fact_fields": [
+        "perimetre_inclus"
+      ]
+    },
+    {
+      "id": "postes_de_travail",
+      "nom": "Postes de travail",
+      "description": "Postes de travail utilisés par les employés pour effectuer leurs tâches.",
+      "type_support": "matériel",
+      "biens_essentiels_supportes": [
+        "donnees_personnelles",
+        "billets_physiques",
+        "donnees_bancaires"
+      ],
+      "origin": "declaration",
+      "derived_from_fact_fields": [
+        "parc_informatique"
+      ]
+    },
+    {
+      "id": "réseaux",
+      "nom": "Réseaux",
+      "description": "Réseaux utilisés pour la communication entre les serveurs et les postes de travail.",
+      "type_support": "logiciel",
+      "biens_essentiels_supportes": [
+        "donnees_personnelles",
+        "billets_physiques",
+        "donnees_bancaires"
+      ],
+      "origin": "declaration",
+      "derived_from_fact_fields": [
+        "architecture_reseau"
+      ]
+    }
+  ],
+  "evenements_redoutes": [
+    {
+      "id": "cyberattaque",
+      "description": "Cyberattaque contre les serveurs ou les postes de travail.",
+      "bien_essentiel_id": "donnees_personnelles",
+      "categorie_impact": "vie_privee_personnes_concernees",
+      "gravite": "Significative",
+      "origin": "declaration",
+      "derived_from_fact_fields": [
+        "sources_menace_percues"
+      ],
+      "legal_impacts": [
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "Communication obligatoire et sans retard injustifié de la violation aux personnes concernées si le risque pour leurs droits et libertés est élevé.",
+          "evidence_mission_context": "Si les informations sensibles de Mondial-Tickets étaient divulguées, cela aurait un impact significatif sur la société et ses clients. (Impact_divulgation)",
+          "framework": "RGPD"
+        },
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "Responsabilité civile et obligation de réparation pécuniaire intégrale devant les tribunaux judiciaires pour tout préjudice matériel ou moral subi par une personne physique.",
+          "evidence_mission_context": "La société traite des informations sur les clients, notamment leurs données d'identité, leurs données bancaires et leurs adresses. (donnees_personnelles_traitees)",
+          "framework": "RGPD"
+        },
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "Amendes administratives pouvant s'élever jusqu'à 20 000 000 EUR ou, dans le cas d'une entreprise, jusqu'à 4 % du chiffre d'affaires annuel mondial total de l'exercice précédent, le montant le plus élevé étant retenu.",
+          "evidence_mission_context": "Aucun seuil financier n'est mentionné. (gravite_seuil_financier)",
+          "framework": "RGPD"
+        },
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "Notification obligatoire de la violation de données à la CNIL dans un délai maximal de 72 heures après en avoir pris connaissance.",
+          "evidence_mission_context": "La société a désigné un délégué à la protection des données (DPO) qui est responsable de la gestion des données personnelles et de la conformité aux réglementations de protection des données. (dpo_designe)",
+          "framework": "RGPD"
+        }
+      ]
+    },
+    {
+      "id": "panne_de_serveur",
+      "description": "Panne de serveur, entraînant indisponibilité des données personnelles.",
+      "bien_essentiel_id": "donnees_personnelles",
+      "categorie_impact": "vie_privee_personnes_concernees",
+      "gravite": "Significative",
+      "origin": "declaration",
+      "derived_from_fact_fields": [
+        "sources_menace_percues"
+      ],
+      "legal_impacts": [
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "Communication obligatoire et sans retard injustifié de la violation aux personnes concernées si le risque pour leurs droits et libertés est élevé.",
+          "evidence_mission_context": "Si les informations sensibles de Mondial-Tickets étaient divulguées, cela aurait un impact significatif sur la société et ses clients. (Impact_divulgation)",
+          "framework": "RGPD"
+        },
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "Responsabilité civile et obligation de réparation pécuniaire intégrale devant les tribunaux judiciaires pour tout préjudice matériel ou moral subi par une personne physique.",
+          "evidence_mission_context": "La société traite des informations sur les clients, notamment leurs données d'identité, leurs données bancaires et leurs adresses. (donnees_personnelles_traitees)",
+          "framework": "RGPD"
+        },
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "Amendes administratives pouvant s'élever jusqu'à 20 000 000 EUR ou, dans le cas d'une entreprise, jusqu'à 4 % du chiffre d'affaires annuel mondial total de l'exercice précédent, le montant le plus élevé étant retenu.",
+          "evidence_mission_context": "Aucun seuil financier n'est mentionné. (gravite_seuil_financier)",
+          "framework": "RGPD"
+        },
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "Notification obligatoire de la violation de données à la CNIL dans un délai maximal de 72 heures après en avoir pris connaissance.",
+          "evidence_mission_context": "La société a désigné un délégué à la protection des données (DPO) qui est responsable de la gestion des données personnelles et de la conformité aux réglementations de protection des données. (dpo_designe)",
+          "framework": "RGPD"
+        }
+      ]
+    },
+    {
+      "id": "fuite_de_donnees",
+      "description": "Fuite de données personnelles, entraînant violation de la vie privée des clients.",
+      "bien_essentiel_id": "donnees_personnelles",
+      "categorie_impact": "vie_privee_personnes_concernees",
+      "gravite": "Significative",
+      "origin": "declaration",
+      "derived_from_fact_fields": [
+        "sources_menace_percues"
+      ],
+      "legal_impacts": [
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "Communication obligatoire et sans retard injustifié de la violation aux personnes concernées si le risque pour leurs droits et libertés est élevé.",
+          "evidence_mission_context": "Si les informations sensibles de Mondial-Tickets étaient divulguées, cela aurait un impact significatif sur la société et ses clients. (Impact_divulgation)",
+          "framework": "RGPD"
+        },
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "Responsabilité civile et obligation de réparation pécuniaire intégrale devant les tribunaux judiciaires pour tout préjudice matériel ou moral subi par une personne physique.",
+          "evidence_mission_context": "La société traite des informations sur les clients, notamment leurs données d'identité, leurs données bancaires et leurs adresses. (donnees_personnelles_traitees)",
+          "framework": "RGPD"
+        },
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "Amendes administratives pouvant s'élever jusqu'à 20 000 000 EUR ou, dans le cas d'une entreprise, jusqu'à 4 % du chiffre d'affaires annuel mondial total de l'exercice précédent, le montant le plus élevé étant retenu.",
+          "evidence_mission_context": "Aucun seuil financier n'est mentionné. (gravite_seuil_financier)",
+          "framework": "RGPD"
+        },
+        {
+          "categorie_impact": "juridique",
+          "provision_citee": "Notification obligatoire de la violation de données à la CNIL dans un délai maximal de 72 heures après en avoir pris connaissance.",
+          "evidence_mission_context": "La société a désigné un délégué à la protection des données (DPO) qui est responsable de la gestion des données personnelles et de la conformité aux réglementations de protection des données. (dpo_designe)",
+          "framework": "RGPD"
+        }
+      ]
+    }
+  ],
+  "baseline_scope_decisions": [
+    {
+      "category": "ANSSI_hygiene",
+      "decision": "covered",
+      "justification": "Référentiel déclaré et évalué (42 contrôles)."
+    },
+    {
+      "category": "NIST",
+      "decision": "covered",
+      "justification": "Référentiel déclaré et évalué (101 contrôles)."
+    },
+    {
+      "category": "RGPD",
+      "decision": "covered",
+      "justification": "Référentiel déclaré et évalué (12 contrôles)."
+    }
+  ],
+  "baseline_gaps_full": [],
+  "unverified_controls": [
+    {
+      "control_id": "ANSSI-H-01",
+      "framework": "ANSSI_hygiene",
+      "description": "Disposer d'une cartographie précise de l'installation informatique et la maintenir à jour.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-02",
+      "framework": "ANSSI_hygiene",
+      "description": "Disposer d'un inventaire exhaustif des comptes privilégiés et le maintenir à jour.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-03",
+      "framework": "ANSSI_hygiene",
+      "description": "Rédiger et appliquer des procédures d'arrivée et de départ des utilisateurs (personnel, stagiaires, prestataires).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-04",
+      "framework": "ANSSI_hygiene",
+      "description": "Limiter le nombre d'accès Internet de l'entreprise au strict nécessaire.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-05",
+      "framework": "ANSSI_hygiene",
+      "description": "Interdire la connexion d'équipements personnels au système d'information de l'organisation (politique BYOD).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-06",
+      "framework": "ANSSI_hygiene",
+      "description": "Connaître les modalités de mises à jour de l'ensemble des composants logiciels utilisés et se tenir informé des vulnérabilités de ces composants.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-07",
+      "framework": "ANSSI_hygiene",
+      "description": "Définir une politique de mise à jour et l'appliquer strictement.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-08",
+      "framework": "ANSSI_hygiene",
+      "description": "Identifier nommément chaque personne ayant accès au système et distinguer les rôles utilisateur et administrateur.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-09",
+      "framework": "ANSSI_hygiene",
+      "description": "Définir des règles de choix et de dimensionnement des mots de passe robustes (complexité, longueur, MFA).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-10",
+      "framework": "ANSSI_hygiene",
+      "description": "Mettre en place des moyens techniques permettant de faire respecter les règles relatives à l'authentification.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-11",
+      "framework": "ANSSI_hygiene",
+      "description": "Ne pas conserver les mots de passe en clair dans des fichiers ou des espaces non sécurisés sur les systèmes informatiques.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-12",
+      "framework": "ANSSI_hygiene",
+      "description": "Renouveler systématiquement les éléments d'authentification par défaut (mots de passe, certificats) sur l'ensemble des équipements.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-13",
+      "framework": "ANSSI_hygiene",
+      "description": "Privilégier lorsque c'est possible une authentification forte par carte à puce, jeton matériel ou MFA cryptographique.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-14",
+      "framework": "ANSSI_hygiene",
+      "description": "Mettre en place un niveau de sécurité homogène sur l'ensemble du parc informatique (durcissement des configurations des OS).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-15",
+      "framework": "ANSSI_hygiene",
+      "description": "Interdire techniquement la connexion des supports amovibles sauf si cela est strictement nécessaire, et désactiver l'exécution automatique (autorun).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-16",
+      "framework": "ANSSI_hygiene",
+      "description": "Utiliser un outil de gestion de parc informatique centralisé permettant de déployer des politiques de sécurité et les mises à jour.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-17",
+      "framework": "ANSSI_hygiene",
+      "description": "Gérer les terminaux nomades (ordinateurs portables, ordiphones) selon une politique de sécurité au moins aussi stricte que celle des postes fixes.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-18",
+      "framework": "ANSSI_hygiene",
+      "description": "Interdire dans tous les cas où cela est possible les connexions entrantes d'administration ou d'accès à distance directement sur les postes clients.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-19",
+      "framework": "ANSSI_hygiene",
+      "description": "Chiffrer les données sensibles, en particulier sur les postes nomades et les supports potentiellement perdables (USB).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-20",
+      "framework": "ANSSI_hygiene",
+      "description": "Auditer ou faire auditer fréquemment la configuration de l'annuaire central (Active Directory ou LDAP).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-21",
+      "framework": "ANSSI_hygiene",
+      "description": "Mettre en place des réseaux cloisonnés (VLAN) protégés par des passerelles d'interconnexion spécifiques pour isoler les serveurs critiques.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-22",
+      "framework": "ANSSI_hygiene",
+      "description": "Éviter l'usage d'infrastructures sans fil (Wi-Fi). Si l'usage est requis, cloisonner hermétiquement le réseau d'accès Wi-Fi du reste du SI.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-23",
+      "framework": "ANSSI_hygiene",
+      "description": "Utiliser systématiquement des applications et des protocoles réseau sécurisés et chiffrés (TLS, SSH, IPsec).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-24",
+      "framework": "ANSSI_hygiene",
+      "description": "Sécuriser, durcir et filtrer les passerelles d'interconnexion de l'organisation avec l'Internet (Proxy, pare-feu applicatif).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-26",
+      "framework": "ANSSI_hygiene",
+      "description": "Définir concrètement les objectifs et le périmètre de la supervision des systèmes et des réseaux de l'organisation.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-27",
+      "framework": "ANSSI_hygiene",
+      "description": "Définir les modalités d'analyse des événements journalisés (gestion des logs et détection d'alertes).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-28",
+      "framework": "ANSSI_hygiene",
+      "description": "Interdire tout accès à l'Internet et à la messagerie externe depuis les comptes d'administration système.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-29",
+      "framework": "ANSSI_hygiene",
+      "description": "Utiliser un réseau d'administration dédié ou au moins un réseau logiquement séparé et sécurisé pour gérer les équipements.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-30",
+      "framework": "ANSSI_hygiene",
+      "description": "Ne pas donner aux utilisateurs de privilèges d'administration locaux sur leurs postes de travail (GPO de restriction).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-31",
+      "framework": "ANSSI_hygiene",
+      "description": "N'autoriser l'accès à distance au réseau d'entreprise que depuis des postes sécurisés par l'organisation et via VPN avec authentification forte.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-32",
+      "framework": "ANSSI_hygiene",
+      "description": "Utiliser impérativement des mécanismes robustes de contrôle d'accès physique aux locaux sensibles (serveurs, brassage).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-33",
+      "framework": "ANSSI_hygiene",
+      "description": "Protéger rigoureusement les clés physiques, badges d'accès aux locaux et codes d'alarme anti-intrusion.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-34",
+      "framework": "ANSSI_hygiene",
+      "description": "Ne pas laisser de prises d'accès au réseau Ethernet interne accessibles sans contrôle dans les endroits ouverts au public.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-35",
+      "framework": "ANSSI_hygiene",
+      "description": "Définir les règles d'utilisation sécurisée des imprimantes réseau et des photocopieuses multifonctions.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-36",
+      "framework": "ANSSI_hygiene",
+      "description": "Disposer d'un plan de reprise et de continuité d'activité (PCA/PRA) informatique, décrivant la stratégie de sauvegarde hors ligne.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-37",
+      "framework": "ANSSI_hygiene",
+      "description": "Mettre en place une chaîne d'alerte et de réaction connue de tous les intervenants (procédures de réponse aux incidents).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-38",
+      "framework": "ANSSI_hygiene",
+      "description": "Ne jamais se contenter de traiter l'infection d'une machine sans tenter de savoir comment le code s'est installé et propagé.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-39",
+      "framework": "ANSSI_hygiene",
+      "description": "Sensibiliser régulièrement les utilisateurs et la direction aux règles d'hygiène informatique élémentaires (phishing, mots de passe).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-40",
+      "framework": "ANSSI_hygiene",
+      "description": "Faire réaliser des audits de sécurité techniques et organisationnels périodiques (au minimum tous les ans) suivis par la direction.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-41",
+      "framework": "ANSSI_hygiene",
+      "description": "Gérer les terminaux mobiles et nomades selon une politique stricte contrôlée par un outil de Mobile Device Management (MDM).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "ANSSI-H-42",
+      "framework": "ANSSI_hygiene",
+      "description": "Privilégier l'usage de produits de sécurité et de prestataires de services qualifiés par l'ANSSI (liste de confiance Visa de sécurité).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-DE.AE-02",
+      "framework": "NIST",
+      "description": "Potentially adverse events are analyzed to better understand associated activities and determine anomalies.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-DE.AE-03",
+      "framework": "NIST",
+      "description": "Security events and logs are collected and correlated from multiple sources (SIEM/XDR).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-DE.AE-04",
+      "framework": "NIST",
+      "description": "The estimated impact and technical scope of adverse events are determined and analyzed.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-DE.AE-06",
+      "framework": "NIST",
+      "description": "Information on verified adverse events is communicated to authorized security staff and monitoring tools.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-DE.AE-07",
+      "framework": "NIST",
+      "description": "Cyber threat intelligence and contextual information are integrated into adverse event analysis.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-DE.AE-08",
+      "framework": "NIST",
+      "description": "Cybersecurity incidents are formally declared when adverse events meet the organization's defined criteria.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-DE.CM-01",
+      "framework": "NIST",
+      "description": "Network boundaries and internal communication paths are monitored to identify anomalous activity.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-DE.CM-02",
+      "framework": "NIST",
+      "description": "Physical environment and premises are monitored to detect unauthorized physical access attempts.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-DE.CM-03",
+      "framework": "NIST",
+      "description": "Personnel and third-party actions on systems are monitored to detect unauthorized activity.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-DE.CM-06",
+      "framework": "NIST",
+      "description": "Vulnerability scanning and automated testing are performed continuously to identify system flaws.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-DE.CM-09",
+      "framework": "NIST",
+      "description": "Malicious code and unauthorized software are detected on endpoints and network boundaries.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.OC-03",
+      "framework": "NIST",
+      "description": "Legal, regulatory, and contractual requirements regarding cybersecurity - including privacy and civil liberties obligations - are understood and managed.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.OC-04",
+      "framework": "NIST",
+      "description": "Critical objectives, capabilities, and services that stakeholders depend on or expect are determined.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.OC-05",
+      "framework": "NIST",
+      "description": "The organization's place in the critical infrastructure sector(s) and its broader ecosystem is understood.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.OV-02",
+      "framework": "NIST",
+      "description": "The risk management strategy is adjusted based on oversight outcomes.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.OV-03",
+      "framework": "NIST",
+      "description": "The organization's alignment with cybersecurity standards, guidelines, and compliance requirements is assessed.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.PO-01",
+      "framework": "NIST",
+      "description": "Cybersecurity policies are established, approved, and communicated.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.PO-02",
+      "framework": "NIST",
+      "description": "Cybersecurity policies are reviewed and updated periodically to reflect changes in risks.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.RM-02",
+      "framework": "NIST",
+      "description": "Risk appetite and risk tolerance statements are defined, communicated, and used to guide risk decisions.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.RM-03",
+      "framework": "NIST",
+      "description": "Strategic risk management priorities are established and communicated.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.RM-04",
+      "framework": "NIST",
+      "description": "A standardized risk assessment methodology is defined and communicated.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.RM-05",
+      "framework": "NIST",
+      "description": "Strategic risks to the organization are evaluated and monitored to inform resource allocation.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.RM-06",
+      "framework": "NIST",
+      "description": "An organization-wide cybersecurity risk profile is developed and maintained.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.RM-07",
+      "framework": "NIST",
+      "description": "Strategic decisions are informed by cybersecurity risk assessments.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.RR-01",
+      "framework": "NIST",
+      "description": "Organizational leadership is responsible and accountable for cybersecurity risk management.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.RR-02",
+      "framework": "NIST",
+      "description": "Cybersecurity roles, responsibilities, and authorities are allocated, communicated, and understood.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.RR-03",
+      "framework": "NIST",
+      "description": "Adequate resources are allocated to cybersecurity activities.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.RR-04",
+      "framework": "NIST",
+      "description": "Cybersecurity performance is evaluated and reported to leadership.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.SC-01",
+      "framework": "NIST",
+      "description": "A cybersecurity supply chain risk management program is established, approved, and implemented.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.SC-02",
+      "framework": "NIST",
+      "description": "Suppliers and third-party partners are identified, categorized, and prioritized based on criticality.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.SC-03",
+      "framework": "NIST",
+      "description": "Cybersecurity requirements are integrated into contracts and agreements with suppliers.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.SC-04",
+      "framework": "NIST",
+      "description": "Suppliers are monitored to ensure they meet agreed-upon cybersecurity obligations.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.SC-05",
+      "framework": "NIST",
+      "description": "The organization plans for supplier relationship terminations and service transition.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.SC-06",
+      "framework": "NIST",
+      "description": "Supply chain risks are assessed, recorded, and integrated into organizational risk management.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.SC-07",
+      "framework": "NIST",
+      "description": "Critical suppliers and third parties are verified through independent audits or assessments.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.SC-08",
+      "framework": "NIST",
+      "description": "Software, hardware, and services integrity in the supply chain is verified before use.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.SC-09",
+      "framework": "NIST",
+      "description": "The organization manages risks associated with systems managed or hosted by suppliers.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-GV.SC-10",
+      "framework": "NIST",
+      "description": "Supply chain security practices are integrated into enterprise risk management.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-ID.AM-07",
+      "framework": "NIST",
+      "description": "Personnel and partners are assigned designated cybersecurity roles and their lifecycle is managed.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-ID.AM-08",
+      "framework": "NIST",
+      "description": "Critical organizational processes and assets that support them are identified and documented.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-ID.IM-01",
+      "framework": "NIST",
+      "description": "Improvements to cybersecurity risk management processes are identified and prioritized.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-ID.IM-02",
+      "framework": "NIST",
+      "description": "Action plans to implement cybersecurity process improvements are developed and executed.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-ID.IM-03",
+      "framework": "NIST",
+      "description": "Assessments of the current state of cybersecurity practices are used to drive continuous improvement.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-ID.IM-04",
+      "framework": "NIST",
+      "description": "Feedback from internal and external audits is integrated into continuous improvement plans.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-ID.RA-01",
+      "framework": "NIST",
+      "description": "Vulnerabilities in physical and logical assets are identified and recorded.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-ID.RA-02",
+      "framework": "NIST",
+      "description": "Cyber threat intelligence is received, analyzed, and integrated to understand active threats.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-ID.RA-03",
+      "framework": "NIST",
+      "description": "Internal and external cyber threats are identified, monitored, and analyzed.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-ID.RA-04",
+      "framework": "NIST",
+      "description": "Potential impacts and likelihood of risks materializing are analyzed and calculated.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-ID.RA-05",
+      "framework": "NIST",
+      "description": "Threats, vulnerabilities, likelihoods, and impacts are used to calculate risk levels.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-ID.RA-06",
+      "framework": "NIST",
+      "description": "Risk assessment results are prioritized and documented to support strategic decisions.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-ID.RA-07",
+      "framework": "NIST",
+      "description": "Cybersecurity risks from emerging technologies and changes in the threat landscape are identified and assessed.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.AA-01",
+      "framework": "NIST",
+      "description": "Identities and credentials for authorized users and devices are managed throughout their lifecycle.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.AA-02",
+      "framework": "NIST",
+      "description": "Physical and logical access permissions are granted, reviewed, modified, and revoked based on least privilege and separation of duties.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.AA-03",
+      "framework": "NIST",
+      "description": "Users, devices, and other assets are authenticated before logical or physical access is granted.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.AA-04",
+      "framework": "NIST",
+      "description": "Multi-factor authentication (MFA) is implemented for all administrative and remote logical access.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.AA-05",
+      "framework": "NIST",
+      "description": "Access to administrative and privileged accounts is tightly controlled and monitored.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.AT-01",
+      "framework": "NIST",
+      "description": "All personnel are trained upon hire and periodically on basic security hygiene, social engineering, and acceptable use.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.AT-02",
+      "framework": "NIST",
+      "description": "Specialized training is provided to personnel with specific roles and responsibilities (e.g., developers, administrators).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.DS-01",
+      "framework": "NIST",
+      "description": "Data-at-rest is protected using encryption, access controls, and secure storage techniques.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.DS-02",
+      "framework": "NIST",
+      "description": "Data-in-transit is protected using secure cryptographic protocols.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.DS-10",
+      "framework": "NIST",
+      "description": "Data masking, pseudonymization, and tokenization techniques are applied to minimize sensitive data exposure.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.DS-11",
+      "framework": "NIST",
+      "description": "Hardware and software media containing sensitive data are securely disposed of, wiped, or destroyed.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.IR-01",
+      "framework": "NIST",
+      "description": "Technology infrastructure resilience is designed and built into critical systems to meet availability targets.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.AA-01",
+      "framework": "NIST",
+      "description": "Identities and credentials for authorized users and devices are managed throughout their lifecycle.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.AA-02",
+      "framework": "NIST",
+      "description": "Physical and logical access permissions are granted, reviewed, modified, and revoked based on least privilege and separation of duties.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.AA-03",
+      "framework": "NIST",
+      "description": "Users, devices, and other assets are authenticated before logical or physical access is granted.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.AA-04",
+      "framework": "NIST",
+      "description": "Multi-factor authentication (MFA) is implemented for all administrative and remote logical access.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.AA-05",
+      "framework": "NIST",
+      "description": "Access to administrative and privileged accounts is tightly controlled and monitored.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.AT-01",
+      "framework": "NIST",
+      "description": "All personnel are trained upon hire and periodically on basic security hygiene, social engineering, and acceptable use.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.AT-02",
+      "framework": "NIST",
+      "description": "Specialized training is provided to personnel with specific roles and responsibilities (e.g., developers, administrators).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.DS-01",
+      "framework": "NIST",
+      "description": "Data-at-rest is protected using encryption, access controls, and secure storage techniques.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.DS-02",
+      "framework": "NIST",
+      "description": "Data-in-transit is protected using secure cryptographic protocols.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.DS-10",
+      "framework": "NIST",
+      "description": "Data masking, pseudonymization, and tokenization techniques are applied to minimize sensitive data exposure.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.DS-11",
+      "framework": "NIST",
+      "description": "Hardware and software media containing sensitive data are securely disposed of, wiped, or destroyed.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.IR-01",
+      "framework": "NIST",
+      "description": "Technology infrastructure resilience is designed and built into critical systems to meet availability targets.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.IR-02",
+      "framework": "NIST",
+      "description": "Critical infrastructure systems are provided with redundant power, networking, and HVAC systems.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.IR-03",
+      "framework": "NIST",
+      "description": "Critical information, software, and system backups are maintained and protected offline.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.IR-04",
+      "framework": "NIST",
+      "description": "Backup recovery procedures are regularly tested and validated.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.PS-01",
+      "framework": "NIST",
+      "description": "Hardware and software configurations (baselines) are established, documented, and enforced.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.PS-02",
+      "framework": "NIST",
+      "description": "Software installation is restricted, controlled, and monitored on all operational assets.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.PS-03",
+      "framework": "NIST",
+      "description": "Default configurations, default passwords, and unnecessary accounts are changed or removed.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.PS-04",
+      "framework": "NIST",
+      "description": "System maintenance is performed, logged, and controlled using secure administrative channels.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.PS-05",
+      "framework": "NIST",
+      "description": "Operating systems, applications, and third-party software are patched and updated periodically.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-PR.PS-06",
+      "framework": "NIST",
+      "description": "Network boundaries are protected, and logical networks are segregated based on criticality.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RC.CO-01",
+      "framework": "NIST",
+      "description": "Recovery progress, timelines, and milestones are communicated to internal stakeholders and leadership.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RC.CO-02",
+      "framework": "NIST",
+      "description": "Public communications regarding recovery and system restoration are coordinated and managed.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RC.CO-03",
+      "framework": "NIST",
+      "description": "Restoration and recovery activities are coordinated with third parties and critical suppliers.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RC.CO-04",
+      "framework": "NIST",
+      "description": "Public updates on incident recovery are properly shared using approved methods and messaging.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RC.RP-01",
+      "framework": "NIST",
+      "description": "Recovery plans and procedures are executed, monitored, and maintained to restore systems and data.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.AN-01",
+      "framework": "NIST",
+      "description": "Declared incidents are analyzed to determine the impact, source, and scope of systems affected.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.AN-03",
+      "framework": "NIST",
+      "description": "Incidents are categorized and prioritized to determine the level of response required.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.AN-06",
+      "framework": "NIST",
+      "description": "Forensic evidence is collected, preserved, and analyzed following documented procedures.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.AN-07",
+      "framework": "NIST",
+      "description": "The exact timeline of the attack and methods utilized by the adversary are documented.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.AN-08",
+      "framework": "NIST",
+      "description": "Incident impact on critical business processes and sensitive data is fully assessed.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.CO-02",
+      "framework": "NIST",
+      "description": "Incident information and updates are coordinated and communicated to internal stakeholders and executives.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.CO-03",
+      "framework": "NIST",
+      "description": "Incident information is coordinated and shared with external stakeholders (customers, authorities, PR) as required.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.MA-01",
+      "framework": "NIST",
+      "description": "An incident response plan is established, maintained, and approved by organizational leadership.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.MA-02",
+      "framework": "NIST",
+      "description": "Incident response roles and responsibilities are assigned and integrated into business processes.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.MA-03",
+      "framework": "NIST",
+      "description": "Incident response processes and plans are tested regularly using simulation exercises (tabletops).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.MA-04",
+      "framework": "NIST",
+      "description": "Incident response tools, communications, and supporting infrastructure are maintained and secured.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.MA-05",
+      "framework": "NIST",
+      "description": "Incident response procedures are updated based on lessons learned from past incidents and exercises.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.MI-01",
+      "framework": "NIST",
+      "description": "Incident containment activities are executed to limit the spread of malicious code or network access.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.MI-02",
+      "framework": "NIST",
+      "description": "The root cause of the incident is mitigated and the threat is eradicated from systems (threat eradication).",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "NIST-RS.MI-03",
+      "framework": "NIST",
+      "description": "Vulnerabilities exploited during the incident are mitigated or patched to prevent recurrences.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "RGPD-Art24",
+      "framework": "RGPD",
+      "description": "Responsabilité du responsable du traitement : Compte tenu de la nature, de la portée, du contexte et des finalités du traitement ainsi que des risques, le responsable du traitement met en œuvre des mesures techniques et organisationnelles appropriées pour s'assurer et être en mesure de démontrer que le traitement est effectué conformément au présent règlement.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    },
+    {
+      "control_id": "RGPD-Art33",
+      "framework": "RGPD",
+      "description": "Notification d'une violation de données à caractère personnel à l'autorité de contrôle : En cas de violation de données, notifier la violation à l'autorité de contrôle compétente (la CNIL) sans retard injustifié et, si possible, 72 heures au plus tard après en avoir pris connaissance.",
+      "reason": "no_evidence_cited",
+      "model_said": "gap"
+    },
+    {
+      "control_id": "RGPD-Art34",
+      "framework": "RGPD",
+      "description": "Communication d'une violation de données à caractère personnel à la personne concernée : Lorsqu'une violation de données est susceptible d'engendrer un risque élevé pour les droits et libertés d'une personne physique, communiquer la violation à la personne concernée dans les meilleurs délais.",
+      "reason": "no_information",
+      "model_said": "insufficient_information"
+    }
+  ],
+  "human_edits": []
+}
