@@ -22,7 +22,7 @@ class LegalImpactEntry(BaseModel):
     relevant, AND the legal provision itself (penalty cap, notification delay...).
     """
 
-    categorie_impact: CategorieImpact = CategorieImpact.JURIDIQUE
+    categorie_impact: CategorieImpact = Field(default_factory=lambda: CategorieImpact.JURIDIQUE)
     provision_citee: str  # the legal provision text (from baseline_controls.legal_impact_details)
     evidence_mission_context: str  # the precise fact cited from the Mission Context
     framework: str  # which declared referential the provision comes from
