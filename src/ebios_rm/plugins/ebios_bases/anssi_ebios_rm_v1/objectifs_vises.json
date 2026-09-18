@@ -1,0 +1,71 @@
+[
+  {
+    "id": "espionnage",
+    "libelle": "Espionnage",
+    "definition": "Obtenir durablement de l'information détenue par l'organisation, sans se faire remarquer.",
+    "exemples": [
+      "Accéder au fichier client et à ses conditions commerciales",
+      "Obtenir les travaux de recherche non publiés"
+    ]
+  },
+  {
+    "id": "pre_positionnement",
+    "libelle": "Pré-positionnement stratégique",
+    "definition": "S'installer durablement dans le système pour pouvoir agir plus tard, au moment choisi.",
+    "exemples": [
+      "Maintenir un accès dormant sur les systèmes de pilotage industriel"
+    ]
+  },
+  {
+    "id": "influence",
+    "libelle": "Influence",
+    "definition": "Peser sur les décisions, la réputation ou la parole publique de l'organisation.",
+    "exemples": [
+      "Faire diffuser une communication officielle falsifiée",
+      "Discréditer publiquement l'organisation en exposant des documents internes"
+    ]
+  },
+  {
+    "id": "entrave_fonctionnement",
+    "libelle": "Entrave au fonctionnement",
+    "definition": "Empêcher l'organisation d'assurer ses missions, en durée ou en qualité.",
+    "exemples": [
+      "Rendre le service aux usagers indisponible pendant plusieurs jours",
+      "Empêcher la production de sortir des commandes"
+    ]
+  },
+  {
+    "id": "lucratif",
+    "libelle": "Gain financier",
+    "definition": "Tirer directement de l'argent de l'organisation ou de ses données.",
+    "exemples": [
+      "Obtenir le versement d'une rançon",
+      "Revendre les données personnelles détenues",
+      "Détourner un virement fournisseur"
+    ]
+  },
+  {
+    "id": "defi_amusement",
+    "libelle": "Défi ou amusement",
+    "definition": "Agir pour la performance, la curiosité ou la reconnaissance, sans finalité économique.",
+    "exemples": [
+      "Modifier la page d'accueil du site public pour la signer"
+    ]
+  },
+  {
+    "id": "vengeance",
+    "libelle": "Vengeance",
+    "definition": "Nuire à l'organisation en représailles d'un préjudice réel ou ressenti.",
+    "exemples": [
+      "Détruire les dossiers d'un service après un départ conflictuel"
+    ]
+  },
+  {
+    "id": "revendication_ideologique",
+    "libelle": "Revendication idéologique",
+    "definition": "Porter une cause en prenant l'organisation pour cible ou pour tribune.",
+    "exemples": [
+      "Exposer publiquement des documents pour dénoncer une pratique de l'organisation"
+    ]
+  }
+]

@@ -210,11 +210,8 @@ def approve_workshop(
     """Final human gate on a workshop result (conception §2, §8).
 
     The auditor has the last word on the whole atelier, not only field by field.
-    A rejection requires a non-empty reason. Returns (approved, reason).
-
-    ponytail: decision is returned, not persisted — writing it to workshop_versions
-    (approved/superseded) and redoing the workshop on reject needs mission
-    persistence, which is not built yet.
+    A rejection requires a non-empty reason. Returns (approved, reason); the caller
+    persists it (version status, decision log) and drives the redo.
     """
     io_out(f"\n=== Validation de {label} ===")
     while True:
@@ -224,7 +221,6 @@ def approve_workshop(
         if choice in {"non", "n", "no"}:
             reason = ask_justification("Motif du refus (obligatoire, §8) : ", io_in, io_out)
             io_out(f"Résultat NON APPROUVÉ — motif enregistré : {reason}")
-            io_out("La reprise de l'atelier nécessitera la persistance de mission (à venir).")
             return False, reason
         io_out("    Répondez 'oui' ou 'non' — une décision explicite est requise (§2).")
 

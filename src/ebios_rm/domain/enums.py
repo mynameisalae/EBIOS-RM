@@ -62,6 +62,64 @@ class CategorieImpact(str, Enum):
     VIE_PRIVEE_PERSONNES_CONCERNEES = "vie_privee_personnes_concernees"  # impact on the data subjects
 
 
+class Pertinence(str, Enum):
+    """Pertinence of an SR/OV couple — three fixed values (fiche de test atelier 2)."""
+
+    FAIBLE = "Faible"
+    MOYEN = "Moyen"
+    ELEVE = "Élevé"
+
+
+class VraisemblanceInitiale(str, Enum):
+    """Initial likelihood of an SR/OV couple, V1..V4 (fiche de test atelier 2).
+
+    "Does this source target this organisation", never technical success — the
+    likelihood of an attack succeeding belongs to atelier 4.
+    """
+
+    V1 = "V1"
+    V2 = "V2"
+    V3 = "V3"
+    V4 = "V4"
+
+
+class NiveauRisque(str, Enum):
+    """Risk level of an operational scenario (atelier 4, conception §18 step 29).
+
+    Read from a fixed gravité × vraisemblance matrix in code, never worded by the
+    model. Where each level sits against the organisation's risk acceptance is
+    atelier 5's decision, not this scale's.
+    """
+
+    FAIBLE = "Faible"
+    MOYEN = "Moyen"
+    ELEVE = "Élevé"
+    CRITIQUE = "Critique"
+
+
+class ImpactType(str, Enum):
+    """How one baseline gap bears on one operational scenario (conception §18).
+
+    Every value owes a non-empty impact_on_scenario — not_relevant included.
+    """
+
+    INCREASES_LIKELIHOOD = "increases_likelihood"  # makes a step of the path possible or easier
+    INCREASES_IMPACT = "increases_impact"          # worsens the consequence, not the access
+    NO_IMPACT = "no_impact"                        # on the path's ground, but changes nothing here
+    NOT_RELEVANT = "not_relevant"                  # concerns nothing in this scenario
+
+
+class StatutSelection(str, Enum):
+    """Outcome of an atelier 2 filter (white-box §7, §10, §11).
+
+    Nothing is deleted: an écarté element keeps its reason (§17, §19).
+    """
+
+    RETENU = "retenu"
+    SECONDAIRE = "secondaire"
+    ECARTE = "ecarte"
+
+
 class Hebergement(str, Enum):
     """Hosting model declared in the intake form (conception §11.1)."""
 

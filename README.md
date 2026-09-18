@@ -179,3 +179,77 @@ question; if the workshop already ran, it just shows the saved result.
 
 > The data lives in that one `.db` file — back it up by copying it. In Docker it
 > lives in the `mission_db_data` volume instead (same file, conception §13.3).
+
+## Running Workshop 2 — sources de risque et objectifs visés
+
+Runs on a mission whose Workshop 1 is **approved**; it reads the saved Mission
+Context and `w1_output` from the same DB.
+
+```bash
+python scripts/run_workshop2.py <mission_id>
+python scripts/run_workshop2.py <mission_id> --no-session   # skip the client session
+```
+
+It first holds the **atelier 2 session**: eight questions the intake does not
+cover (competitors, conflictual departures, public exposure, past incidents…),
+each one there to make a particular actor category plausible or not. Answers are
+written back to the Mission Context, so a later run does not ask them again — a
+skip keeps its reason and is not put again either.
+
+Then the agent proposes risk-source categories, the objectives they might pursue,
+and the SR/OV couples with three 1..4 ratings. It only ever *proposes*: the
+category must come from the approved base, carry a justification anchored in a
+named context field, and describe an actor rather than a technique or a support
+asset. Everything else is dropped **with its reason**, listed under *Éléments
+écartés*. Pertinence and initial likelihood are computed in code from the
+ratings, never by the model.
+
+The approval gate works exactly like Workshop 1's (`c` correct / `r` redo the
+parts you name / `q` stop, same rollback cap). Two differences:
+
+- the **quality checker** runs on every result; an output in `erreur` cannot be
+  approved without typing `CONFIRMER`;
+- if `w1_output` has a broken reference, atelier 2 **refuses to start** — fix it
+  in atelier 1, since a data error is not a reasoning error.
+
+Rerunning the same command resumes: a mission left at `w2_awaiting_approval` or
+`w2_rejected` picks up at the approval gate on the saved output, with no LLM call
+paid for up front.
+
+## Running Workshop 3 — scénarios stratégiques
+
+Runs on a mission whose Workshop 2 is **approved** — checked on the atelier 2
+version itself, so it stays true however far the mission moves on afterwards.
+
+```bash
+python scripts/run_workshop3.py <mission_id>
+```
+
+For each SR/OV couple retained in atelier 2, the agent writes the route: which
+source de risque, through which parties prenantes of the ecosystem, to reach which
+essential asset. It runs twice — propose, then criticise its own list and fold the
+near-duplicates. Nothing is re-rated here: gravité comes from atelier 1's feared
+events, pertinence and initial likelihood from atelier 2's couples, all carried
+forward in code. A stakeholder the dossier never mentions gets the scenario
+discarded, with its reason.
+
+Then the **count gate**, the study's one validation point on the scenario count N
+(atelier 4 fans out one LLM call per scenario, so N is the size of what comes
+next):
+
+- **N ≤ 6** — validate the list, or stop.
+- **6 < N ≤ 12** — validate anyway (with a reason), merge scenarios, choose a
+  subset, or stop.
+- **N > 12** — merge, choose a subset, or stop. "Run anyway" is not offered.
+
+Merging and subsetting each require a justification and re-enter the gate with the
+new count, so a list reduced from 14 to 13 gets exactly the options 13 deserves.
+
+Approval works as in the other ateliers (`c` correct / `r` redo / `q` stop, same
+rollback cap, quality errors need a typed `CONFIRMER`). Rerunning resumes: at the
+count gate if the count was never ruled on, at the approval gate otherwise.
+
+> No API credit? `MANUAL_LLM=1` writes each prompt to `data/manual/*.prompt.md`
+> and waits for you to drop the matching `.response.json` beside it. The schema
+> travels with the prompt and is enforced on what you write, so the audit trail is
+> the same as a model run.

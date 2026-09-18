@@ -1,0 +1,115 @@
+[
+  {
+    "id": "etatique",
+    "libelle": "État / agence étatique",
+    "definition": "Acteur agissant pour le compte d'un État, disposant de moyens importants et d'un horizon de temps long.",
+    "finalites_typiques": ["espionnage", "pre_positionnement", "influence", "entrave_fonctionnement"],
+    "indices_pertinence": [
+      "activité ou données d'intérêt souverain, stratégique ou de défense",
+      "opérateur d'importance vitale ou de service essentiel",
+      "recherche, brevets ou savoir-faire sensibles",
+      "implantation ou partenariats dans des zones géopolitiquement exposées"
+    ]
+  },
+  {
+    "id": "crime_organise",
+    "libelle": "Cybercriminel organisé",
+    "definition": "Groupe structuré cherchant un gain financier, opérant à grande échelle et de manière opportuniste ou ciblée.",
+    "finalites_typiques": ["lucratif", "entrave_fonctionnement"],
+    "indices_pertinence": [
+      "capacité de paiement de l'organisation, chiffre d'affaires",
+      "dépendance forte à la disponibilité du système d'information",
+      "données monnayables (personnelles, bancaires, de santé)",
+      "surface exposée sur Internet"
+    ]
+  },
+  {
+    "id": "terroriste",
+    "libelle": "Terroriste",
+    "definition": "Acteur cherchant un effet de terreur ou une atteinte physique/symbolique à travers le numérique.",
+    "finalites_typiques": ["entrave_fonctionnement", "revendication_ideologique", "influence"],
+    "indices_pertinence": [
+      "activité à forte visibilité publique ou symbolique",
+      "systèmes industriels ou de sécurité des personnes",
+      "service dont l'interruption a un impact sociétal"
+    ]
+  },
+  {
+    "id": "activiste_ideologique",
+    "libelle": "Activiste idéologique / hacktiviste",
+    "definition": "Acteur motivé par une cause, cherchant à dénoncer, exposer ou perturber une organisation qu'il conteste.",
+    "finalites_typiques": ["revendication_ideologique", "influence", "entrave_fonctionnement"],
+    "indices_pertinence": [
+      "activité controversée ou exposée médiatiquement",
+      "positions publiques, clients ou partenaires contestés",
+      "secteur régulièrement pris pour cible par des campagnes militantes"
+    ]
+  },
+  {
+    "id": "officine_specialisee",
+    "libelle": "Officine spécialisée",
+    "definition": "Prestataire offensif agissant sur commande d'un tiers (renseignement privé, intelligence économique).",
+    "finalites_typiques": ["espionnage", "influence"],
+    "indices_pertinence": [
+      "marché concurrentiel où l'information stratégique a une valeur immédiate",
+      "négociations, appels d'offres, opérations de fusion-acquisition en cours",
+      "propriété intellectuelle valorisable"
+    ]
+  },
+  {
+    "id": "concurrent",
+    "libelle": "Concurrent",
+    "definition": "Organisation concurrente cherchant un avantage économique par l'accès à de l'information ou la gêne d'un rival.",
+    "finalites_typiques": ["espionnage", "entrave_fonctionnement"],
+    "indices_pertinence": [
+      "concurrence directe identifiée",
+      "avantage compétitif reposant sur un savoir-faire ou un fichier client",
+      "appels d'offres ou marchés disputés"
+    ]
+  },
+  {
+    "id": "amateur",
+    "libelle": "Amateur",
+    "definition": "Acteur peu outillé exploitant des failles connues et des outils publics, souvent sans cible choisie.",
+    "finalites_typiques": ["defi_amusement", "lucratif"],
+    "indices_pertinence": [
+      "services exposés sur Internet et facilement découvrables",
+      "systèmes anciens ou non maintenus",
+      "absence de mesures de base visibles depuis l'extérieur"
+    ]
+  },
+  {
+    "id": "vengeur",
+    "libelle": "Vengeur",
+    "definition": "Personne s'estimant lésée par l'organisation (ancien salarié, client, partenaire) agissant par représailles.",
+    "finalites_typiques": ["vengeance", "entrave_fonctionnement", "revendication_ideologique"],
+    "indices_pertinence": [
+      "départs conflictuels, litiges commerciaux ou prud'homaux",
+      "comptes d'anciens collaborateurs ou prestataires mal révoqués",
+      "connaissance interne du système d'information par des tiers sortis"
+    ]
+  },
+  {
+    "id": "interne_malveillant",
+    "libelle": "Interne malveillant",
+    "definition": "Collaborateur ou prestataire disposant d'accès légitimes et en faisant un usage intentionnellement nuisible.",
+    "finalites_typiques": ["lucratif", "vengeance", "espionnage"],
+    "indices_pertinence": [
+      "accès privilégiés larges ou faiblement contrôlés",
+      "climat social dégradé, réorganisation, plan social",
+      "information directement revendable détenue en interne",
+      "recours important à l'infogérance ou à des prestataires sur site"
+    ]
+  },
+  {
+    "id": "pathologique",
+    "libelle": "Profil pathologique ou ludique",
+    "definition": "Individu agissant par obsession, fascination ou jeu, sans logique économique ni revendication.",
+    "finalites_typiques": ["defi_amusement", "vengeance"],
+    "indices_pertinence": [
+      "notoriété de l'organisation ou de ses dirigeants",
+      "systèmes accessibles publiquement et présentant un intérêt de curiosité",
+      "antécédents de harcèlement ou d'obsession signalés"
+    ]
+  }
+]

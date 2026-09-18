@@ -1,0 +1,12 @@
+id: anssi_ebios_rm_v1
+name: Base EBIOS RM — sources de risque et objectifs visés
+ebios_version: "EBIOS Risk Manager (ANSSI), atelier 2"
+source: >-
+  Catégories de sources de risque et finalités d'objectifs visés de la méthode
+  EBIOS Risk Manager publiée par l'ANSSI, atelier 2.
+default: true
+# White-box §22 : les intitulés exacts, catégories, échelles et critères doivent être
+# vérifiés contre la version officielle d'EBIOS Risk Manager adoptée par le projet
+# avant d'être figés dans le moteur. Passer ce drapeau à true une fois la relecture
+# faite contre le guide papier ; il est repris tel quel dans le rapport qualité.
+verified_against_official_guide: false

@@ -106,6 +106,20 @@ class MissionRepository:
         )
         self._conn.commit()
 
+    def set_attck_version(self, mission_id: str, version: str) -> None:
+        """The ATT&CK release the mission's technique ids were checked against (§12, §20)."""
+        self._conn.execute(
+            "UPDATE missions SET attck_version_used = ?, updated_at = ? WHERE mission_id = ?",
+            (version, _now(), mission_id),
+        )
+        self._conn.commit()
+
+    def attck_version(self, mission_id: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT attck_version_used FROM missions WHERE mission_id = ?", (mission_id,)
+        ).fetchone()
+        return row["attck_version_used"] if row else None
+
     # --- workshop versions ---
 
     def version_count(self, mission_id: str, workshop_number: int) -> int:

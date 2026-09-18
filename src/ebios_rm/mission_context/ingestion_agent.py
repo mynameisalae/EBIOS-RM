@@ -11,8 +11,7 @@ from __future__ import annotations
 
 import json
 
-from ebios_rm.agent_runtime import run_structured
-from ebios_rm.config import get_model
+from ebios_rm.agent_runtime import AgnoRunner
 from ebios_rm.mission_context.ingestion import ExtractedAnswer, ExtractedAnswerBatch
 from ebios_rm.mission_context.questionnaire import Question
 
@@ -72,7 +71,7 @@ def _chunk(questions: list[Question], size: int) -> list[list[Question]]:
     return [questions[i:i + size] for i in range(0, len(questions), size)]
 
 
-class AgnoIngestionRunner:
+class AgnoIngestionRunner(AgnoRunner):
     """Concrete IngestionRunner backed by Agno + OpenRouter.
 
     Extraction is done in small batches of questions (``batch_size``) so each
@@ -80,27 +79,14 @@ class AgnoIngestionRunner:
     call covering all ~65 questions overflows and gets truncated into invalid JSON.
     """
 
-    def __init__(
-        self, model=None, *, max_attempts: int = 4, base_delay: float = 3.0, batch_size: int = 12,
-        progress=print,
-    ) -> None:
-        self._model = model or get_model()
-        self._max_attempts = max_attempts
-        self._base_delay = base_delay
+    INSTRUCTIONS = _SYSTEM
+
+    def __init__(self, model=None, *, batch_size: int = 12, **kwargs) -> None:
+        super().__init__(model, **kwargs)
         self._batch_size = batch_size
-        self._progress = progress  # called with a short status string before each LLM call
 
     def _run(self, prompt: str, *, what: str) -> list[ExtractedAnswer]:
-        from agno.agent import Agent  # noqa: PLC0415
-
-        batch = run_structured(
-            lambda: Agent(model=self._model, instructions=_SYSTEM,
-                          output_schema=ExtractedAnswerBatch, markdown=False),
-            prompt, ExtractedAnswerBatch,
-            what=what,
-            max_attempts=self._max_attempts, base_delay=self._base_delay, progress=self._progress,
-        )
-        return batch.answers
+        return self._run_structured(ExtractedAnswerBatch, prompt, what=what).answers
 
     def extract_questionnaire(self, doc_text: str, questions: list[Question]) -> list[ExtractedAnswer]:
         collected: list[ExtractedAnswer] = []

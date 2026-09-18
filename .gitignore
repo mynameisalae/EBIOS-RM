@@ -34,6 +34,9 @@ src/ebios_rm/plugins/frameworks/iso27001/controls.json
 *.docx
 !docs/**/*.docx
 
+# Workshop inputs/outputs dumped from a mission (contain client data)
+data/mission/*.json
+
 # Editors / OS
 .vscode/
 .idea/

@@ -22,8 +22,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, Field
 
-from ebios_rm.agent_runtime import StructuredCallFailed, run_structured
-from ebios_rm.config import get_model
+from ebios_rm.agent_runtime import AgnoRunner, StructuredCallFailed
 from ebios_rm.workshops.workshop1_cadrage.models import BaselineGap, ControlReference
 
 # Gaps sent to the model in one call. Weakness strings are short, so a realistic
@@ -78,18 +77,13 @@ def _batches(gaps: list[BaselineGap], size: int) -> list[list[BaselineGap]]:
     return [gaps[i:i + size] for i in range(0, len(gaps), size)]
 
 
-class AgnoGapConsolidationRunner:
+class AgnoGapConsolidationRunner(AgnoRunner):
     """Concrete GapConsolidationRunner backed by Agno + OpenRouter."""
 
-    def __init__(self, model=None, *, max_attempts: int = 4, base_delay: float = 3.0, progress=print) -> None:
-        self._model = model or get_model()
-        self._max_attempts = max_attempts
-        self._base_delay = base_delay
-        self._progress = progress
+    INSTRUCTIONS = _SYSTEM
 
     def propose_groups(self, gaps: list[BaselineGap]) -> list[GapGroupProposal]:
-        from agno.agent import Agent  # noqa: PLC0415
-        import json
+        import json  # noqa: PLC0415
 
         proposals: list[GapGroupProposal] = []
         batches = _batches(gaps, MAX_GAPS_PER_CALL)
@@ -114,13 +108,7 @@ class AgnoGapConsolidationRunner:
             if len(batches) > 1:
                 what += f" (lot {index}/{len(batches)})"
             try:
-                batch_result = run_structured(
-                    lambda: Agent(model=self._model, instructions=_SYSTEM,
-                                  output_schema=GapGroupBatch, markdown=False),
-                    prompt, GapGroupBatch, what=what,
-                    max_attempts=self._max_attempts, base_delay=self._base_delay,
-                    progress=self._progress,
-                )
+                batch_result = self._run_structured(GapGroupBatch, prompt, what=what)
             except StructuredCallFailed as exc:
                 # No proposals rather than a guess: gaps simply stay separate.
                 self._progress(f"   (consolidation indisponible : {str(exc)[:120]})")
