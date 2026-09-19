@@ -15,6 +15,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from ebios_rm.domain.enums import Origin, PrioriteMesure
+from ebios_rm.domain.operational_scenario import Anomaly
 
 
 class Mesure(BaseModel):
@@ -37,9 +38,22 @@ class Mesure(BaseModel):
     mitigation_ids_attck: list[str] = Field(default_factory=list)
 
     # --- the four criteria the auditor arbitrates on ---
-    cout: str            # qualitative, e.g. "Faible", "Moyen (formation)", "Élevé (nouvel outil)"
-    efficacite: str       # what residual risk looks like once applied, in the auditor's terms
-    delai: str            # rough time to implement, qualitative
-    priorite: PrioriteMesure
+    cout: str = ""         # qualitative, e.g. "Faible", "Moyen (formation)", "Élevé (nouvel outil)"
+    efficacite: str = ""   # what residual risk looks like once applied, in the auditor's terms
+    delai: str = ""        # rough time to implement, qualitative
+    # None when the model's own priorite text did not fold onto the fixed
+    # vocabulary — flagged as an anomaly (assessment.py), never guessed. The
+    # measure itself is still kept: a real description with an unreadable
+    # priority is still useful to the auditor, unlike an empty proposal.
+    priorite: PrioriteMesure | None = None
 
+    # Beyond the bare w5_output.mesures schema, same reason atelier 4's
+    # OperationalScenario carries more than its own terse conception line:
+    # what build_mesure found wrong (an unreadable priority, a dropped
+    # citation) has to live somewhere the auditor actually sees it.
+    anomalies: list[Anomaly] = Field(default_factory=list)
     origin: Origin = Origin.ASSESSMENT
+
+    @property
+    def blocking_anomalies(self) -> list[Anomaly]:
+        return [a for a in self.anomalies if a.bloquante]

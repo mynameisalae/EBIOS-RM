@@ -88,14 +88,12 @@ class MesuresBatch(BaseModel):
 
 REASON_MITIGATION_INCONNUE = "mitigation_inconnue"
 REASON_SCENARIO_INCONNU = "scenario_inconnu"
-REASON_PRIORITE_INVALIDE = "priorite_invalide"
-REASON_CRITERE_MANQUANT = "critere_manquant"
+REASON_PROPOSITION_VIDE = "proposition_vide"
 
 ECARTE_REASON_LABELS = {
     REASON_MITIGATION_INCONNUE: "Identifiant de mitigation ATT&CK non retourné par l'outil de consultation",
     REASON_SCENARIO_INCONNU: "Mesure associée à un scénario opérationnel qui n'existe pas",
-    REASON_PRIORITE_INVALIDE: "Priorité hors de l'échelle Faible / Moyenne / Élevée",
-    REASON_CRITERE_MANQUANT: "Coût, efficacité ou délai manquant — un critère d'arbitrage ne peut être vide",
+    REASON_PROPOSITION_VIDE: "Aucune description exploitable, aucun scénario ni mitigation associé",
 }
 
 
