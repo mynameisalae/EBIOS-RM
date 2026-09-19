@@ -11,8 +11,10 @@ entries with no covers_risk_category stay out of this technical scope.
 
 Produces towards: the reporting agent (conception §20).
 
-Build in progress — models.py exists; workshop.py/assessment.py/agent.py are
-the next pieces, in that order.
+Public entry points:
+    build_workshop5_input(mission_context, w1_output, w4_output) -> Workshop5Input
+    cited_technique_ids(w5_input) -> set[str]
+    run_workshop5(w5_input, runner, attack_repo, w4_output, w1_output) -> Workshop5Output
 """
 
 from ebios_rm.workshops.workshop5_traitement_risque.models import (
@@ -22,6 +24,11 @@ from ebios_rm.workshops.workshop5_traitement_risque.models import (
     Workshop5Input,
     Workshop5Output,
 )
+from ebios_rm.workshops.workshop5_traitement_risque.workshop import (
+    build_workshop5_input,
+    cited_technique_ids,
+    run_workshop5,
+)
 
 __all__ = [
     "ElementEcarte",
@@ -29,4 +36,7 @@ __all__ = [
     "MesuresBatch",
     "Workshop5Input",
     "Workshop5Output",
+    "build_workshop5_input",
+    "cited_technique_ids",
+    "run_workshop5",
 ]

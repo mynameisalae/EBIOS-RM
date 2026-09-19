@@ -22,9 +22,9 @@ class AgnoWorkshop5Runner(AgnoRunner):
 
     INSTRUCTIONS = prompts.SYSTEM_INSTRUCTIONS
 
-    async def propose_mesures(self, w5_input: Workshop5Input, mitigations: MitigationCatalogue) -> MesuresBatch:
+    def propose_mesures(self, w5_input: Workshop5Input, mitigations: MitigationCatalogue) -> MesuresBatch:
         toolkit = AttackToolkit(mitigations)
-        return await self._arun_structured(
+        return self._run_structured(
             MesuresBatch,
             prompts.proposal_prompt(w5_input),
             what="propositions de traitement du risque",

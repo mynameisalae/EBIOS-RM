@@ -1,10 +1,11 @@
 """The LLM boundary for Workshop 5, behind a Protocol so orchestration is testable.
 
 One call, one agent — unlike atelier 4, there is no fan-out here (conception
-§19: "agent unique"). The one thing genuinely new versus every earlier
-atelier: this call makes real tool calls (get_mitigations_for_technique), so
-the fake used in tests must expose the same shape a real Agno tool call
-would, not just return canned structured output.
+§19: "agent unique"), so unlike atelier 4's runner this one is synchronous:
+no concurrent calls means no reason to pay the async/event-loop complexity
+that made atelier 4's integration with the Orchestrator its own source of
+bugs (see workshop4_runner.py's docstring). Real tool calls happen inside
+this one call regardless of sync or async — Agno resolves them the same way.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from ebios_rm.workshops.workshop5_traitement_risque.models import MesuresBatch, 
 class Workshop5AgentRunner(Protocol):
     """Everything Workshop 5 asks the model to do (conception §19)."""
 
-    async def propose_mesures(self, w5_input: Workshop5Input, mitigations: MitigationCatalogue) -> MesuresBatch:
+    def propose_mesures(self, w5_input: Workshop5Input, mitigations: MitigationCatalogue) -> MesuresBatch:
         """Propose the treatment measures for this mission's finalized scenarios.
 
         ``mitigations`` is the catalogue already built for exactly the
