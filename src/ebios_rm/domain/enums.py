@@ -128,6 +128,14 @@ class Hebergement(str, Enum):
     HYBRIDE = "hybride"
 
 
+class PrioriteMesure(str, Enum):
+    """Priority of a treatment measure, three fixed values (fiche de test atelier 5, §19)."""
+
+    FAIBLE = "Faible"
+    MOYENNE = "Moyenne"
+    ELEVEE = "Élevée"
+
+
 class LegalImpactType(str, Enum):
     """Nature of a purely-legal provision (conception §12.3).
 
