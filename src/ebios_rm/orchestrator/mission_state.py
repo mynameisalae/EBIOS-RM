@@ -17,6 +17,7 @@ from ebios_rm.workshops.workshop1_cadrage.models import Workshop1Output
 from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Output
 from ebios_rm.workshops.workshop3_scenarios_strategiques.models import Workshop3Output
 from ebios_rm.workshops.workshop4_scenarios_operationnels.models import Workshop4Output
+from ebios_rm.workshops.workshop5_traitement_risque.models import Workshop5Output
 
 WORKSHOP_CONTEXT = 0  # the Mission Context (intake result)
 WORKSHOP_1 = 1
@@ -89,6 +90,15 @@ def checkpoint_w4_output(repo: MissionRepository, mission_id: str, output: Works
 def load_w4_output(repo: MissionRepository, mission_id: str) -> Workshop4Output | None:
     version = repo.latest_output(mission_id, WORKSHOP_4)
     return Workshop4Output.model_validate(version.output) if version else None
+
+
+def save_w5_output(repo: MissionRepository, mission_id: str, output: Workshop5Output, *, status: str = "current") -> int:
+    return repo.save_output(mission_id, WORKSHOP_5, output.model_dump(mode="json"), status=status)
+
+
+def load_w5_output(repo: MissionRepository, mission_id: str) -> Workshop5Output | None:
+    version = repo.latest_output(mission_id, WORKSHOP_5)
+    return Workshop5Output.model_validate(version.output) if version else None
 
 
 def persist_session_answers(repo, mission_id, mission_context, before, after, *, stage: str) -> int:
