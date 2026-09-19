@@ -228,24 +228,28 @@ class AgnoRunner:
         self._base_delay = self.BASE_DELAY if base_delay is None else base_delay
         self._progress = progress  # called with a short status string before each LLM call
 
-    def _agent(self, output_schema, instructions: str | None = None):
+    def _agent(self, output_schema, instructions: str | None = None, *, tools: list | None = None):
         from agno.agent import Agent  # noqa: PLC0415 — lazy so tests don't need Agno
 
+        # tools=None here is the same as omitting it — ateliers 1 to 4 never
+        # pass one, and nothing about their calls changes. Atelier 5 is the
+        # first to (conception §19): free models do not call tools reliably,
+        # which is exactly why the others avoid it (see their own agent.py).
         return Agent(model=self._model, instructions=instructions or self.INSTRUCTIONS,
-                     output_schema=output_schema, markdown=False)
+                     output_schema=output_schema, tools=tools, markdown=False)
 
     def _run_structured(self, output_schema: type[T], prompt: str, *, what: str,
-                        instructions: str | None = None) -> T:
+                        instructions: str | None = None, tools: list | None = None) -> T:
         return run_structured(
-            lambda: self._agent(output_schema, instructions), prompt, output_schema,
+            lambda: self._agent(output_schema, instructions, tools=tools), prompt, output_schema,
             what=what, max_attempts=self._max_attempts, base_delay=self._base_delay,
             progress=self._progress,
         )
 
     async def _arun_structured(self, output_schema: type[T], prompt: str, *, what: str,
-                               instructions: str | None = None) -> T:
+                               instructions: str | None = None, tools: list | None = None) -> T:
         return await arun_structured(
-            lambda: self._agent(output_schema, instructions), prompt, output_schema,
+            lambda: self._agent(output_schema, instructions, tools=tools), prompt, output_schema,
             what=what, max_attempts=self._max_attempts, base_delay=self._base_delay,
             progress=self._progress,
         )
