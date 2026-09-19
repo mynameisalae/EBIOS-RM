@@ -27,11 +27,20 @@ def _now() -> str:
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:
-    """Open (creating if needed) the mission DB with the schema applied."""
+    """Open (creating if needed) the mission DB with the schema applied.
+
+    check_same_thread=False: the Orchestrator's Workshop4Runner offloads
+    Workshop4Flow.advance() to a worker thread (asyncio.to_thread), because
+    run_analyses() opens its own event loop internally and cannot nest inside
+    the one run_mission() is already running. Only one thread ever touches
+    this connection at a time — the event loop is suspended, awaiting the
+    worker — so this widens what the driver allows without adding real
+    concurrent access.
+    """
     path = Path(db_path)
     if str(path) != ":memory:":
         path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path))
+    conn = sqlite3.connect(str(path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))

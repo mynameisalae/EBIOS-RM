@@ -74,7 +74,7 @@ async def test_workshop2_receives_the_narrow_input_built_from_workshop1_output(r
 
     await orch.run_mission(mid)
 
-    from ebios_rm.orchestrator.input_adapters import Workshop2Input
+    from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Input
 
     assert len(w2.run_calls) == 1
     received_input, received_mission_id = w2.run_calls[0]

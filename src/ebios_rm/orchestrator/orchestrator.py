@@ -26,13 +26,17 @@ from typing import Callable
 from pydantic import BaseModel
 
 from ebios_rm.orchestrator import mission_state, state_machine
-from ebios_rm.orchestrator.input_adapters import build_workshop2_input
 from ebios_rm.orchestrator.mission_state import can_redo
 from ebios_rm.orchestrator.signals import WorkshopBlocked, WorkshopHalted
 from ebios_rm.orchestrator.workshop_protocol import WorkshopRunner
 from ebios_rm.repositories.mission_repository import MissionRepository
 from ebios_rm.workshops.workshop1_cadrage.human_interface import approve_workshop
 from ebios_rm.workshops.workshop1_cadrage.models import Workshop1Output
+from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Output
+from ebios_rm.workshops.workshop2_sources_risque.workshop import build_workshop2_input
+from ebios_rm.workshops.workshop3_scenarios_strategiques.models import Workshop3Output
+from ebios_rm.workshops.workshop3_scenarios_strategiques.workshop import build_workshop3_input
+from ebios_rm.workshops.workshop4_scenarios_operationnels import Workshop4Output, build_workshop4_input
 
 
 def _default_reinforced_confirm(label: str, *, io_in: Callable[[str], str] = input, io_out: Callable[[str], None] = print) -> bool:
@@ -65,9 +69,14 @@ class Orchestrator:
     ) -> None:
         self._repo = repo
         self._workshops = workshops
-        # Atelier 1's output type is always known; atelier 2-5's types are
-        # supplied by the caller once each workshop's real model exists.
-        self._output_models: dict[int, type[BaseModel]] = {mission_state.WORKSHOP_1: Workshop1Output}
+        # Atelier 1-4's output types are known now that the real workshops
+        # exist; atelier 5's is supplied by the caller once it does too.
+        self._output_models: dict[int, type[BaseModel]] = {
+            mission_state.WORKSHOP_1: Workshop1Output,
+            mission_state.WORKSHOP_2: Workshop2Output,
+            mission_state.WORKSHOP_3: Workshop3Output,
+            mission_state.WORKSHOP_4: Workshop4Output,
+        }
         if output_models:
             self._output_models.update(output_models)
         self._approve = approve
@@ -219,14 +228,32 @@ class Orchestrator:
             if context is None:
                 raise RuntimeError(f"Mission {mission_id} has no Mission Context — intake must run first.")
             return context
+
+        context = mission_state.load_mission_context(self._repo, mission_id)
+        if context is None:
+            raise RuntimeError(f"Mission {mission_id} has no Mission Context — intake must run first.")
+
         if n == mission_state.WORKSHOP_2:
             w1_output = mission_state.load_w1_output(self._repo, mission_id)
             if w1_output is None:
                 raise RuntimeError(f"Mission {mission_id} has no approved atelier 1 output.")
-            return build_workshop2_input(w1_output)
+            return build_workshop2_input(context, w1_output)
+        if n == mission_state.WORKSHOP_3:
+            w1_output = mission_state.load_w1_output(self._repo, mission_id)
+            w2_output = mission_state.load_w2_output(self._repo, mission_id)
+            if w1_output is None or w2_output is None:
+                raise RuntimeError(f"Mission {mission_id} has no approved atelier 1 or atelier 2 output.")
+            return build_workshop3_input(context, w1_output, w2_output)
+        if n == mission_state.WORKSHOP_4:
+            w1_output = mission_state.load_w1_output(self._repo, mission_id)
+            w2_output = mission_state.load_w2_output(self._repo, mission_id)
+            w3_output = mission_state.load_w3_output(self._repo, mission_id)
+            if w1_output is None or w2_output is None or w3_output is None:
+                raise RuntimeError(f"Mission {mission_id} has no approved atelier 1, 2 or 3 output.")
+            return build_workshop4_input(context, w1_output, w2_output, w3_output)
         raise NotImplementedError(
-            f"No input adapter registered yet for atelier {n} — add build_workshop{n}_input() to "
-            f"ebios_rm.orchestrator.input_adapters once atelier {n - 1}'s real output shape exists."
+            f"No input adapter registered yet for atelier {n} — add build_workshop{n}_input() "
+            f"once atelier {n - 1}'s real output shape exists."
         )
 
     # --- output persistence ---
