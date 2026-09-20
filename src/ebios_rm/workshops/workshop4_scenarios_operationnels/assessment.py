@@ -302,7 +302,13 @@ def build_analysis(
         elif technique is not None and tactic not in technique.tactics:
             flag("tactique_incoherente",
                  f"Étape {n} : {technique.technique_id} ({technique.name}) relève de "
-                 f"{', '.join(technique.tactics)}, pas de {tactic}.", bloquante=False)
+                 f"{', '.join(technique.tactics)}, pas de {tactic} — tactique corrigée.", bloquante=False)
+            # FIX bug n°1 : la tactique auto-déclarée par le LLM était retenue telle quelle
+            # même quand elle contredit le catalogue ATT&CK pour cette technique (ex. T1090
+            # Proxy déclaré en "initial-access" alors qu'il relève de "command-and-control").
+            # Sans cette ligne, phase_of(tactic) plus bas se base sur une tactique fausse et
+            # peut faire croire à une étape "Rentrer" ou "Exploiter" qui n'existe pas vraiment.
+            tactic = technique.tactics[0]
 
         if technique is not None and raw.technique_name.strip() and not _same_name(raw.technique_name, technique.name):
             flag("nom_technique_divergent",
@@ -338,13 +344,18 @@ def build_analysis(
         flag("chemin_vide", "Aucune étape : le mode opératoire n'est pas décrit.")
     else:
         phases = {s.phase for s in steps}
+        # FIX bug lié au n°1 : ces deux checks passaient en bloquante=False, donc une
+        # chaîne sans vrai accès initial (ex. SO-01, une fois T1090 correctement reclassé
+        # en command-and-control) pouvait quand même être confirmée par l'auditeur sans
+        # override explicite. Une kill chain sans "Rentrer" ou sans "Exploiter" n'est pas
+        # une kill chain complète au sens même du prompt (§18) — ça doit bloquer.
         if PHASE_RENTRER not in phases:
             flag("phase_absente", "Aucune étape « Rentrer » (initial-access) : par où la source de risque entre-t-elle ?",
-                 bloquante=False)
+                 bloquante=True)
         if PHASE_EXPLOITER not in phases:
             flag("phase_absente",
                  "Aucune étape « Exploiter » (collection, exfiltration, impact) : l'événement redouté n'est pas atteint.",
-                 bloquante=False)
+                 bloquante=True)
     if not proposal.resume.strip():
         flag("resume_absent", "Aucun résumé du mode opératoire.", bloquante=False)
 
@@ -675,5 +686,21 @@ def run_quality_checks(
                 for s in scenarios if s.new_baseline_gap_identified]
     check("Nouveaux écarts proposés", proposed, statut=STATUT_AVERTISSEMENT,
           ok_message="Aucun écart nouveau proposé.")
-
+# 11. Cohérence de la gravité par rapport aux enjeux — Empêche les risques majeurs sous-évalués
+    gravite_critique_problemes = []
+    for s in scenarios:
+        if s.statut in STATUTS_EN_ATTENTE:
+            continue
+        # Si la gravité est Minimale mais que le scénario concerne des données bancaires ou des pannes critiques
+        if s.gravite == Gravite.MINIMALE and any("bancaire" in (a or "").casefold() or "vente" in (a or "").casefold() for a in s.biens_essentiels_ids):
+            gravite_critique_problemes.append(
+                f"Scénario {s.id} ({s.id}) : Gravité 'Minimale' incohérente pour des données bancaires ou un processus de vente critique."
+            )
+            
+    check(
+        "Cohérence de la gravité",
+        gravite_critique_problemes,
+        statut=STATUT_ERREUR,
+        ok_message="La gravité des scénarios est cohérente avec les enjeux métiers."
+    )
     return QualityReport(checks=checks)

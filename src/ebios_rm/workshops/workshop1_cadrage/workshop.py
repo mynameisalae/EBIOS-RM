@@ -8,8 +8,8 @@ The Mission Context it consumes is built beforehand by intake_ingestion.
 
 The agent only proposes; acceptance is code-enforced or auditor-driven (§2).
 """
-
 from __future__ import annotations
+from ebios_rm.domain.enums import CategorieImpact
 
 from ebios_rm.domain.feared_event import FearedEvent, LegalImpactEntry
 from ebios_rm.mission_context.mission_context import MissionContext
@@ -52,10 +52,11 @@ def _attach_legal_impacts(
             continue
         event.legal_impacts.append(
             LegalImpactEntry(
-                provision_citee=provision.legal_impact_details or provision.description,
-                evidence_mission_context=a.evidence_mission_context.strip(),
-                framework=provision.framework,
-            )
+    categorie_impact=CategorieImpact.JURIDIQUE,  # <-- Indispensable car il n'y a plus de valeur par défaut !
+    provision_citee=provision.legal_impact_details or provision.description,
+    evidence_mission_context=a.evidence_mission_context.strip(),
+    framework=provision.framework,
+)
         )
     return events
 
