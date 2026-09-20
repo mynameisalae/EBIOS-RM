@@ -138,8 +138,22 @@ def run_analyses(
     calls fail, the others are kept and the first failure is raised afterwards: a
     failed call is never turned into an analysis, and never costs the ones that
     succeeded.
+
+    Opens its own event loop, correct when called from the standalone script's
+    synchronous main(). A caller that already runs one (an async Orchestrator,
+    say) cannot have this one nest inside it — asyncio.run() refuses that — so
+    when one is already running, this one runs instead on a worker thread,
+    where it is free to open its own.
     """
-    return asyncio.run(_fan_out(w4_input, output, runner, catalogue, checkpoint, max_parallel))
+    coro = _fan_out(w4_input, output, runner, catalogue, checkpoint, max_parallel)
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)  # no loop running: today's behaviour, unchanged
+    else:
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result()
 
 
 async def _fan_out(w4_input, output, runner, catalogue, checkpoint, max_parallel) -> Workshop4Output:
