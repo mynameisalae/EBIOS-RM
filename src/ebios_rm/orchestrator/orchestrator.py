@@ -37,6 +37,7 @@ from ebios_rm.workshops.workshop2_sources_risque.workshop import build_workshop2
 from ebios_rm.workshops.workshop3_scenarios_strategiques.models import Workshop3Output
 from ebios_rm.workshops.workshop3_scenarios_strategiques.workshop import build_workshop3_input
 from ebios_rm.workshops.workshop4_scenarios_operationnels import Workshop4Output, build_workshop4_input
+from ebios_rm.workshops.workshop5_traitement_risque import Workshop5Output, build_workshop5_input
 
 
 def _default_reinforced_confirm(label: str, *, io_in: Callable[[str], str] = input, io_out: Callable[[str], None] = print) -> bool:
@@ -69,13 +70,13 @@ class Orchestrator:
     ) -> None:
         self._repo = repo
         self._workshops = workshops
-        # Atelier 1-4's output types are known now that the real workshops
-        # exist; atelier 5's is supplied by the caller once it does too.
+        # Every atelier's output type is known now that the five real workshops exist.
         self._output_models: dict[int, type[BaseModel]] = {
             mission_state.WORKSHOP_1: Workshop1Output,
             mission_state.WORKSHOP_2: Workshop2Output,
             mission_state.WORKSHOP_3: Workshop3Output,
             mission_state.WORKSHOP_4: Workshop4Output,
+            mission_state.WORKSHOP_5: Workshop5Output,
         }
         if output_models:
             self._output_models.update(output_models)
@@ -251,6 +252,14 @@ class Orchestrator:
             if w1_output is None or w2_output is None or w3_output is None:
                 raise RuntimeError(f"Mission {mission_id} has no approved atelier 1, 2 or 3 output.")
             return build_workshop4_input(context, w1_output, w2_output, w3_output)
+        if n == mission_state.WORKSHOP_5:
+            w1_output = mission_state.load_w1_output(self._repo, mission_id)
+            w2_output = mission_state.load_w2_output(self._repo, mission_id)
+            w3_output = mission_state.load_w3_output(self._repo, mission_id)
+            w4_output = mission_state.load_w4_output(self._repo, mission_id)
+            if w1_output is None or w2_output is None or w3_output is None or w4_output is None:
+                raise RuntimeError(f"Mission {mission_id} has no approved atelier 1, 2, 3 or 4 output.")
+            return build_workshop5_input(context, w1_output, w2_output, w3_output, w4_output)
         raise NotImplementedError(
             f"No input adapter registered yet for atelier {n} — add build_workshop{n}_input() "
             f"once atelier {n - 1}'s real output shape exists."

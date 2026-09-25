@@ -97,6 +97,54 @@ class NiveauRisque(str, Enum):
     CRITIQUE = "Critique"
 
 
+class Acceptabilite(str, Enum):
+    """How a risk level sits against the organisation's acceptance thresholds (atelier 5-2).
+
+    The scale the method proposes: a low risk is accepted as it stands, a medium one
+    is tolerated under control (monitored, improved over time), a high one is
+    unacceptable — reduction measures are mandatory in the short term, failing which
+    all or part of the activity is refused.
+    """
+
+    ACCEPTABLE = "Acceptable en l'état"
+    TOLERABLE = "Tolérable sous contrôle"
+    INACCEPTABLE = "Inacceptable"
+
+
+class OptionTraitement(str, Enum):
+    """The four risk treatment options of ISO 27005:2022, as atelier 5-2 applies them."""
+
+    REDUCTION = "reduction"   # act on the scenario so it becomes less likely
+    MAINTIEN = "maintien"     # keep the risk as it is (accept it)
+    PARTAGE = "partage"       # share or transfer it (insurance, contract, third party)
+    EVITEMENT = "evitement"   # refuse it: the activity or the exposure is given up
+
+
+class AxeMesure(str, Enum):
+    """The four groups a risk treatment plan is organised in (atelier 5-3)."""
+
+    GOUVERNANCE = "gouvernance"  # governance and anticipation
+    PROTECTION = "protection"
+    DEFENSE = "defense"
+    RESILIENCE = "resilience"
+
+
+class Priorite(str, Enum):
+    """Priority of a measure in the plan — risk level first, then cost and delay (atelier 5-3)."""
+
+    P1 = "P1"
+    P2 = "P2"
+    P3 = "P3"
+
+
+class StatutMesure(str, Enum):
+    """Where a measure stands in the plan (atelier 5-3)."""
+
+    A_LANCER = "À lancer"
+    EN_COURS = "En cours"
+    TERMINE = "Terminé"
+
+
 class ImpactType(str, Enum):
     """How one baseline gap bears on one operational scenario (conception §18).
 
