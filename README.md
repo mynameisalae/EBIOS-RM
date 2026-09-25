@@ -1,255 +1,342 @@
 # EBIOS RM Agent
 
-AI-assisted agent for the EBIOS Risk Manager methodology. The system is
-AI-**assisted**, never AI-**driven**: it extracts, proposes, flags
-contradictions and gaps, and explains its reasoning — it never invents
-information, never makes a final audit decision, and never resolves a
-contradiction on its own. The auditor always has the last word.
+An AI-assisted auditor's tool for the **EBIOS Risk Manager** method (ANSSI). It
+conducts a risk study through the method's five workshops (*ateliers*), from the
+client's questionnaire to a risk treatment plan the direction signs off.
 
-The design reference is an internal document (`docs/conception/`, not published)
-and remains the authoritative source for every architectural decision here — the
-`§n` markers throughout the code point at its sections. This README only orients.
+The system is AI-**assisted**, never AI-**driven**. The agent reads, extracts,
+proposes, flags and explains; it never invents a fact about the organisation, never
+takes a methodological decision, and never approves its own work. **The auditor
+always has the last word**, and every decision they take is logged with its reason.
 
-## Stack
+---
 
-| Component | Choice | Role |
-|---|---|---|
-| Language | Python 3.13 | |
-| Agent framework | Agno 2.6.x | Agents, orchestration, tools, HITL |
-| Runtime | AgentOS | Execution server (FastAPI) |
-| Database | SQLite (x2: reference + mission) | No vector store anywhere |
-| Reporting | python-docx | Mission report + audit annex |
-| Model provider | OpenRouter (sole provider) | `MODEL_ID` env var switches test/prod |
-| Container | Docker, multi-stage, non-root | |
+## How the system works
 
-## Layout
+### One study, five ateliers, in order
 
-```
-src/ebios_rm/
-  mission_context/   intake form, Fact model, 3-case validation, priority matrix
-  orchestrator/       Workshop N -> Mission State -> Orchestrator -> N+1 (never direct calls)
-  domain/             typed models shared across layers (Fact, EssentialAsset, ...)
-  workshops/          the five ateliers, one agent (or fan-out) each
-  services/           business-service layer — EBIOS RM logic
-  repositories/       data access only, no business logic
-  toolkits/           Agno toolkits — ATT&CK and compliance queries
-  db/                 schemas + reference-db-loader (plugin-aware)
-  plugins/frameworks/ one folder per law/standard — see below
-  reporting/          mission report (LLM) + audit annex (pure data render)
-```
+Each atelier starts only once the previous one is **approved** by the auditor, and
+reads nothing but that approved result. Everything is stored per mission in one
+SQLite file, so a study can span days.
 
-## Standards and laws as plugins
+| Atelier | Question it answers | What it produces | The agent… | The auditor… |
+|---|---|---|---|---|
+| **Intake** | What do we know about the organisation? | the *Mission Context*: every answer as a sourced fact | reads the questionnaire and documents, asks follow-ups, writes expert questions | answers, corrects, resolves contradictions |
+| **1 — Cadrage et socle** | What must be protected, how badly would it hurt, and where does the security baseline fall short? | essential assets, support assets, feared events with their gravité, baseline gaps per standard | proposes assets and feared events, assesses each control of the declared standards against the facts | approves, corrects, groups duplicate gaps |
+| **2 — Sources de risque** | Who could attack, and what would they be after? | risk sources, targeted objectives, rated SR/OV couples | proposes actors from the approved category base, rates them | approves the retained couples |
+| **3 — Scénarios stratégiques** | By which route through the ecosystem would they get there? | strategic scenarios (source → stakeholders → essential asset) | writes one route per couple, then criticises its own list | rules on the **number** of scenarios (it sizes atelier 4) |
+| **4 — Scénarios opérationnels** | How exactly would the attack unfold on the systems, and how likely is it to succeed? | *modes opératoires* in MITRE ATT&CK terms, a revised likelihood and risk level for each | lists every way in the dossier allows, then develops each one with an independent sub-agent | reviews all of them together, sends some back, picks which mode drives each risk |
+| **5 — Traitement du risque** | What do we do about it, and what risk remains? | the risk map, the treatment plan, the residual risks, the monitoring framework | words each risk for a decision-maker, proposes measures, evaluates what remains, proposes indicators | decides the treatment option of each risk, reviews the plan, has the residual risks formally accepted |
 
-Every compliance framework (ISO 27001, ANSSI hygiene, RGPD, NIST CSF, and any
-future one — HIPAA, PCI-DSS, ...) lives in its own folder under
-`src/ebios_rm/plugins/frameworks/<framework_id>/`, containing:
+### Rules the code enforces, whatever the model says
 
-- `manifest.yaml` — id, display name, version, legal nature, whether it carries
-  `legal_impact_type` provisions (conception §12.3)
-- `controls.json` — rows matching the `baseline_controls` schema (conception §12.1)
+The model proposes through strict JSON schemas; code checks every answer before it
+is kept. What the method fixes is computed or checked in code, never left to the model:
 
-The `reference-db-loader` service discovers every plugin folder at load time
-and inserts its controls into the reference database — adding a new
-standard never touches orchestrator, workshop, or agent code (conception §12.5).
-See `src/ebios_rm/plugins/frameworks/_template/` as a starting point for a new one.
+- **Nothing invented.** A justification must cite a real field of the Mission
+  Context; a stakeholder, a control, an ATT&CK technique or mitigation id that does
+  not exist in the dossier or the reference bases is refused.
+- **Nothing silently dropped.** Every rejected proposal lands in *Éléments écartés*
+  with its reason, and is shown to the auditor.
+- **Levels are computed, not judged.** Pertinence, initial likelihood, risk level
+  (gravité × vraisemblance), acceptability and measure priority come from fixed
+  scales in code. Gravité is set once (atelier 1) and carried forward, never re-rated.
+- **A security measure lowers the likelihood, never the gravité.** The residual
+  likelihood can only go down, only where a measure is retained, and never further
+  than the measures claim.
+- **Reasons are mandatory.** Every skip, rejection, override, correction and
+  decision needs a real justification; an empty or punctuation-only one is refused.
+- **Quality checker.** Every atelier result is re-checked before approval; a result
+  in *erreur* cannot be approved without typing `CONFIRMER`.
 
-## Development
+### What exists today
+
+| Works | Not built yet |
+|---|---|
+| Intake + ateliers 1 to 5, each through its own CLI script | the mission report and the audit annex (`reporting/` is a placeholder) |
+| Stop anywhere, resume with the same command | the web server (`main.py` is a placeholder; Docker starts nothing useful) |
+| Versions, rollback cap, decision log, token accounting | an end-to-end run of ateliers 2 to 5 through the Orchestrator (it drives atelier 1 today) |
+| `MANUAL_LLM=1` mode, without any API credit | |
+
+---
+
+## Setup
+
+Python 3.13.
 
 ```bash
-cp .env.example .env   # fill in OPENROUTER_API_KEY
 pip install -r requirements-dev.txt
+```
+
+Create a `.env` file at the root:
+
+```
+OPENROUTER_API_KEY=sk-or-...
+# optional — the model used for every call (default: a free Gemma model for development)
+MODEL_ID=anthropic/claude-sonnet-5
+# optional — where things live (defaults shown)
+MISSION_DB_PATH=data/mission/mission.db
+ATTACK_DB_PATH=mitre_attack_complete.db
+```
+
+OpenRouter is the only model provider; `MODEL_ID` is the only thing to change
+between a cheap test model and a production one.
+
+- **The standards' controls** (ISO 27001, ANSSI hygiene, RGPD, NIST CSF) are read
+  from the plugin folders at every run — no step needed.
+- **The MITRE ATT&CK base** (`mitre_attack_complete.db`, shipped at the root) is
+  needed from atelier 4 on: every technique and mitigation id is checked against it.
+  It is opened read-only.
+
+```bash
 pytest
 ```
 
-## Running Workshop 1 (no front end yet — CLI)
+---
 
-The audit contact fills the Word questionnaire
-([`docs/intake/Questionnaire_Contexte_EBIOS_RM.docx`](docs/intake/Questionnaire_Contexte_EBIOS_RM.docx))
-and returns it. You then run Workshop 1 against that file. Any format works —
-`.docx`, `.pdf`, `.txt`, `.md` — the reader picks the method by extension; pass
-the path as-is, no conversion needed (`.pdf` needs `pip install pdfplumber`).
+## Working with it — what is the same in every atelier
 
-Start a new mission (filled questionnaire, plus any optional supporting docs —
-security policy, network diagram, prior report):
+Everything runs in a terminal, in French. Run the scripts from a real terminal so the
+prompts can read your answers.
+
+### Answering the agent's questions
+
+Each atelier opens with a short **session** of questions the dossier does not answer
+yet (competitors for atelier 2, supplier access for atelier 4, acceptance threshold
+and budget for atelier 5…). Answers are written back into the Mission Context, so
+they are never asked twice. At any question you can:
+
+- **answer** it;
+- **ask** what it means (`c'est quoi un EDR ?`) — the agent explains and asks again;
+- type **`skip`** — a reason is required, and the question is not put again;
+- type **`!your text`** to force your answer verbatim when the agent keeps pushing back.
+
+`--no-session` skips the session (ateliers 2 to 5).
+
+### Questioning the agent
+
+At the decision points the agent shows `Votre question :` — ask anything about the
+result in front of you (*why is this mode the most likely?*). It answers **only from
+the mission's own facts**, and says so when the dossier does not hold the answer.
+Press Entrée to go on. In atelier 5's menus, type **`?`** to do the same before deciding.
+
+### The approval gate
+
+Every atelier ends with *« Approuvez-vous ce résultat ? »* — `oui` or `non` (a
+refusal needs a reason). After a refusal:
+
+- **`c` — correct it yourself.** Give the field path (`risques.0.vraisemblance_residuelle`),
+  the new value, a justification. No model call. In ateliers 4 and 5, what follows
+  from the value (a risk level, an acceptability, a priority) is recomputed.
+- **`r` — let the agent redo it.** Where the atelier has several parts (1, 2, 4, 5),
+  pick **which ones** to redo; the rest is kept verbatim. Your reasons are passed to
+  the agent.
+- **`q` — stop.** The last version is kept, marked *not approved*.
+
+Every attempt is a new **version**; nothing is overwritten. After 3 versions of the
+same atelier, going further requires typing `CONFIRMER`.
+
+### Stopping and resuming
+
+Stop whenever you like: `q` at a decision, or Ctrl+C. Every answer, every model
+result and every decision is saved the moment it happens. **Run the same command
+again** and the atelier resumes exactly where it stopped, without paying again for
+a model call already made.
 
 ```bash
-python scripts/run_workshop1_from_docs.py <filled_questionnaire> [supporting_doc ...]
+python scripts/run_workshop1_from_docs.py --list    # every mission and its status
 ```
 
-It prints a `mission_id` at the top. What happens: the agent ingests the
-document(s), asks follow-up questions for anything missing or thin, generates its
-own expert audit questions, then runs the workshop and shows `w1_output`. During
-the questions you can, at any prompt:
+The whole study lives in `data/mission/mission.db` — back it up by copying the file.
 
-- **answer** it, or type a **question** (`c'est quoi un EDR ?`) — the agent
-  explains and re-asks;
-- **`skip`** an important question (a reason is required);
-- **`!your text`** to force-record an answer verbatim when the agent keeps
-  pushing back (you always outrank the agent);
-- when it later asks *"Approuvez-vous ce résultat ?"*, answer `oui` / `non`
-  (a rejection requires a reason).
-
-### If you reject the result
-
-Your reason is recorded in the decision log, then you choose:
-
-- **`c` — correct it yourself.** Give the field path
-  (`evenements_redoutes.0.gravite`), the new value, and a justification (required).
-  No LLM call; the change is saved as a new version carrying an edit trail
-  (what changed, from what, by whom, why) that the report will show.
-- **`r` — let the agent redo it.** You pick *which parts* to regenerate —
-  assets/feared events, baseline gaps, legal impacts, or all — and only those are
-  re-run. The rest is kept **verbatim**, so rejecting a wrong gravité never
-  reshuffles assets you were happy with. Your reason is passed to the agent as an
-  explicit instruction, and reasons accumulate across attempts.
-- **`q` — stop.** The last version is kept, stored as *not approved*.
-
-Every attempt is its own version; nothing is overwritten, and only an approved
-version counts as complete. After 3 versions the rollback cap (conception §12.6)
-requires typing `CONFIRMER` to go further.
-
-### Same weakness, several referentials
-
-ISO 27001, NIST and ANSSI often demand the same thing, so one real weakness would
-otherwise appear as three near-identical findings. Before the result is shown for
-approval, the agent proposes which gaps describe **one** weakness; you confirm in
-a single pass (`[Entrée]` accepts all, or name the groups to leave separate).
-
-A confirmed group becomes one entry listing every control that requires the fix:
-
-```
-Pas de MFA sur les accès distants
-   ISO27001       A.5.15
-   NIST           PR.AA-05
-   ANSSI_hygiene  ANSSI-H-21
-```
-
-Nothing is grouped automatically — a wrongly merged pair would silently drop a
-finding (§15 step 9). Workshop 4 then analyses each weakness once instead of once
-per referential.
-
-### Controls the agent could not conclude on
-
-A control the agent cannot settle is never quietly counted as compliant — it is
-reported as **unverified, with the reason**, grouped so you can see at a glance
-what kind of problem it is:
-
-- *Information absente du contexte* — the client never said. A question for you.
-- *Verdict rendu sans preuve citée* — the agent claimed something without citing a
-  fact, so the code refused it. That points at the prompt, not at the client.
-- *Contrôle inconnu du référentiel* / *Verdict non exploitable* — model malfunction.
-
-You are **not** interrogated control by control: with hundreds of controls that
-guarantees the list gets skipped and the audit trail fills with empty
-justifications. You read the list and type a control id only for the ones you want
-to document; the information is recorded in the decision log and the control stays
-explicitly unverified until it is reassessed.
-
-### Missing referential controls
-
-If a declared framework has no controls loaded, the run **stops** before the
-workshop: the agent must never invent referential text or assume coverage. Either
-fill that plugin's `controls.json`, rebuild the reference DB and `--resume`, or
-explicitly withdraw the framework with a reason (logged as a decision).
-
-### Token usage
-
-Every LLM call's tokens are recorded per mission.
+### Tokens and cost
 
 ```bash
 python scripts/mission_tokens.py                 # all missions
-python scripts/mission_tokens.py <mission_id>    # one mission, broken down by model
+python scripts/mission_tokens.py <mission_id>    # one mission, by model
 ```
 
-Cost is reported as `0`: only tokens are counted, no pricing table is baked in.
+Only tokens are counted; no price table is built in. Before any expensive step
+(atelier 4's analyses, a second pass), the atelier shows the number of calls and an
+estimate, and waits for your go.
 
-### Stop and continue later
+### Without API credit
 
-Everything is saved to a SQLite file (`data/mission/mission.db` by default). You
-can stop **any time** — even mid-question — and continue later: progress is saved
-after every answer.
+`MANUAL_LLM=1` writes each prompt to `data/manual/*.prompt.md` and waits for you to
+drop the matching `.response.json` beside it. The schema travels with the prompt and
+is enforced on what you write, so the result is checked exactly like a model answer.
+
+---
+
+## The five ateliers, step by step
+
+### Intake and atelier 1 — cadrage et socle de sécurité
+
+The client fills the Word questionnaire
+([`docs/intake/Questionnaire_Contexte_EBIOS_RM.docx`](docs/intake/Questionnaire_Contexte_EBIOS_RM.docx)).
+Any format is read (`.docx`, `.pdf`, `.txt`, `.md`; `.pdf` needs `pip install pdfplumber`).
 
 ```bash
-python scripts/run_workshop1_from_docs.py --list                 # saved missions + status
-python scripts/run_workshop1_from_docs.py --resume <mission_id>  # continue where you left off
+python scripts/run_workshop1_from_docs.py <filled_questionnaire> [supporting_doc ...]
+python scripts/run_workshop1_from_docs.py --resume <mission_id>
 ```
 
-Resume skips whatever is already answered and picks up at the first unanswered
-question; if the workshop already ran, it just shows the saved result.
+It prints the **`mission_id`** you will use for every later atelier. The agent reads
+the documents, asks follow-ups for what is missing or thin, adds its own expert audit
+questions, then proposes the assets, the feared events and the baseline assessment.
 
-> The data lives in that one `.db` file — back it up by copying it. In Docker it
-> lives in the `mission_db_data` volume instead (same file, conception §13.3).
+- **Same weakness, several standards.** ISO 27001, NIST and ANSSI often require the
+  same fix. The agent proposes which gaps are one weakness; you confirm in one pass,
+  and a confirmed group becomes one entry listing every control that requires it.
+  Nothing is grouped without you.
+- **Controls it could not conclude on** are listed as *unverified, with the reason*
+  (information absent from the dossier, verdict without cited evidence, unknown
+  control) — never counted as compliant. Type a control id only for those you want
+  to document.
+- **A declared standard with no controls loaded stops the run**: fill that
+  plugin's `controls.json`, or withdraw the standard with a reason.
+- **Redo** can target assets and feared events, baseline gaps, or legal impacts.
 
-## Running Workshop 2 — sources de risque et objectifs visés
-
-Runs on a mission whose Workshop 1 is **approved**; it reads the saved Mission
-Context and `w1_output` from the same DB.
+### Atelier 2 — sources de risque et objectifs visés
 
 ```bash
 python scripts/run_workshop2.py <mission_id>
-python scripts/run_workshop2.py <mission_id> --no-session   # skip the client session
 ```
 
-It first holds the **atelier 2 session**: eight questions the intake does not
-cover (competitors, conflictual departures, public exposure, past incidents…),
-each one there to make a particular actor category plausible or not. Answers are
-written back to the Mission Context, so a later run does not ask them again — a
-skip keeps its reason and is not put again either.
+After an 8-question session, the agent proposes risk-source categories (only from
+the approved base), the objectives they would pursue, and SR/OV couples rated on
+three 1–4 scales. A proposal must describe an actor — not a technique or a system —
+and justify itself from a named context field, or it is dropped with its reason.
+Pertinence and initial likelihood are computed from the ratings. If atelier 1's
+result has a broken reference, atelier 2 refuses to start: fix it in atelier 1.
 
-Then the agent proposes risk-source categories, the objectives they might pursue,
-and the SR/OV couples with three 1..4 ratings. It only ever *proposes*: the
-category must come from the approved base, carry a justification anchored in a
-named context field, and describe an actor rather than a technique or a support
-asset. Everything else is dropped **with its reason**, listed under *Éléments
-écartés*. Pertinence and initial likelihood are computed in code from the
-ratings, never by the model.
-
-The approval gate works exactly like Workshop 1's (`c` correct / `r` redo the
-parts you name / `q` stop, same rollback cap). Two differences:
-
-- the **quality checker** runs on every result; an output in `erreur` cannot be
-  approved without typing `CONFIRMER`;
-- if `w1_output` has a broken reference, atelier 2 **refuses to start** — fix it
-  in atelier 1, since a data error is not a reasoning error.
-
-Rerunning the same command resumes: a mission left at `w2_awaiting_approval` or
-`w2_rejected` picks up at the approval gate on the saved output, with no LLM call
-paid for up front.
-
-## Running Workshop 3 — scénarios stratégiques
-
-Runs on a mission whose Workshop 2 is **approved** — checked on the atelier 2
-version itself, so it stays true however far the mission moves on afterwards.
+### Atelier 3 — scénarios stratégiques
 
 ```bash
 python scripts/run_workshop3.py <mission_id>
 ```
 
-For each SR/OV couple retained in atelier 2, the agent writes the route: which
-source de risque, through which parties prenantes of the ecosystem, to reach which
-essential asset. It runs twice — propose, then criticise its own list and fold the
-near-duplicates. Nothing is re-rated here: gravité comes from atelier 1's feared
-events, pertinence and initial likelihood from atelier 2's couples, all carried
-forward in code. A stakeholder the dossier never mentions gets the scenario
-discarded, with its reason.
+For each retained couple, the agent writes the route: which stakeholders of the
+ecosystem the source goes through to reach which essential asset. It runs twice —
+propose, then criticise and fold near-duplicates. A stakeholder the dossier never
+mentions gets the scenario discarded.
 
-Then the **count gate**, the study's one validation point on the scenario count N
-(atelier 4 fans out one LLM call per scenario, so N is the size of what comes
-next):
+Then the **count gate** — atelier 4 costs one call to list the modes opératoires per
+scenario, plus one analysis per mode, so the number of scenarios decides its price:
 
-- **N ≤ 6** — validate the list, or stop.
-- **6 < N ≤ 12** — validate anyway (with a reason), merge scenarios, choose a
-  subset, or stop.
-- **N > 12** — merge, choose a subset, or stop. "Run anyway" is not offered.
+- **up to 6** — validate or stop;
+- **7 to 12** — validate anyway (with a reason), merge, choose a subset, or stop;
+- **more than 12** — merge, choose a subset, or stop. *Run anyway* is not offered.
 
-Merging and subsetting each require a justification and re-enter the gate with the
-new count, so a list reduced from 14 to 13 gets exactly the options 13 deserves.
+A merge or a subset needs a reason and comes back to the gate with the new count.
 
-Approval works as in the other ateliers (`c` correct / `r` redo / `q` stop, same
-rollback cap, quality errors need a typed `CONFIRMER`). Rerunning resumes: at the
-count gate if the count was never ruled on, at the approval gate otherwise.
+### Atelier 4 — scénarios opérationnels
 
-> No API credit? `MANUAL_LLM=1` writes each prompt to `data/manual/*.prompt.md`
-> and waits for you to drop the matching `.response.json` beside it. The schema
-> travels with the prompt and is enforced on what you write, so the audit trail is
-> the same as a model run.
+```bash
+python scripts/run_workshop4.py <mission_id>
+```
+
+The method's rule is followed as a real audit would: **develop every mode opératoire
+the scenario allows, then keep the most likely** — not choose first, then develop.
+
+1. **Listing the modes.** For each strategic scenario, the agent lists every way in
+   the dossier supports — an exposed service, remote access, a supplier link, a
+   person and their workstation, legitimate access misused, physical access — each
+   tied to the context field that makes it real. The agent decides how many; a mode
+   with no anchor, an unknown way in, or a twin of another is dropped with its
+   reason. You see the list, the ways in the dossier names that no mode takes, and
+   the price, then: `o` develop them all, `e` drop one (reason required), `a` add a
+   way in the agent missed, `n` stop. Beyond 6 modes for one scenario, `CONFIRMER`
+   is required.
+2. **Developing them.** Each mode gets its own independent sub-agent (up to 4 in
+   parallel): the attack path step by step in ATT&CK techniques
+   (Connaître → Rentrer → Trouver → Exploiter), the baseline gaps it exploits, and a
+   revised likelihood V1–V4. Every technique id is checked against the ATT&CK base,
+   every gap must say what it changes. Each result is saved the moment it returns.
+3. **Your review.** All results together, blocking anomalies first. `Entrée` confirms;
+   type ids (`SO-02, SO-04`) to send them back — *revise* with your remarks, or
+   *reject and redo*; `d SO-03` makes that mode the one that drives its scenario's
+   risk (reason required). By default code picks the most likely mode. A mode can be
+   analysed 3 times; beyond that, `CONFIRMER`.
+4. **Coherence.** Once everything is stable, one call looks at the whole set
+   (duplicates, likelihoods that contradict each other). Accept its findings, reopen
+   the modes concerned, or dismiss them with a reason.
+
+The gate's redo can target individual modes.
+
+### Atelier 5 — traitement du risque
+
+```bash
+python scripts/run_workshop5.py <mission_id>
+```
+
+A 4-question session first: the acceptance threshold and who pronounces it, the
+means available this year, who carries measures by kind, how often an instance can
+follow the plan. Then the method's five activities, in order:
+
+1. **The risk map (5-1).** One risk per strategic scenario: its gravité from atelier
+   1, its likelihood from the mode atelier 4 kept. The agent words each risk in one
+   sentence a director can read. The map is printed (gravité × vraisemblance), and
+   every **serious feared event of atelier 1 that no risk carries** is flagged — the
+   method then asks to iterate ateliers 2 to 4; continuing needs a reason.
+2. **The treatment strategy (5-2) — your decision.** For each risk the scale says
+   *acceptable*, *tolérable sous contrôle* or *inacceptable*, and proposes an option;
+   you choose: `r` réduire, `m` maintenir, `p` partager, `e` éviter, with a reason.
+   Keeping an unacceptable risk as it is requires `CONFIRMER`.
+3. **The treatment plan (5-3).** One call builds the whole plan, so a measure can
+   serve several risks. Measures are filed in the method's four axes (gouvernance,
+   protection, défense, résilience) and must break a step of a mode, close a baseline
+   gap, or treat a risk; ATT&CK mitigation ids are kept only if the base returned them
+   for the techniques the modes cite. Each carries owner, obstacles, cost (+/++/+++),
+   workload, deadline, and a priority computed from the risk level first, then the
+   cost. You review it: `v` validate, `r` set owner/workload/deadline, `e` drop
+   measures (reason required), `c` ask the agent to complete it.
+4. **The residual risks (5-4).** The agent evaluates each treated risk once the plan
+   is in place — mode by mode; the risk keeps the likelihood of its most likely
+   remaining mode. Code refuses any rise, any drop without a measure, and any drop
+   larger than the measures claim. Then the residual risks are **formally accepted**,
+   by name and function — or `p` sends you back to strengthen the plan (the earlier
+   acceptance is then void).
+5. **The monitoring framework (5-5).** You give the follow-up instance and its
+   cadence; the agent proposes 3 to 8 measurable indicators (a cost, a duration, a
+   count or a rate, each with a target).
+
+The gate's redo can target the wording, the options (the plan follows), the plan and
+residual risks, or the monitoring framework.
+
+---
+
+## Where things live
+
+```
+scripts/                 one command per atelier, plus tokens and questionnaire tools
+src/ebios_rm/
+  mission_context/       intake: questionnaire reading, facts, validation, follow-ups, clarification
+  workshops/             one package per atelier: models, prompts, checks (assessment.py), agent
+  orchestrator/          the interactive flows, approval gate, mission state (save/load/resume)
+  domain/                shared models: facts, assets, feared events, scenarios, measures
+  repositories/          SQLite access: missions, reference controls, ATT&CK (read-only)
+  services/              cost estimation (the rest is placeholder)
+  db/                    schemas and the reference-base loader
+  plugins/frameworks/    one folder per standard or law
+  reporting/, toolkits/  placeholders
+data/mission/            the missions (mission.db)
+docs/intake/             the questionnaire and a filled example
+tests/                   no test calls a real model
+```
+
+In each atelier package, `assessment.py` holds the method's rules as pure functions,
+`prompts.py` everything the model reads, `workshop.py` the steps, and the matching
+`orchestrator/workshopN_flow.py` (or `scripts/run_workshopN.py`) the conversation
+with the auditor.
+
+## Adding a standard or a law
+
+Each framework lives in `src/ebios_rm/plugins/frameworks/<framework_id>/`:
+
+- `manifest.yaml` — id, display name, version, legal nature, whether it carries
+  purely legal provisions (fines, mandatory notification);
+- `controls.json` — its controls.
+
+The folder is discovered at load time; adding a standard never touches atelier or
+agent code. Start from `plugins/frameworks/_template/`.
