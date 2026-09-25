@@ -111,6 +111,39 @@ RISK_CATEGORIES: tuple[str, ...] = (
     "impact", "data_destruction",
 )
 
+# --- The ways into the organisation a mode opératoire can take ---------------
+# A fixed list, because the coverage check has to be a lookup and not a text
+# match: the enumeration tags each candidate with one voie, and a voie the dossier
+# names but no mode explores is then a gap in the study the code can point at.
+VOIE_SERVICE_EXPOSE = "service_expose"
+VOIE_ACCES_DISTANT = "acces_distant"
+VOIE_TIERS = "tiers"
+VOIE_PERSONNE_POSTE = "personne_poste"
+VOIE_INTERNE_LEGITIME = "interne_legitime"
+VOIE_ACCES_PHYSIQUE = "acces_physique"
+
+VOIE_LABELS = {
+    VOIE_SERVICE_EXPOSE: "Service exposé sur Internet",
+    VOIE_ACCES_DISTANT: "Accès distant des collaborateurs",
+    VOIE_TIERS: "Tiers, prestataire ou liaison permanente",
+    VOIE_PERSONNE_POSTE: "Personne et son poste (message piégé, support amovible, mobile)",
+    VOIE_INTERNE_LEGITIME: "Accès légitime détourné (interne, compte à privilèges)",
+    VOIE_ACCES_PHYSIQUE: "Accès physique aux locaux ou au matériel",
+}
+VOIES: tuple[str, ...] = tuple(VOIE_LABELS)
+
+# Which context fields make a voie plausible in this dossier. Read to tell the
+# auditor which ways in no mode opératoire explored — never to invent a mode.
+VOIE_CONTEXT_FIELDS: dict[str, tuple[str, ...]] = {
+    VOIE_SERVICE_EXPOSE: ("exposition_internet", "applications_principales"),
+    VOIE_ACCES_DISTANT: ("acces_distant_moyens", "teletravail_autorise", "wifi"),
+    VOIE_TIERS: ("interconnexions_tiers", "fournisseurs_tiers_critiques", "infogerance",
+                 "sous_traitants_donnees", "acces_prestataires"),
+    VOIE_PERSONNE_POSTE: ("sensibilisation", "mobiles_byod", "droits_administrateur"),
+    VOIE_INTERNE_LEGITIME: ("gestion_identites", "comptes_privilegies", "revue_acces"),
+    VOIE_ACCES_PHYSIQUE: ("securite_physique",),
+}
+
 
 class Workshop4Input(BaseModel):
     """Everything an atelier 4 sub-agent may see, and nothing else (conception §9, §18).
@@ -176,8 +209,28 @@ class NewBaselineGapProposal(BaseModel):
     derived_from_fact_fields: list[str] = Field(default_factory=list)
 
 
+class ModeCandidateProposal(BaseModel):
+    """One candidate mode opératoire, before anyone develops it (§18, enumeration).
+
+    Cheap on purpose: the way in and why it holds here, not the attack path. What
+    survives the checks becomes a scenario to analyse; the rest is écarté with its
+    reason. No count is asked for — the dossier decides how many there are.
+    """
+
+    libelle: str = ""
+    voie: str = ""                  # one of VOIES
+    point_entree: str = ""          # the support asset, third party or person it starts from
+    justification: str = ""         # why this way in is plausible for THIS organisation
+    derived_from_fact_fields: list[str] = Field(default_factory=list)
+    doublon_de: str = ""            # the libellé of the candidate this one repeats, if any
+
+
+class ModeCandidateBatch(BaseModel):
+    modes: list[ModeCandidateProposal] = Field(default_factory=list)
+
+
 class ScenarioAnalysisProposal(BaseModel):
-    """One sub-agent's answer for one strategic scenario (§18 subagent_output)."""
+    """One sub-agent's answer for one mode opératoire (§18 subagent_output)."""
 
     resume: str = ""
     attack_path: list[AttackStepProposal] = Field(default_factory=list)
@@ -215,12 +268,22 @@ REASON_ANALYSE_REMPLACEE = "analyse_remplacee"
 REASON_ENTREE_ECART_INCONNU = "entree_ecart_inconnu"
 REASON_NOUVEL_ECART_SANS_ANCRAGE = "nouvel_ecart_sans_ancrage"
 REASON_CONSTAT_INVALIDE = "constat_invalide"
+REASON_MODE_SANS_ANCRAGE = "mode_sans_ancrage"
+REASON_MODE_VOIE_INCONNUE = "mode_voie_inconnue"
+REASON_MODE_DOUBLON = "mode_doublon"
+REASON_MODE_AU_DELA_DU_PLAFOND = "mode_au_dela_du_plafond"
+REASON_MODE_ECARTE_PAR_AUDITEUR = "mode_ecarte_par_auditeur"
 
 ECARTE_REASON_LABELS = {
     REASON_ANALYSE_REMPLACEE: "Analyse renvoyée par l'auditeur, remplacée par sa reprise",
     REASON_ENTREE_ECART_INCONNU: "Entrée citant un écart du socle qui n'a pas été transmis",
     REASON_NOUVEL_ECART_SANS_ANCRAGE: "Nouvel écart proposé sans description ou sans élément de contexte cité",
     REASON_CONSTAT_INVALIDE: "Constat de cohérence inexploitable (type, scénarios ou explication)",
+    REASON_MODE_SANS_ANCRAGE: "Mode opératoire sans libellé, sans justification ou sans champ de contexte cité",
+    REASON_MODE_VOIE_INCONNUE: "Mode opératoire dont la voie d'entrée n'est pas une voie connue",
+    REASON_MODE_DOUBLON: "Mode opératoire reprenant une voie d'entrée déjà couverte pour ce scénario",
+    REASON_MODE_AU_DELA_DU_PLAFOND: "Mode opératoire au-delà du plafond, non développé",
+    REASON_MODE_ECARTE_PAR_AUDITEUR: "Mode opératoire écarté par l'auditeur avant développement",
 }
 
 

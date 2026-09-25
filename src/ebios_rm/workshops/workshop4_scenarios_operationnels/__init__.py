@@ -35,6 +35,8 @@ from ebios_rm.workshops.workshop4_scenarios_operationnels.workshop import (
     pending_scenarios,
     run_analyses,
     run_coherence,
+    run_enumeration,
+    scenarios_without_modes,
 )
 
 __all__ = [
@@ -46,6 +48,8 @@ __all__ = [
     "initial_output",
     "pending_scenarios",
     "run_analyses",
+    "run_enumeration",
+    "scenarios_without_modes",
     "run_coherence",
     "session_questions",
 ]

@@ -12,9 +12,11 @@ from __future__ import annotations
 from typing import Protocol
 
 from ebios_rm.domain.operational_scenario import OperationalScenario
+from ebios_rm.domain.strategic_scenario import StrategicScenario
 from ebios_rm.repositories.attack_repository import AttackCatalogue
 from ebios_rm.workshops.workshop4_scenarios_operationnels.models import (
     CoherenceFindingProposal,
+    ModeCandidateProposal,
     ScenarioAnalysisProposal,
     Workshop4Input,
 )
@@ -22,6 +24,17 @@ from ebios_rm.workshops.workshop4_scenarios_operationnels.models import (
 
 class Workshop4AgentRunner(Protocol):
     """Everything Workshop 4 asks the model to do (conception §18)."""
+
+    async def enumerate_modes(
+        self, w4_input: Workshop4Input, scenario: StrategicScenario,
+    ) -> list[ModeCandidateProposal]:
+        """List the modes opératoires one strategic scenario allows, before any is developed.
+
+        No count is requested: the dossier decides how many ways in there are. The
+        candidates that cite something real become scenarios to analyse; the others
+        are set aside with their reason.
+        """
+        ...
 
     async def analyse_scenario(
         self, w4_input: Workshop4Input, pending: OperationalScenario, catalogue: AttackCatalogue,

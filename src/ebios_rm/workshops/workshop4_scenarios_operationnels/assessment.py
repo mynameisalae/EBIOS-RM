@@ -18,6 +18,7 @@ from typing import Iterable
 
 from ebios_rm.domain.enums import Gravite, ImpactType, NiveauRisque, VraisemblanceInitiale
 from ebios_rm.domain.operational_scenario import (
+    STATUT_A_ANALYSER,
     STATUT_ANALYSE,
     STATUT_CONFIRME,
     STATUTS_EN_ATTENTE,
@@ -27,6 +28,7 @@ from ebios_rm.domain.operational_scenario import (
     NewBaselineGap,
     OperationalScenario,
 )
+from ebios_rm.domain.strategic_scenario import StrategicScenario
 from ebios_rm.repositories.attack_repository import AttackCatalogue
 from ebios_rm.workshops.workshop1_cadrage.human_interface import is_meaningful
 from ebios_rm.workshops.workshop1_cadrage.models import BaselineGapForW4, Workshop1Output
@@ -44,8 +46,14 @@ from ebios_rm.workshops.workshop4_scenarios_operationnels.models import (
     REASON_ANALYSE_REMPLACEE,
     REASON_CONSTAT_INVALIDE,
     REASON_ENTREE_ECART_INCONNU,
+    REASON_MODE_DOUBLON,
+    REASON_MODE_SANS_ANCRAGE,
+    REASON_MODE_VOIE_INCONNUE,
     REASON_NOUVEL_ECART_SANS_ANCRAGE,
     RISK_CATEGORIES,
+    VOIE_CONTEXT_FIELDS,
+    VOIE_LABELS,
+    VOIES,
     STATUT_AVERTISSEMENT,
     STATUT_ERREUR,
     STATUT_OK,
@@ -54,6 +62,7 @@ from ebios_rm.workshops.workshop4_scenarios_operationnels.models import (
     CoherenceFindingProposal,
     ElementEcarte,
     GapConsiderationProposal,
+    ModeCandidateProposal,
     QualityCheck,
     QualityReport,
     ScenarioAnalysisProposal,
@@ -64,6 +73,12 @@ from ebios_rm.workshops.workshop4_scenarios_operationnels.models import (
 # The per-scenario loop cap (§18 step 27, « Loop max_iterations=3 »): past it, sending
 # a scenario back takes a typed confirmation, like the rollback cap of §12.6.
 MAX_ITERATIONS = 3
+
+# Modes opératoires developed per strategic scenario before the auditor has to insist.
+# Not a target — the enumeration decides how many the dossier holds — but a runaway
+# guard: a model that keeps finding « one more way in » cannot order forty analyses
+# on its own. Passing it takes a typed confirmation, like the rollback cap of §12.6.
+MAX_MODES_PER_SCENARIO = 6
 
 # --- Phases: how EBIOS RM reads an ATT&CK path ------------------------------
 
@@ -245,6 +260,136 @@ def validate_atelier3(w3: Workshop3Output, w2: Workshop2Output, w1: Workshop1Out
             bloquant=False,
         ))
     return alerts
+
+
+# --- Étape 22a: the enumeration -> the modes opératoires to develop ----------
+
+def _answered(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set, dict)):
+        return len(value) > 0
+    return True
+
+
+def dossier_voies(w4_input: Workshop4Input) -> list[str]:
+    """The ways into this organisation the dossier actually names (§18).
+
+    What the modes opératoires of a mission should cover between them. Read to tell
+    the auditor which way in nobody explored — never to invent a mode.
+    """
+    return [
+        voie for voie, fields in VOIE_CONTEXT_FIELDS.items()
+        if any(_answered(w4_input.contexte.get(f)) for f in fields)
+    ]
+
+
+def build_modes(
+    scenario: StrategicScenario,
+    candidates: list[ModeCandidateProposal],
+    w4_input: Workshop4Input,
+) -> tuple[list[OperationalScenario], list[ElementEcarte]]:
+    """Turn one scenario's enumeration into modes to develop, or justified rejects (§18).
+
+    Four rules, code-enforced: a label; a justification anchored in a context field
+    or a gap the mission actually holds; a voie from the fixed list; and one mode per
+    way in — a second mode entering the same way at the same place is a wording of
+    the first, not another route. Ids are assigned afterwards by ``number_modes``,
+    once every scenario has been enumerated.
+    """
+    known = (set(w4_input.contexte)
+             | {f.field_name for f in w4_input.faits_contexte}
+             | {g.gap_id for g in w4_input.baseline_gaps})
+    labels = {normalise(c.libelle) for c in candidates if c.libelle.strip()}
+    kept: list[OperationalScenario] = []
+    ecartes: list[ElementEcarte] = []
+    seen: dict[tuple[str, str], str] = {}
+
+    def reject(candidate: ModeCandidateProposal, raison: str, detail: str = "") -> None:
+        ecartes.append(ElementEcarte(
+            type="mode_operatoire", reference=scenario.id,
+            libelle=candidate.libelle.strip() or "(sans libellé)",
+            raison=raison, detail=detail or candidate.justification.strip()))
+
+    for candidate in candidates:
+        cited = [f.strip() for f in candidate.derived_from_fact_fields if f.strip() in known]
+        if not candidate.libelle.strip() or not is_meaningful(candidate.justification) or not cited:
+            reject(candidate, REASON_MODE_SANS_ANCRAGE,
+                   f"Champs cités : {candidate.derived_from_fact_fields}")
+            continue
+        voie = normalise_tactic(candidate.voie).replace("-", "_")
+        if voie not in VOIES:
+            reject(candidate, REASON_MODE_VOIE_INCONNUE, f"Voie proposée : « {candidate.voie} »")
+            continue
+        if candidate.doublon_de.strip() and normalise(candidate.doublon_de) in labels:
+            reject(candidate, REASON_MODE_DOUBLON,
+                   f"Déclaré par l'agent comme reprenant « {candidate.doublon_de.strip()} »")
+            continue
+        key = (voie, normalise(candidate.point_entree) or voie)
+        if key in seen:
+            reject(candidate, REASON_MODE_DOUBLON,
+                   f"Même voie et même point d'entrée que « {seen[key]} »")
+            continue
+        seen[key] = candidate.libelle.strip()
+        entry = candidate.point_entree.strip()
+        kept.append(OperationalScenario(
+            id="",
+            scenario_strategique_id=scenario.id,
+            source_risque_id=scenario.source_risque_id,
+            objectif_vise_id=scenario.objectif_vise_id,
+            variante=candidate.libelle.strip(),
+            voie=voie,
+            variante_justification=(f"{entry} — " if entry else "")
+                                   + f"{candidate.justification.strip()} ({', '.join(cited)})",
+            biens_essentiels_ids=list(scenario.biens_essentiels_ids),
+            evenements_redoutes_ids=list(scenario.evenements_redoutes_ids),
+            gravite=scenario.gravite,
+            vraisemblance_initiale=scenario.vraisemblance_initiale,
+        ))
+    return kept, ecartes
+
+
+def number_modes(modes: list[OperationalScenario], *, start: int = 1) -> list[OperationalScenario]:
+    """Assign SO-01.. in list order.
+
+    Plain numbers, no SO-01a: ids are upper-cased wherever the auditor types one, so
+    a letter suffix would stop matching.
+    """
+    return [m.model_copy(update={"id": f"SO-{n:02d}"}) for n, m in enumerate(modes, start)]
+
+
+def remove_modes(
+    output: Workshop4Output, ids: Iterable[str], raison: str, detail: str = ""
+) -> Workshop4Output:
+    """Drop modes not developed yet, each leaving an écarté entry (§16, §19).
+
+    A developed analysis is never removed this way — it is reviewed, not deleted.
+    """
+    chosen = set(ids)
+    dropped = [s for s in output.scenarios
+               if s.id in chosen and s.statut == STATUT_A_ANALYSER]
+    return output.model_copy(update={
+        "scenarios": [s for s in output.scenarios if s not in dropped],
+        "elements_ecartes": [
+            *output.elements_ecartes,
+            *(ElementEcarte(type="mode_operatoire", reference=s.scenario_strategique_id,
+                            libelle=f"{s.id} {s.variante}", raison=raison, detail=detail)
+              for s in dropped),
+        ],
+    })
+
+
+def modes_beyond_cap(output: Workshop4Output, cap: int) -> list[str]:
+    """The ids a strategic scenario has past ``cap`` modes, in enumeration order (§18 step 27)."""
+    seen: dict[str, int] = {}
+    beyond: list[str] = []
+    for scenario in output.scenarios:
+        seen[scenario.scenario_strategique_id] = seen.get(scenario.scenario_strategique_id, 0) + 1
+        if seen[scenario.scenario_strategique_id] > cap and scenario.statut == STATUT_A_ANALYSER:
+            beyond.append(scenario.id)
+    return beyond
 
 
 # --- Étapes 23-24: one sub-agent's answer -> an analysed scenario ------------
@@ -551,6 +696,99 @@ def apply_coherence(output: Workshop4Output) -> Workshop4Output:
     return output.model_copy(update={"scenarios": scenarios, "coherence": decided})
 
 
+# --- Étape 29a: which mode opératoire drives the risk -------------------------
+
+def _mode_number(scenario_id: str) -> int:
+    digits = "".join(c for c in scenario_id if c.isdigit())
+    return int(digits) if digits else 0
+
+
+def _selection_key(scenario: OperationalScenario) -> tuple:
+    """Most likely first; ties broken on evidence, never on chance."""
+    return (
+        _rank(scenario.revised_likelihood) if scenario.revised_likelihood else 0,
+        -len(scenario.blocking_anomalies),
+        sum(1 for g in scenario.baseline_gaps_considered
+            if g.impact_type is ImpactType.INCREASES_LIKELIHOOD),
+        -len(scenario.attack_path),
+        -_mode_number(scenario.id),
+    )
+
+
+def select_driving(scenarios: list[OperationalScenario]) -> list[OperationalScenario]:
+    """Per strategic scenario, the most likely developed mode drives the risk (§18 step 29).
+
+    The ANSSI rule: a strategic scenario may have several modes opératoires, and its
+    likelihood is the one of its easiest route. The others stay written, with why
+    they do not drive it — an alternative route is what atelier 5 still has to cover.
+
+    A choice the auditor made (``retenu_par_auditeur``) is never recomputed: they
+    outrank this function (§2).
+    """
+    groups: dict[str, list[OperationalScenario]] = {}
+    for scenario in scenarios:
+        groups.setdefault(scenario.scenario_strategique_id, []).append(scenario)
+
+    decided: dict[str, OperationalScenario] = {}
+    for strategic_id, modes in groups.items():
+        overridden = next((m for m in modes if m.retenu_par_auditeur), None)
+        developed = [m for m in modes
+                     if m.revised_likelihood is not None and m.statut not in STATUTS_EN_ATTENTE]
+        driving = overridden or (max(developed, key=_selection_key) if developed else None)
+        others = [m.revised_likelihood.value for m in developed
+                  if driving is not None and m.id != driving.id and m.revised_likelihood]
+        for mode in modes:
+            if driving is not None and mode.id == driving.id:
+                motif = mode.motif_selection if overridden else (
+                    f"Mode le plus vraisemblable de {strategic_id} : "
+                    f"{mode.revised_likelihood.value if mode.revised_likelihood else '?'}"
+                    + (f" contre {', '.join(others)}" if others else " (seul mode développé)")
+                )
+                decided[mode.id] = mode.model_copy(update={"retenu": True, "motif_selection": motif})
+                continue
+            if driving is None:
+                motif = "Aucun mode développé pour ce scénario stratégique."
+            elif mode.statut in STATUTS_EN_ATTENTE or mode.revised_likelihood is None:
+                motif = f"Pas encore développé — {driving.id} mène pour l'instant."
+            elif mode.revised_likelihood is driving.revised_likelihood:
+                motif = (f"Vraisemblance identique à {driving.id} "
+                         f"({mode.revised_likelihood.value}) — départagé sur les anomalies, "
+                         "les écarts exploités puis la longueur du chemin.")
+            else:
+                motif = (f"Vraisemblance {mode.revised_likelihood.value} contre "
+                         f"{driving.revised_likelihood.value if driving.revised_likelihood else '?'} "
+                         f"pour le mode retenu {driving.id}.")
+            decided[mode.id] = mode.model_copy(update={"retenu": False, "motif_selection": motif})
+    return [decided.get(s.id, s) for s in scenarios]
+
+
+def set_driving(output: Workshop4Output, mode_id: str, reason: str) -> Workshop4Output:
+    """The auditor designates which mode drives the risk of its scenario (§2, §8)."""
+    if not is_meaningful(reason):
+        raise ValueError("Un motif non vide est obligatoire pour changer le mode retenu (§8).")
+    target = next((s for s in output.scenarios if s.id == mode_id), None)
+    if target is None:
+        raise ValueError(f"Mode opératoire inconnu : {mode_id}")
+
+    def updated(mode: OperationalScenario) -> OperationalScenario:
+        if mode.scenario_strategique_id != target.scenario_strategique_id:
+            return mode
+        if mode.id == target.id:
+            return mode.model_copy(update={
+                "retenu": True, "retenu_par_auditeur": True,
+                "motif_selection": f"Retenu par l'auditeur : {reason.strip()}"})
+        return mode.model_copy(update={
+            "retenu": False, "retenu_par_auditeur": False,
+            "motif_selection": f"Écarté au profit de {target.id} par l'auditeur : {reason.strip()}"})
+
+    return output.model_copy(update={"scenarios": [updated(s) for s in output.scenarios]})
+
+
+def driving_modes(output: Workshop4Output) -> list[OperationalScenario]:
+    """The retained mode of each strategic scenario — what coherence and atelier 5 read first."""
+    return [s for s in output.scenarios if s.retenu]
+
+
 # --- Étape 29: the final merge and the quality checker ------------------------
 
 def finalize(output: Workshop4Output, catalogue: AttackCatalogue) -> Workshop4Output:
@@ -574,7 +812,7 @@ def finalize(output: Workshop4Output, catalogue: AttackCatalogue) -> Workshop4Ou
             "attack_path": steps,
             "revised_risk_level": risk_level(scenario.gravite, scenario.revised_likelihood),
         }))
-    return output.model_copy(update={"scenarios": scenarios})
+    return output.model_copy(update={"scenarios": select_driving(scenarios)})
 
 
 def run_quality_checks(
@@ -595,13 +833,55 @@ def run_quality_checks(
             message="; ".join(problems) if problems else ok_message,
         ))
 
-    # 1. Couverture — one operational scenario per approved strategic scenario.
-    covered = {s.scenario_strategique_id for s in scenarios}
-    missing = [s.id for s in w4_input.scenarios if s.id not in covered]
-    check("Couverture", [f"scénarios stratégiques sans analyse : {missing}"] if missing else [],
-          ok_message=f"{len(scenarios)} scénario(s) opérationnel(s), un par scénario stratégique.")
+    # 1. Couverture — every strategic scenario has at least one developed mode, and
+    #    exactly one of them drives its risk (§18 step 29).
+    developed: dict[str, list[OperationalScenario]] = {}
+    for scenario in scenarios:
+        if scenario.statut not in STATUTS_EN_ATTENTE:
+            developed.setdefault(scenario.scenario_strategique_id, []).append(scenario)
+    coverage = [f"scénario stratégique sans mode opératoire développé : {s.id}"
+                for s in w4_input.scenarios if s.id not in developed]
+    for strategic_id, modes in developed.items():
+        retained = [m.id for m in modes if m.retenu]
+        if len(retained) != 1:
+            coverage.append(f"{strategic_id} : {len(retained)} mode(s) retenu(s) au lieu d'un ({retained})")
+    check("Couverture", coverage,
+          ok_message=f"{len(scenarios)} mode(s) opératoire(s) pour {len(developed)} scénario(s) "
+                     "stratégique(s), un mode retenu par scénario.")
 
-    # 2. Revue — nothing pending, everything confirmed by the auditor (§18 steps 25-27).
+    # 2. Sélection — the driving mode is the most likely one, unless the auditor said otherwise (§2).
+    selection = []
+    for strategic_id, modes in developed.items():
+        driving = next((m for m in modes if m.retenu), None)
+        if driving is None or driving.retenu_par_auditeur:
+            continue
+        best = max(modes, key=_selection_key)
+        if best.id != driving.id:
+            selection.append(
+                f"{strategic_id} : {driving.id} retenu alors que {best.id} est plus vraisemblable")
+    check("Sélection du mode retenu", selection,
+          ok_message="Le mode retenu de chaque scénario est le plus vraisemblable, "
+                     "ou celui que l'auditeur a désigné.")
+
+    # 3. Voies d'entrée — the ways in the dossier names that no mode explored.
+    explored = {s.voie for s in scenarios if s.voie}
+    unexplored = [VOIE_LABELS.get(v, v) for v in dossier_voies(w4_input) if v not in explored]
+    check("Voies d'entrée explorées",
+          [f"aucun mode opératoire n'emprunte : {', '.join(unexplored)}"] if unexplored else [],
+          statut=STATUT_AVERTISSEMENT,
+          ok_message="Chaque voie d'entrée nommée par le dossier est explorée par un mode au moins.")
+
+    # 4. Écarts exploités — a gap that raises no likelihood anywhere is either
+    #    irrelevant to the study, or a mode opératoire is missing.
+    exploited = {g.gap_id for s in scenarios for g in s.baseline_gaps_considered
+                 if g.impact_type in {ImpactType.INCREASES_LIKELIHOOD, ImpactType.INCREASES_IMPACT}}
+    idle = [g.gap_id for g in w4_input.baseline_gaps if g.gap_id not in exploited]
+    check("Écarts du socle exploités",
+          [f"aucun mode ne s'appuie sur : {', '.join(idle)}"] if idle else [],
+          statut=STATUT_AVERTISSEMENT,
+          ok_message="Chaque écart du socle pèse sur au moins un mode opératoire.")
+
+    # 5. Revue — nothing pending, everything confirmed by the auditor (§18 steps 25-27).
     pending = [s.id for s in scenarios if s.statut in STATUTS_EN_ATTENTE]
     unconfirmed = [s.id for s in scenarios if s.statut == STATUT_ANALYSE]
     check("Revue de l'auditeur",
@@ -609,21 +889,21 @@ def run_quality_checks(
           + ([f"analyses non confirmées : {unconfirmed}"] if unconfirmed else []),
           ok_message="Chaque analyse a été confirmée par l'auditeur.")
 
-    # 3. Techniques — every id is one the base returned (§18 step 23).
+    # 6. Techniques — every id is one the base returned (§18 step 23).
     invalid = [f"{s.id} étape {n} : {step.technique_id}"
                for s in scenarios for n, step in enumerate(s.attack_path, 1)
                if step.technique_id and step.technique_id not in catalogue.techniques]
     check("Techniques ATT&CK", invalid,
           ok_message=f"Tous les identifiants existent dans le catalogue {catalogue.version}.")
 
-    # 4. Chemins — described, on known tactics.
+    # 7. Chemins — described, on known tactics.
     paths = [f"{s.id} sans étape" for s in scenarios if s.statut not in STATUTS_EN_ATTENTE and not s.attack_path]
     paths += [f"{s.id} étape {n} : {'tactique inconnue' if not step.phase else 'action non décrite'}"
               for s in scenarios for n, step in enumerate(s.attack_path, 1)
               if not step.phase or not step.description.strip()]
     check("Modes opératoires", paths, ok_message="Chaque étape a une tactique connue et une action décrite.")
 
-    # 5. Écarts du socle — pertinent ones examined, no entry left without a sentence (§18 step 24).
+    # 8. Écarts du socle — pertinent ones examined, no entry left without a sentence (§18 step 24).
     gaps_problems = []
     for s in scenarios:
         if s.statut in STATUTS_EN_ATTENTE:
@@ -639,7 +919,7 @@ def run_quality_checks(
     check("Écarts du socle", gaps_problems,
           ok_message="Écarts pertinents examinés, chaque impact justifié.")
 
-    # 6. Vraisemblance et niveau de risque.
+    # 9. Vraisemblance et niveau de risque.
     rating = []
     for s in scenarios:
         if s.statut in STATUTS_EN_ATTENTE:
@@ -653,7 +933,7 @@ def run_quality_checks(
     check("Vraisemblance et niveau de risque", rating,
           ok_message="Vraisemblance V1..V4 motivée, niveau lu dans la matrice.")
 
-    # 7. Cotations reprises — gravité and initial likelihood come from atelier 3.
+    # 10. Cotations reprises — gravité and initial likelihood come from atelier 3.
     strategic = {s.id: s for s in w4_input.scenarios}
     carried = [
         f"{s.id} ne reprend pas la cotation de {s.scenario_strategique_id}"
@@ -665,7 +945,7 @@ def run_quality_checks(
     check("Cotations reprises", carried,
           ok_message="Gravité et vraisemblance initiale reprises des ateliers 1 à 3.")
 
-    # 8. Cohérence — run once the set was stable, and ruled on (§18 step 28).
+    # 11. Cohérence — run once the set was stable, and ruled on (§18 step 28).
     coherence = []
     if len(scenarios) >= 2:
         if output.coherence is None:
@@ -675,18 +955,18 @@ def run_quality_checks(
     check("Cohérence d'ensemble", coherence,
           ok_message="Vérification de cohérence effectuée et tranchée.")
 
-    # 9. Anomalies levées par l'auditeur — confirmed anyway; the report must say so.
+    # 12. Anomalies levées par l'auditeur — confirmed anyway; the report must say so.
     overridden = [f"{s.id} ({', '.join(sorted({a.code for a in s.blocking_anomalies}))})"
                   for s in scenarios if s.statut == STATUT_CONFIRME and s.blocking_anomalies]
     check("Anomalies confirmées malgré tout", overridden, statut=STATUT_AVERTISSEMENT,
           ok_message="Aucune analyse confirmée avec une anomalie bloquante.")
 
-    # 10. Nouveaux écarts — proposals only, atelier 1 is not modified.
+    # 13. Nouveaux écarts — proposals only, atelier 1 is not modified.
     proposed = [f"{s.id} : {s.new_baseline_gap_identified.weakness}"
                 for s in scenarios if s.new_baseline_gap_identified]
     check("Nouveaux écarts proposés", proposed, statut=STATUT_AVERTISSEMENT,
           ok_message="Aucun écart nouveau proposé.")
-# 11. Cohérence de la gravité par rapport aux enjeux — Empêche les risques majeurs sous-évalués
+    # 14. Cohérence de la gravité par rapport aux enjeux — Empêche les risques majeurs sous-évalués
     gravite_critique_problemes = []
     for s in scenarios:
         if s.statut in STATUTS_EN_ATTENTE:

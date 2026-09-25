@@ -17,10 +17,12 @@ import json
 
 from ebios_rm.domain.enums import ImpactType
 from ebios_rm.domain.operational_scenario import STATUT_A_REFAIRE, OperationalScenario
+from ebios_rm.domain.strategic_scenario import StrategicScenario
 from ebios_rm.repositories.attack_repository import AttackCatalogue, AttackTechnique
 from ebios_rm.workshops.workshop4_scenarios_operationnels.models import (
     EXPERT_QUESTION_PREFIX,
     RISK_CATEGORIES,
+    VOIE_LABELS,
     Workshop4Input,
 )
 
@@ -87,6 +89,39 @@ sans faciliter l'accès.
 ni sa conséquence : dis pourquoi.
 - not_relevant — l'écart ne concerne aucune étape ni aucune conséquence de ce scénario : dis en une \
 phrase ce qu'il concerne.
+
+## Format
+Uniquement l'objet JSON demandé : aucun texte autour, aucune balise Markdown.
+"""
+
+ENUMERATION_INSTRUCTIONS = """\
+Tu es analyste EBIOS Risk Manager pour l'atelier 4 (scénarios opérationnels). Avant que quiconque \
+écrive un chemin d'attaque, tu recenses les MODES OPÉRATOIRES qu'un scénario stratégique rend \
+possibles contre CETTE organisation : les manières réellement différentes dont la source de risque \
+pourrait s'y prendre. Chaque mode recensé sera ensuite développé en entier par un autre analyste, \
+puis l'auditeur décidera.
+
+## Ce qu'est un mode opératoire ici
+Une manière d'entrer et de progresser, pas une technique. Deux modes sont différents quand ils \
+n'entrent pas par le même endroit ou ne traversent pas le même terrain — donc quand les mesures \
+qui les arrêteraient ne sont pas les mêmes. Deux formulations de la même porte d'entrée ne font \
+qu'un mode.
+
+## Règles absolues
+Le code vérifie chacune. Un mode qui les enfreint n'est pas corrigé : il est écarté, avec son motif.
+1. Le dossier commande — tu ne recenses que les voies d'entrée que le contexte fourni mentionne \
+réellement. Tu n'inventes ni équipement, ni liaison, ni prestataire, ni service exposé. Une voie \
+que le dossier ne mentionne pas n'existe pas pour cette étude.
+2. Tu cites, pour chaque mode, les champs de contexte (ou les gap_id) qui établissent cette voie, \
+avec leur nom exact. Sans citation, le mode est écarté.
+3. Aucun nombre n'est attendu. Tu recenses ce que le dossier permet, autant de modes qu'il y en a, \
+et pas un de plus : un mode que le dossier ne soutient pas coûte une analyse entière pour rien. Si \
+une seule voie tient, tu n'en donnes qu'une.
+4. Les redondances se déclarent : si un mode reprend pour l'essentiel la porte d'entrée et la \
+progression d'un autre, indique son libellé dans doublon_de plutôt que de le maquiller.
+5. Tu restes dans le scénario stratégique fourni : même source de risque, même objectif visé, mêmes \
+biens essentiels. Tu ne proposes aucune mesure de sécurité (atelier 5), et aucun identifiant ATT&CK \
+à ce stade — le chemin technique se décrit au développement.
 
 ## Format
 Uniquement l'objet JSON demandé : aucun texte autour, aucune balise Markdown.
@@ -176,8 +211,8 @@ def _gaps_block(w4_input: Workshop4Input) -> str:
     ])
 
 
-def _scenario_block(w4_input: Workshop4Input, pending: OperationalScenario) -> str:
-    scenario = next(s for s in w4_input.scenarios if s.id == pending.scenario_strategique_id)
+def _scenario_block(w4_input: Workshop4Input, scenario_id: str) -> str:
+    scenario = next(s for s in w4_input.scenarios if s.id == scenario_id)
     sources = {s.id: s for s in w4_input.sources_risque}
     objectifs = {o.id: o for o in w4_input.objectifs_vises}
     assets = {a.id: a for a in w4_input.biens_essentiels}
@@ -212,6 +247,59 @@ def _scenario_block(w4_input: Workshop4Input, pending: OperationalScenario) -> s
         "gravite": scenario.gravite.value,
         "vraisemblance_initiale": scenario.vraisemblance_initiale.value,
     })
+
+
+def modes_prompt(w4_input: Workshop4Input, scenario: StrategicScenario) -> str:
+    """Enumerate the modes opératoires one strategic scenario allows (§18, before the fan-out).
+
+    No ATT&CK catalogue here: this pass is about the ways in the dossier names, not
+    about techniques, and leaving 24 000 characters out keeps it cheap.
+    """
+    voies = "\n".join(f"  - {key} — {label}" for key, label in VOIE_LABELS.items())
+    return (
+        f"<contexte_technique>\n{_context_block(w4_input)}\n</contexte_technique>\n\n"
+        f"<biens_supports>\n{_supports_block(w4_input)}\n</biens_supports>\n\n"
+        f"<ecarts_socle>\n{_gaps_block(w4_input)}\n</ecarts_socle>\n\n"
+        f"<scenario_strategique>\n{_scenario_block(w4_input, scenario.id)}\n</scenario_strategique>\n\n"
+        "<consignes>\n"
+        f"Recense les modes opératoires que le scénario stratégique {scenario.id} rend possibles "
+        "contre cette organisation : les manières réellement différentes dont cette source de "
+        "risque pourrait atteindre cet objectif. Un mode par manière ; autant qu'il y en a dans le "
+        "dossier, pas un de plus.\n\n"
+        "Pour chaque mode :\n"
+        "  - libelle : la manière en quelques mots, dans les termes du dossier — « par la "
+        "télémaintenance de l'éditeur », pas « intrusion réseau » ;\n"
+        f"  - voie : exactement l'une de ces valeurs —\n{voies}\n"
+        "  - point_entree : l'élément par lequel cela commence — un bien support de "
+        "<biens_supports>, un tiers ou une catégorie de personnes que le contexte nomme ;\n"
+        "  - justification : ce qui, dans le dossier, rend cette voie praticable ici ;\n"
+        "  - derived_from_fact_fields : les noms exacts des champs de <contexte_technique> "
+        "(« AUD-… » compris) ou les gap_id de <ecarts_socle> qui l'établissent ; au moins un ;\n"
+        "  - doublon_de : vide, ou le libellé du mode que celui-ci reprend pour l'essentiel.\n\n"
+        "Une voie que le dossier ne mentionne pas ne se recense pas, même si elle est courante "
+        "ailleurs. Une voie que le dossier mentionne mais que le client déclare impossible "
+        "(locaux fermés, service non exposé) ne se recense pas non plus : dis-le en la laissant "
+        "de côté.\n"
+        "</consignes>"
+    )
+
+
+def mode_block(pending: OperationalScenario) -> str:
+    """The one mode opératoire this sub-agent develops — and the others it must ignore."""
+    if not pending.variante:
+        return ""
+    return (
+        "<mode_operatoire>\n"
+        f"Tu développes CE mode opératoire du scénario, et lui seul :\n"
+        f"  - libellé : {pending.variante}\n"
+        f"  - voie d'entrée : {VOIE_LABELS.get(pending.voie, pending.voie)}\n"
+        f"  - justification retenue au recensement : {pending.variante_justification}\n"
+        "Les autres modes opératoires du même scénario stratégique sont développés en parallèle "
+        "par d'autres analystes : ne les décris pas, et ne change pas de porte d'entrée. Si cette "
+        "voie se révèle impraticable à l'examen du dossier, dis-le dans "
+        "likelihood_revision_reason et cote la vraisemblance en conséquence.\n"
+        "</mode_operatoire>\n\n"
+    )
 
 
 def _previous_analysis(pending: OperationalScenario) -> dict:
@@ -283,17 +371,21 @@ def analysis_prompt(w4_input: Workshop4Input, pending: OperationalScenario, cata
         f"<contexte_technique>\n{_context_block(w4_input)}\n</contexte_technique>\n\n"
         f"<biens_supports>\n{_supports_block(w4_input)}\n</biens_supports>\n\n"
         f"<ecarts_socle>\n{_gaps_block(w4_input)}\n</ecarts_socle>\n\n"
-        f"<scenario_strategique>\n{_scenario_block(w4_input, pending)}\n</scenario_strategique>\n\n"
+        f"<scenario_strategique>\n{_scenario_block(w4_input, pending.scenario_strategique_id)}\n"
+        "</scenario_strategique>\n\n"
+        + mode_block(pending)
         + revision_block(pending)
         + "<consignes>\n"
-        f"Analyse le scénario stratégique {pending.scenario_strategique_id}. Travaille dans cet ordre, "
-        "qui est celui des champs à remplir.\n\n"
+        f"Analyse le scénario stratégique {pending.scenario_strategique_id}"
+        + (f", mode opératoire « {pending.variante} »" if pending.variante else "")
+        + ". Travaille dans cet ordre, qui est celui des champs à remplir.\n\n"
         "1. resume — le mode opératoire en une ou deux phrases, dans les termes de l'organisation : par "
         "où la source entre, comment elle progresse, ce qu'elle fait à la fin, et l'événement redouté "
         "qui en résulte.\n\n"
         "2. attack_path — les étapes dans l'ordre chronologique, en général 4 à 8 : chaque maillon "
-        "décisif doit apparaître, mais ce n'est pas l'inventaire des techniques possibles. Un seul "
-        "chemin, le plus plausible pour cette source dans ce dossier. Pour chaque étape :\n"
+        "décisif doit apparaître, mais ce n'est pas l'inventaire des techniques possibles. Le "
+        "chemin de CE mode opératoire, entrée comprise ; les autres modes ne sont pas les tiens. "
+        "Pour chaque étape :\n"
         "   - tactic : le nom court d'une tactique du catalogue ;\n"
         "   - technique_id et technique_name : tels qu'ils figurent au catalogue sous cette tactique — "
         "la sous-technique quand le dossier permet de la préciser, sinon la technique parente ; null "

@@ -15,11 +15,14 @@ from __future__ import annotations
 
 from ebios_rm.agent_runtime import AgnoRunner
 from ebios_rm.domain.operational_scenario import OperationalScenario
+from ebios_rm.domain.strategic_scenario import StrategicScenario
 from ebios_rm.repositories.attack_repository import AttackCatalogue
 from ebios_rm.workshops.workshop4_scenarios_operationnels import prompts
 from ebios_rm.workshops.workshop4_scenarios_operationnels.models import (
     CoherenceBatch,
     CoherenceFindingProposal,
+    ModeCandidateBatch,
+    ModeCandidateProposal,
     ScenarioAnalysisProposal,
     Workshop4Input,
 )
@@ -36,6 +39,17 @@ class AgnoWorkshop4Runner(AgnoRunner):
     """
 
     INSTRUCTIONS = prompts.SYSTEM_INSTRUCTIONS
+
+    async def enumerate_modes(
+        self, w4_input: Workshop4Input, scenario: StrategicScenario,
+    ) -> list[ModeCandidateProposal]:
+        batch = await self._arun_structured(
+            ModeCandidateBatch,
+            prompts.modes_prompt(w4_input, scenario),
+            what=f"modes opératoires possibles {scenario.id}",
+            instructions=prompts.ENUMERATION_INSTRUCTIONS,
+        )
+        return batch.modes
 
     async def analyse_scenario(
         self, w4_input: Workshop4Input, pending: OperationalScenario, catalogue: AttackCatalogue,

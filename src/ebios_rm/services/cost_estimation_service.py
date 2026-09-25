@@ -25,6 +25,16 @@ TOKENS_OUT_PER_SCENARIO = 1500
 SECONDS_PER_SCENARIO = 25.0
 
 
+# What one strategic scenario costs atelier 4 now that a scenario holds several modes
+# opératoires (§18): one cheap enumeration call, then one full analysis per mode.
+# ponytail: three modes per scenario is a guess — replace it from cost_calibration_log
+# once a few real runs exist, like the constants above.
+MODES_PER_SCENARIO = 3
+TOKENS_IN_PER_ENUMERATION = 3000
+TOKENS_OUT_PER_ENUMERATION = 500
+SECONDS_PER_ENUMERATION = 10.0
+
+
 @dataclass(frozen=True)
 class Estimate:
     """What running atelier 4 on ``n`` scenarios would take, and what may be decided.
@@ -51,7 +61,7 @@ def options_for(n: int) -> tuple[str, ...]:
 
 
 def estimate_cost_and_time(n: int) -> Estimate:
-    """Estimate atelier 4's fan-out for ``n`` strategic scenarios (§17, §18)."""
+    """Estimate ``n`` atelier 4 analyses — one mode opératoire each (§17, §18)."""
     return Estimate(
         n=n,
         llm_calls=n,
@@ -59,4 +69,24 @@ def estimate_cost_and_time(n: int) -> Estimate:
         output_tokens=n * TOKENS_OUT_PER_SCENARIO,
         seconds=n * SECONDS_PER_SCENARIO,
         options=options_for(n),
+    )
+
+
+def estimate_workshop4(n_scenarios: int) -> Estimate:
+    """What atelier 4 costs for ``n_scenarios`` strategic scenarios, modes included (§18).
+
+    What the count gate of atelier 3 must show: a strategic scenario is no longer one
+    call. It is one enumeration of its modes opératoires, then one analysis per mode —
+    so the number the auditor rules on at that gate is the number of scenarios, and
+    the price is several times that.
+    """
+    modes = n_scenarios * MODES_PER_SCENARIO
+    analyses = estimate_cost_and_time(modes)
+    return Estimate(
+        n=n_scenarios,
+        llm_calls=n_scenarios + modes,
+        input_tokens=analyses.input_tokens + n_scenarios * TOKENS_IN_PER_ENUMERATION,
+        output_tokens=analyses.output_tokens + n_scenarios * TOKENS_OUT_PER_ENUMERATION,
+        seconds=analyses.seconds + n_scenarios * SECONDS_PER_ENUMERATION,
+        options=options_for(n_scenarios),
     )

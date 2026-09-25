@@ -193,8 +193,9 @@ def _gate(repo, mission_id, w3_input, output: Workshop3Output) -> Workshop3Outpu
     while True:
         gate = gate_for(scenarios, n_initial=n_initial)
         print(f"\n=== Point de comptage — {gate.n} scénario(s) stratégique(s) ===")
-        print(f"L'atelier 4 traite un scénario par appel : environ {gate.estimation_appels_llm} "
-              f"appel(s) au modèle, {gate.estimation_secondes / 60:.0f} minute(s).")
+        print(f"L'atelier 4 recense les modes opératoires de chaque scénario puis analyse chacun "
+              f"d'eux : environ {gate.estimation_appels_llm} appel(s) au modèle, "
+              f"{gate.estimation_secondes / 60:.0f} minute(s).")
         if not gate.options_offertes:
             break
 

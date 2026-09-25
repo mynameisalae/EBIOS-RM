@@ -81,12 +81,26 @@ class Anomaly(BaseModel):
 
 
 class OperationalScenario(BaseModel):
-    """One analysed strategic scenario (conception §18 subagent_output)."""
+    """One mode opératoire of one strategic scenario (conception §18 subagent_output).
 
-    id: str                                  # SO-01.., in the order of the strategic scenarios
+    A strategic scenario usually allows several: the dossier names several ways in,
+    and the method develops each of them before comparing. The most likely one
+    drives the scenario's likelihood and risk level (``retenu``); the others stay
+    here, fully written, as the alternative modes a reader — and atelier 5 — needs.
+    """
+
+    id: str                                  # SO-01.., grouped by strategic scenario
     scenario_strategique_id: str
     source_risque_id: str
     objectif_vise_id: str
+
+    # --- which mode opératoire of that scenario this is ---
+    variante: str = ""                  # its label, as the enumeration named it
+    voie: str = ""                      # how it gets in — one of the fixed voies (models.VOIES)
+    variante_justification: str = ""    # why this way in is plausible here
+    retenu: bool = False                # the driving mode: its likelihood is the scenario's
+    motif_selection: str = ""           # why it drives, or why it does not
+    retenu_par_auditeur: bool = False   # the auditor overrode the code's choice (§2)
 
     resume: str = ""
     attack_path: list[AttackStep] = Field(default_factory=list)

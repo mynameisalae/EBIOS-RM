@@ -8,6 +8,8 @@ the likelihood/risk-level matrix, the coherence pass, and the quality checker.
 
 from __future__ import annotations
 
+import pytest
+
 from ebios_rm.domain.enums import Gravite, ImpactType, NiveauRisque, VraisemblanceInitiale, Origin, CategorieImpact, Pertinence, StatutSelection
 from ebios_rm.domain.essential_asset import EssentialAsset, SupportAsset
 from ebios_rm.domain.feared_event import FearedEvent
@@ -37,6 +39,13 @@ from ebios_rm.workshops.workshop3_scenarios_strategiques.models import (
 from ebios_rm.workshops.workshop4_scenarios_operationnels.assessment import (
     apply_coherence,
     build_analysis,
+    build_modes,
+    dossier_voies,
+    modes_beyond_cap,
+    number_modes,
+    remove_modes,
+    select_driving,
+    set_driving,
     build_coherence,
     confirm,
     finalize,
@@ -54,8 +63,20 @@ from ebios_rm.workshops.workshop4_scenarios_operationnels.assessment import (
     unknown_technique_ids,
     validate_atelier3,
 )
+from ebios_rm.workshops.workshop4_scenarios_operationnels.prompts import analysis_prompt, modes_prompt
 from ebios_rm.workshops.workshop4_scenarios_operationnels.models import (
     COHERENCE_APPLIQUEE,
+    REASON_MODE_AU_DELA_DU_PLAFOND,
+    REASON_MODE_DOUBLON,
+    REASON_MODE_ECARTE_PAR_AUDITEUR,
+    REASON_MODE_SANS_ANCRAGE,
+    REASON_MODE_VOIE_INCONNUE,
+    STATUT_AVERTISSEMENT,
+    VOIE_ACCES_DISTANT,
+    VOIE_PERSONNE_POSTE,
+    VOIE_SERVICE_EXPOSE,
+    VOIES,
+    ModeCandidateProposal,
     CONSTAT_DOUBLON,
     CONSTAT_REVISION,
     STATUT_ERREUR,
@@ -533,3 +554,185 @@ def _ss_for(scenario: OperationalScenario) -> StrategicScenario:
         objectif_vise_id=scenario.objectif_vise_id, couple_id="CPL-01", resume="r", justification="j",
         gravite=scenario.gravite, vraisemblance_initiale=scenario.vraisemblance_initiale,
     )
+
+
+# --- Étape 22a : les modes opératoires d'un scénario stratégique (§18) -------
+# La méthode ne fixe aucun nombre : un scénario stratégique porte autant de modes
+# opératoires que le dossier offre de voies d'entrée, tous sont développés, et le
+# plus vraisemblable porte le risque.
+
+def _candidate(**overrides) -> ModeCandidateProposal:
+    base = dict(
+        libelle="Par le VPN sans MFA des portables",
+        voie=VOIE_ACCES_DISTANT,
+        point_entree="BS-1",
+        justification="Le dossier décrit un VPN sans authentification multifacteur.",
+        derived_from_fact_fields=["acces_distant_moyens"],
+    )
+    base.update(overrides)
+    return ModeCandidateProposal(**base)
+
+
+def _enumeration_input() -> Workshop4Input:
+    return _w4_input().model_copy(update={
+        "contexte": {"acces_distant_moyens": "VPN sans MFA", "exposition_internet": "portail public"},
+    })
+
+
+def _mode(id_: str, likelihood, **overrides) -> OperationalScenario:
+    base = dict(id=id_, scenario_strategique_id="SS-01", source_risque_id="SR-01",
+                objectif_vise_id="OV-01", gravite=Gravite.CRITIQUE,
+                vraisemblance_initiale=VraisemblanceInitiale.V2, statut=STATUT_ANALYSE,
+                revised_likelihood=likelihood, variante=f"mode {id_}", voie=VOIE_ACCES_DISTANT)
+    base.update(overrides)
+    return OperationalScenario(**base)
+
+
+def test_a_mode_without_a_cited_context_field_is_set_aside():
+    kept, ecartes = build_modes(_scenario(), [_candidate(derived_from_fact_fields=["invente"])],
+                                _enumeration_input())
+    assert kept == []
+    assert ecartes[0].raison == REASON_MODE_SANS_ANCRAGE and ecartes[0].raison_label
+
+
+def test_a_mode_on_an_unknown_voie_is_set_aside():
+    kept, ecartes = build_modes(_scenario(), [_candidate(voie="par magie")], _enumeration_input())
+    assert kept == [] and ecartes[0].raison == REASON_MODE_VOIE_INCONNUE
+
+
+def test_two_modes_entering_the_same_way_at_the_same_place_are_one():
+    kept, ecartes = build_modes(
+        _scenario(),
+        [_candidate(),
+         _candidate(libelle="Encore le VPN"),
+         _candidate(libelle="Doublon assume", doublon_de="Par le VPN sans MFA des portables")],
+        _enumeration_input())
+    assert [m.variante for m in kept] == ["Par le VPN sans MFA des portables"]
+    assert [e.raison for e in ecartes] == [REASON_MODE_DOUBLON, REASON_MODE_DOUBLON]
+
+
+def test_several_ways_in_give_several_modes_to_develop():
+    kept, ecartes = build_modes(
+        _scenario(),
+        [_candidate(),
+         _candidate(libelle="Par le portail public", voie=VOIE_SERVICE_EXPOSE, point_entree="portail",
+                    derived_from_fact_fields=["exposition_internet"]),
+         _candidate(libelle="Par un poste piege", voie=VOIE_PERSONNE_POSTE, point_entree="postes",
+                    derived_from_fact_fields=[GAP_ID])],
+        _enumeration_input())
+    assert len(kept) == 3 and not ecartes
+    assert {m.voie for m in kept} == {VOIE_ACCES_DISTANT, VOIE_SERVICE_EXPOSE, VOIE_PERSONNE_POSTE}
+    assert all(m.statut == STATUT_A_ANALYSER and m.gravite is Gravite.CRITIQUE for m in kept)
+    assert number_modes(kept, start=3)[0].id == "SO-03"      # numbering continues across scenarios
+
+
+def test_dossier_voies_reads_the_context_not_the_model():
+    assert set(dossier_voies(_enumeration_input())) == {VOIE_ACCES_DISTANT, VOIE_SERVICE_EXPOSE}
+
+
+def test_the_cap_is_a_guard_and_what_it_drops_keeps_its_reason():
+    modes = number_modes([
+        OperationalScenario(id="", scenario_strategique_id="SS-01", source_risque_id="SR-01",
+                            objectif_vise_id="OV-01", variante=f"mode {i}", voie=VOIE_ACCES_DISTANT)
+        for i in range(8)
+    ])
+    output = Workshop4Output(scenarios=modes)
+    assert modes_beyond_cap(output, 6) == ["SO-07", "SO-08"]
+
+    trimmed = remove_modes(output, ["SO-07", "SO-08"], REASON_MODE_AU_DELA_DU_PLAFOND, "plafond")
+    assert [s.id for s in trimmed.scenarios] == [f"SO-{n:02d}" for n in range(1, 7)]
+    assert {e.raison for e in trimmed.elements_ecartes} == {REASON_MODE_AU_DELA_DU_PLAFOND}
+    assert all(e.raison_label for e in trimmed.elements_ecartes)
+
+
+def test_a_developed_mode_is_never_dropped_that_way():
+    output = Workshop4Output(scenarios=[_pending(statut=STATUT_ANALYSE)])
+    assert remove_modes(output, ["SO-01"], REASON_MODE_ECARTE_PAR_AUDITEUR, "x").scenarios
+
+
+# --- Étape 29a : le mode retenu porte le risque ------------------------------
+
+def test_the_most_likely_mode_drives_the_risk():
+    modes = select_driving([_mode("SO-01", VraisemblanceInitiale.V2),
+                            _mode("SO-02", VraisemblanceInitiale.V4),
+                            _mode("SO-03", VraisemblanceInitiale.V3)])
+    assert [m.id for m in modes if m.retenu] == ["SO-02"]
+    assert "V4" in next(m for m in modes if m.retenu).motif_selection
+    assert "SO-02" in next(m for m in modes if m.id == "SO-01").motif_selection
+
+
+def test_a_tie_is_broken_on_evidence_not_on_order():
+    exploited = [GapConsideration(gap_id=GAP_ID, impact_type=ImpactType.INCREASES_LIKELIHOOD,
+                                  impact_on_scenario="Facilite l'entrée.")]
+    modes = select_driving([
+        _mode("SO-01", VraisemblanceInitiale.V3, anomalies=[Anomaly(code="x", message="m")]),
+        _mode("SO-02", VraisemblanceInitiale.V3, baseline_gaps_considered=exploited),
+    ])
+    assert [m.id for m in modes if m.retenu] == ["SO-02"]
+
+
+def test_a_mode_not_developed_yet_never_drives():
+    modes = select_driving([_mode("SO-01", None, statut=STATUT_A_ANALYSER),
+                            _mode("SO-02", VraisemblanceInitiale.V1)])
+    assert [m.id for m in modes if m.retenu] == ["SO-02"]
+
+
+def test_the_auditor_choice_outranks_the_computation():
+    modes = select_driving([_mode("SO-01", VraisemblanceInitiale.V2),
+                            _mode("SO-02", VraisemblanceInitiale.V4)])
+    output = set_driving(Workshop4Output(scenarios=modes), "SO-01", "Le VPN est le chemin réel ici.")
+    assert [m.id for m in output.scenarios if m.retenu] == ["SO-01"]
+
+    kept = select_driving(output.scenarios)          # recomputing must not undo it
+    assert [m.id for m in kept if m.retenu] == ["SO-01"]
+    assert "auditeur" in next(m for m in kept if m.id == "SO-01").motif_selection
+
+
+def test_designating_a_mode_needs_a_reason_and_a_real_id():
+    output = Workshop4Output(scenarios=[_mode("SO-01", VraisemblanceInitiale.V2)])
+    with pytest.raises(ValueError):
+        set_driving(output, "SO-01", "   ")
+    with pytest.raises(ValueError):
+        set_driving(output, "SO-99", "motif valable")
+
+
+def test_quality_checks_cover_the_modes_and_the_selection():
+    driving = _mode("SO-01", VraisemblanceInitiale.V3, statut=STATUT_CONFIRME,
+                    attack_path=[AttackStep(tactic="initial-access", phase="Rentrer", description="entree")],
+                    likelihood_revision_reason="motif",
+                    revised_risk_level=risk_level(Gravite.CRITIQUE, VraisemblanceInitiale.V3))
+    w4_input = _enumeration_input().model_copy(update={"scenarios": [_ss_for(driving)]})
+    output = Workshop4Output(scenarios=select_driving([driving]))
+    report = run_quality_checks(w4_input, output, _catalogue())
+    statuses = {c.controle: c.statut for c in report.checks}
+    assert statuses["Couverture"] == STATUT_OK                            # one mode, and it drives
+    assert statuses["Sélection du mode retenu"] == STATUT_OK
+    assert statuses["Voies d'entrée explorées"] == STATUT_AVERTISSEMENT   # nobody took the exposed service
+    assert statuses["Écarts du socle exploités"] == STATUT_AVERTISSEMENT  # the gap carries no mode
+
+
+def test_quality_checks_flag_a_scenario_with_no_retained_mode():
+    mode = _mode("SO-01", VraisemblanceInitiale.V3, statut=STATUT_CONFIRME, retenu=False)
+    w4_input = _enumeration_input().model_copy(update={"scenarios": [_ss_for(mode)]})
+    report = run_quality_checks(w4_input, Workshop4Output(scenarios=[mode]), _catalogue())
+    coverage = next(c for c in report.checks if c.controle == "Couverture")
+    assert coverage.statut == STATUT_ERREUR and "retenu" in coverage.message
+
+
+# --- The prompts say what the code enforces ---------------------------------
+
+def test_the_enumeration_prompt_asks_for_no_count():
+    w4_input = _enumeration_input().model_copy(update={"scenarios": [_scenario()]})
+    prompt = modes_prompt(w4_input, _scenario())
+    assert "autant qu'il y en a dans le" in prompt
+    assert all(voie in prompt for voie in VOIES)
+    assert "T1078" not in prompt                       # no ATT&CK catalogue at this stage
+
+
+def test_the_analysis_prompt_names_the_mode_and_forbids_the_others():
+    w4_input = _enumeration_input().model_copy(update={"scenarios": [_scenario()]})
+    pending = _pending(variante="Par le VPN sans MFA", voie=VOIE_ACCES_DISTANT,
+                       variante_justification="BS-1 — VPN sans MFA (acces_distant_moyens)")
+    prompt = analysis_prompt(w4_input, pending, _catalogue())
+    assert "<mode_operatoire>" in prompt and "Par le VPN sans MFA" in prompt
+    assert "ne les décris pas" in prompt

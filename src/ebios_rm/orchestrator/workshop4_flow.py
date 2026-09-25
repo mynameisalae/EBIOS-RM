@@ -28,8 +28,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from ebios_rm.domain.enums import ImpactType
+from ebios_rm.domain.enums import ImpactType, Origin
 from ebios_rm.domain.operational_scenario import (
+    STATUT_A_ANALYSER,
     STATUT_A_REFAIRE,
     STATUT_A_REVISER,
     STATUT_ANALYSE,
@@ -55,18 +56,30 @@ from ebios_rm.workshops.workshop4_scenarios_operationnels import (
     pending_scenarios,
     run_analyses,
     run_coherence,
+    run_enumeration,
+    scenarios_without_modes,
 )
 from ebios_rm.workshops.workshop4_scenarios_operationnels.agent_runner import Workshop4AgentRunner
 from ebios_rm.workshops.workshop4_scenarios_operationnels.assessment import (
     MAX_ITERATIONS,
+    MAX_MODES_PER_SCENARIO,
     apply_coherence,
     confirm,
+    dossier_voies,
+    modes_beyond_cap,
     path_summary,
+    remove_modes,
+    select_driving,
     send_back,
+    set_driving,
 )
 from ebios_rm.workshops.workshop4_scenarios_operationnels.models import (
     COHERENCE_ECARTEE,
     CONSTAT_REVISION,
+    REASON_MODE_AU_DELA_DU_PLAFOND,
+    REASON_MODE_ECARTE_PAR_AUDITEUR,
+    VOIE_LABELS,
+    VOIES,
 )
 
 STAGE = "workshop_4"
@@ -139,8 +152,10 @@ def run_workshop4(
         return 0
 
     if saved is not None:
-        analysed = [s.scenario_strategique_id for s in saved.scenarios]
-        if analysed != [s.id for s in w4_input.scenarios]:
+        # The strategic scenarios already worked on — deduplicated, because one of
+        # them now carries several modes opératoires.
+        analysed = list(dict.fromkeys(s.scenario_strategique_id for s in saved.scenarios))
+        if analysed and analysed != [s.id for s in w4_input.scenarios]:
             # Atelier 3 was redone and re-approved after this atelier 4 started: its
             # analyses describe a list that no longer exists.
             io_out(f"\nL'atelier 3 a changé depuis le début de l'atelier 4 : {analysed} analysés, "
@@ -206,7 +221,9 @@ class Workshop4Flow:
     def advance(self, output: Workshop4Output) -> Workshop4Output:
         """Take the output from wherever it stands to the final merge, saving every step."""
         while True:
-            if pending_scenarios(output):
+            if scenarios_without_modes(self.w4_input, output):
+                output = self.enumerate_modes(output)
+            elif pending_scenarios(output):
                 output = self.analyse(output)
             elif any(s.statut == STATUT_ANALYSE for s in output.scenarios):
                 output = self.review(output)
@@ -218,11 +235,121 @@ class Workshop4Flow:
             else:
                 return self.checkpoint(assemble_output(self.w4_input, output, self.catalogue))
 
+    def enumerate_modes(self, output: Workshop4Output) -> Workshop4Output:
+        """Recense the modes opératoires, then put the list and its price to the auditor (§18).
+
+        The method decides the count: as many modes as the dossier has ways in, all of
+        them developed, the most likely one driving the risk. So this gate does not ask
+        the auditor to pick which ones to develop — it shows what will be developed and
+        what it costs, and lets them stop, drop an implausible one, or add a way in the
+        agent missed.
+        """
+        missing = scenarios_without_modes(self.w4_input, output)
+        self.io_out(f"\n=== Recensement des modes opératoires — {len(missing)} scénario(s) stratégique(s) ===")
+        output = run_enumeration(self.w4_input, output, self.runner, checkpoint=self.checkpoint)
+
+        while True:
+            self.print_modes(output)
+            beyond = modes_beyond_cap(output, MAX_MODES_PER_SCENARIO)
+            if beyond:
+                self.io_out(f"\nPlafond de {MAX_MODES_PER_SCENARIO} modes par scénario dépassé : "
+                            f"{', '.join(beyond)} au-delà. Tapez CONFIRMER pour les développer aussi ; "
+                            "toute autre saisie les écarte.")
+                if self.io_in("> ").strip() != "CONFIRMER":
+                    output = self.checkpoint(remove_modes(
+                        output, beyond, REASON_MODE_AU_DELA_DU_PLAFOND,
+                        f"Plafond de {MAX_MODES_PER_SCENARIO} modes par scénario stratégique"))
+                    continue
+                self.repo.log_decision(self.mission_id, stage=STAGE, action="plafond_modes_leve",
+                                       justification=f"{len(beyond)} mode(s) au-delà du plafond développés")
+
+            pending = pending_scenarios(output)
+            estimate = estimate_cost_and_time(len(pending))
+            self.io_out(f"\nÀ développer : {len(pending)} mode(s) opératoire(s) — {estimate.llm_calls} appel(s), "
+                        f"~{estimate.input_tokens} tokens en entrée, ~{estimate.output_tokens} en sortie, "
+                        f"~{max(1, round(estimate.seconds / 60))} min.")
+            choice = ask_choice("Développer ces modes opératoires ?", {
+                "o": "oui, tous les développer",
+                "e": "écarter un mode (motif obligatoire)",
+                "a": "ajouter une voie que l'agent a manquée",
+                "n": "en rester là pour l'instant",
+            }, self.io_in, self.io_out)
+            if choice == "n":
+                raise _Paused
+            if choice == "o":
+                return output
+            if choice == "e":
+                ids = ask_ids("Identifiants des modes à écarter :",
+                              {s.id for s in pending_scenarios(output)}, self.io_in, self.io_out)
+                if ids:
+                    reason = ask_justification("Motif (obligatoire, §8) : ", self.io_in, self.io_out)
+                    output = self.checkpoint(remove_modes(
+                        output, ids, REASON_MODE_ECARTE_PAR_AUDITEUR, reason))
+                    self.repo.log_decision(self.mission_id, stage=STAGE,
+                                           action="modes_ecartes:" + ",".join(ids), justification=reason)
+                continue
+            output = self.add_mode(output)
+
+    def add_mode(self, output: Workshop4Output) -> Workshop4Output:
+        """A way in the auditor knows and the agent did not propose (§2 — they outrank it)."""
+        known = {s.id: s for s in self.w4_input.scenarios}
+        strategic = ask_ids("Pour quel scénario stratégique (un identifiant SS-…) :",
+                            set(known), self.io_in, self.io_out)
+        if not strategic:
+            return output
+        scenario = known[strategic[0]]
+        libelle = self.io_in("Libellé du mode opératoire : ").strip()
+        if not libelle:
+            self.io_out("    Libellé vide — aucun mode ajouté.")
+            return output
+        voie = ask_choice("Par quelle voie entre-t-il ?",
+                          {v: VOIE_LABELS[v] for v in VOIES}, self.io_in, self.io_out)
+        justification = ask_justification("Pourquoi cette voie tient ici (obligatoire, §8) : ",
+                                         self.io_in, self.io_out)
+        added = OperationalScenario(
+            id=f"SO-{len(output.scenarios) + 1:02d}",
+            scenario_strategique_id=scenario.id,
+            source_risque_id=scenario.source_risque_id,
+            objectif_vise_id=scenario.objectif_vise_id,
+            variante=libelle,
+            voie=voie,
+            variante_justification=f"{justification} (ajouté par l'auditeur)",
+            biens_essentiels_ids=list(scenario.biens_essentiels_ids),
+            evenements_redoutes_ids=list(scenario.evenements_redoutes_ids),
+            gravite=scenario.gravite,
+            vraisemblance_initiale=scenario.vraisemblance_initiale,
+            origin=Origin.DECLARATION,
+        )
+        self.repo.log_decision(self.mission_id, stage=STAGE, action=f"mode_ajoute:{added.id}",
+                               justification=f"{scenario.id} — {libelle} : {justification}")
+        return self.checkpoint(output.model_copy(update={"scenarios": [*output.scenarios, added]}))
+
+    def print_modes(self, output: Workshop4Output) -> None:
+        """The modes opératoires per strategic scenario, and the ways in nobody took."""
+        for scenario in self.w4_input.scenarios:
+            modes = [s for s in output.scenarios if s.scenario_strategique_id == scenario.id]
+            self.io_out(f"\n[{scenario.id}] {scenario.resume[:90]}")
+            if not modes:
+                self.io_out("      aucun mode opératoire recensé — voir les éléments écartés")
+            for mode in modes:
+                state = "" if mode.statut == STATUT_A_ANALYSER else f" ({mode.statut})"
+                self.io_out(f"      {mode.id}{state} [{VOIE_LABELS.get(mode.voie, mode.voie)}] {mode.variante}")
+                self.io_out(f"           {mode.variante_justification}")
+        écartés = [e for e in output.elements_ecartes if e.type == "mode_operatoire"]
+        if écartés:
+            self.io_out(f"\nModes écartés au recensement ({len(écartés)}) :")
+            for element in écartés:
+                self.io_out(f"   « {element.libelle} » ({element.reference}) : {element.raison_label}")
+        unexplored = [VOIE_LABELS[v] for v in dossier_voies(self.w4_input)
+                      if v not in {s.voie for s in output.scenarios}]
+        if unexplored:
+            self.io_out(f"\n/!\\ Voies nommées par le dossier qu'aucun mode n'emprunte : {', '.join(unexplored)}")
+
     def analyse(self, output: Workshop4Output) -> Workshop4Output:
         pending = pending_scenarios(output)
         estimate = estimate_cost_and_time(len(pending))
         redo = [s.id for s in pending if s.iterations]
-        self.io_out(f"\n=== Analyse de {len(pending)} scénario(s) — un sous-agent indépendant chacun ===")
+        self.io_out(f"\n=== Analyse de {len(pending)} mode(s) opératoire(s) — un sous-agent chacun ===")
         self.io_out(f"Estimation : {estimate.llm_calls} appel(s), ~{estimate.input_tokens} tokens en entrée, "
                     f"~{estimate.output_tokens} en sortie, ~{max(1, round(estimate.seconds / 60))} min.")
         if redo:
@@ -248,6 +375,9 @@ class Workshop4Flow:
 
     def review(self, output: Workshop4Output) -> Workshop4Output:
         """The batch review (§18 step 25): all results together, anomalies first in sight."""
+        # The driving mode is recomputed before the auditor looks, so the marks they
+        # read are the ones the current analyses support.
+        output = output.model_copy(update={"scenarios": select_driving(output.scenarios)})
         awaiting = [s for s in output.scenarios if s.statut == STATUT_ANALYSE]
         confirmed = [s for s in output.scenarios if s.statut == STATUT_CONFIRME]
         self.io_out(f"\n=== Revue des analyses — {len(awaiting)} à examiner"
@@ -261,10 +391,22 @@ class Workshop4Flow:
         known = {s.id for s in output.scenarios}
         while True:
             self.io_out("\n[Entrée] confirmer ces analyses ; les identifiants à renvoyer à l'agent "
-                        "(ex. SO-02, SO-04) ; 'q' pour s'arrêter ici.")
+                        "(ex. SO-02, SO-04) ; « d SO-03 » pour retenir ce mode comme celui qui porte "
+                        "le risque ; 'q' pour s'arrêter ici.")
             raw = self.io_in("> ").strip()
             if raw.casefold() == "q":
                 raise _Paused
+            if raw[:2].casefold() == "d ":
+                mode_id = raw[2:].strip().upper()
+                if mode_id not in known:
+                    self.io_out(f"    Identifiant inconnu : {mode_id}.")
+                    continue
+                reason = ask_justification("Motif du choix (obligatoire, §8) : ", self.io_in, self.io_out)
+                output = self.checkpoint(set_driving(output, mode_id, reason))
+                self.repo.log_decision(self.mission_id, stage=STAGE,
+                                       action=f"mode_retenu:{mode_id}", justification=reason)
+                self.io_out(f"    {mode_id} porte désormais le risque de son scénario stratégique.")
+                continue
             ids = [p.strip().upper() for p in raw.replace(";", ",").split(",") if p.strip()]
             unknown = [i for i in ids if i not in known]
             if not unknown:
@@ -425,8 +567,13 @@ def print_scenario(scenario: OperationalScenario, w4_input: Workshop4Input, io_o
     io_out(f"\n[{scenario.id}] {scenario.scenario_strategique_id} · "
            f"{sources.get(scenario.source_risque_id, scenario.source_risque_id)} -> "
            f"{objectifs.get(scenario.objectif_vise_id, scenario.objectif_vise_id)}")
+    if scenario.variante:
+        io_out(f"      mode « {scenario.variante} » [{VOIE_LABELS.get(scenario.voie, scenario.voie)}]"
+               + ("  ← porte le risque de ce scénario" if scenario.retenu else ""))
     io_out(f"      gravité {scenario.gravite.value} · vraisemblance {scenario.vraisemblance_initiale.value} -> "
            f"{revised} · niveau de risque {level} · analyse n°{scenario.iterations}")
+    if scenario.motif_selection:
+        io_out(f"      {scenario.motif_selection}")
     for anomaly in sorted(scenario.anomalies, key=lambda a: not a.bloquante):
         io_out(f"      {_MARK[anomaly.bloquante]} [{anomaly.code}] {anomaly.message}")
     if scenario.resume:

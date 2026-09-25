@@ -19,6 +19,7 @@ terminal) — the cap of three iterations and the ID check are enforced in code.
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 from typing import Callable
 
 from ebios_rm.domain.operational_scenario import STATUTS_EN_ATTENTE, OperationalScenario
@@ -30,9 +31,13 @@ from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Output
 from ebios_rm.workshops.workshop3_scenarios_strategiques.models import Workshop3Output
 from ebios_rm.workshops.workshop4_scenarios_operationnels.agent_runner import Workshop4AgentRunner
 from ebios_rm.workshops.workshop4_scenarios_operationnels.assessment import (
+    MAX_MODES_PER_SCENARIO,
     build_analysis,
     build_coherence,
+    build_modes,
+    driving_modes,
     finalize,
+    number_modes,
     run_quality_checks,
     validate_atelier3,
 )
@@ -90,27 +95,20 @@ def build_workshop4_input(
 
 
 def initial_output(w4_input: Workshop4Input, attck_version: str) -> Workshop4Output:
-    """One scenario to analyse per strategic scenario, in atelier 3's order (worst first).
+    """An empty atelier 4: the modes opératoires come from the enumeration (§18).
 
-    Raised, never worked around: N sub-agents building on a scenario whose source de
+    Deviation from §18, decided by the project owner: the conception assumes one
+    operational scenario per strategic scenario. The method does not fix a count —
+    a strategic scenario allows as many modes opératoires as the dossier has ways
+    in, they are all developed, and the most likely one drives the risk. So the
+    rows are not known here; ``run_enumeration`` creates them.
+
+    Raised, never worked around: sub-agents building on a scenario whose source de
     risque no longer exists would multiply the defect instead of surfacing it.
     """
     if w4_input.alertes_bloquantes:
         raise AtelierDataError(3, w4_input.alertes_bloquantes)
     return Workshop4Output(
-        scenarios=[
-            OperationalScenario(
-                id=f"SO-{n:02d}",
-                scenario_strategique_id=s.id,
-                source_risque_id=s.source_risque_id,
-                objectif_vise_id=s.objectif_vise_id,
-                biens_essentiels_ids=list(s.biens_essentiels_ids),
-                evenements_redoutes_ids=list(s.evenements_redoutes_ids),
-                gravite=s.gravite,
-                vraisemblance_initiale=s.vraisemblance_initiale,
-            )
-            for n, s in enumerate(w4_input.scenarios, 1)
-        ],
         alertes_atelier3=list(w4_input.alertes_atelier3),
         attck_version=attck_version,
     )
@@ -118,6 +116,66 @@ def initial_output(w4_input: Workshop4Input, attck_version: str) -> Workshop4Out
 
 def pending_scenarios(output: Workshop4Output) -> list[OperationalScenario]:
     return [s for s in output.scenarios if s.statut in STATUTS_EN_ATTENTE]
+
+
+def scenarios_without_modes(w4_input: Workshop4Input, output: Workshop4Output) -> list:
+    """Strategic scenarios whose modes opératoires have not been enumerated yet.
+
+    Read from the output itself, so a resumed mission enumerates only what is
+    missing — and an enumeration that failed for one scenario does not cost the
+    others their result.
+    """
+    known = {s.scenario_strategique_id for s in output.scenarios}
+    known |= {e.reference for e in output.elements_ecartes if e.type == "mode_operatoire"}
+    return [s for s in w4_input.scenarios if s.id not in known]
+
+
+# --- Étape 22a: enumerate the modes opératoires (§18, before the fan-out) ----
+
+def run_enumeration(
+    w4_input: Workshop4Input,
+    output: Workshop4Output,
+    runner: Workshop4AgentRunner,
+    *,
+    checkpoint: Callable[[Workshop4Output], None] | None = None,
+    max_parallel: int = MAX_PARALLEL_ANALYSES,
+) -> Workshop4Output:
+    """Ask, for each strategic scenario, which modes opératoires the dossier allows.
+
+    One cheap call per strategic scenario, no ATT&CK catalogue and no attack path —
+    the count comes from the material, not from a constant handed to the model. What
+    survives the checks becomes a mode to develop; the rest is écarté with its reason.
+    """
+    return _run(_enumerate(w4_input, output, runner, checkpoint, max_parallel))
+
+
+async def _enumerate(w4_input, output, runner, checkpoint, max_parallel) -> Workshop4Output:
+    slots = asyncio.Semaphore(max_parallel)
+    missing = scenarios_without_modes(w4_input, output)
+
+    async def enumerate_one(scenario):
+        async with slots:
+            return scenario, await runner.enumerate_modes(w4_input, scenario)
+
+    results = await asyncio.gather(*(enumerate_one(s) for s in missing), return_exceptions=True)
+    modes, ecartes = list(output.scenarios), list(output.elements_ecartes)
+    for result in results:
+        if isinstance(result, BaseException):
+            continue
+        scenario, candidates = result
+        kept, discarded = build_modes(scenario, candidates, w4_input)
+        modes.extend(number_modes(kept, start=len(modes) + 1))
+        ecartes.extend(discarded)
+    current = output.model_copy(update={"scenarios": modes, "elements_ecartes": ecartes})
+    if checkpoint is not None and current.scenarios != output.scenarios:
+        checkpoint(current)
+
+    failures = [r for r in results if isinstance(r, BaseException)]
+    if failures:
+        # What was enumerated is already saved: a resume asks only about the
+        # scenarios still without modes.
+        raise failures[0]
+    return current
 
 
 # --- Fan-out / fan-in (§18 steps 22-24) --------------------------------------
@@ -145,15 +203,23 @@ def run_analyses(
     when one is already running, this one runs instead on a worker thread,
     where it is free to open its own.
     """
-    coro = _fan_out(w4_input, output, runner, catalogue, checkpoint, max_parallel)
+    return _run(_fan_out(w4_input, output, runner, catalogue, checkpoint, max_parallel))
+
+
+def _run(coro) -> Workshop4Output:
+    """Await ``coro`` from synchronous code, whether or not a loop is already running.
+
+    Opening a loop is correct when called from the standalone script's synchronous
+    main(). A caller that already runs one (the async Orchestrator) cannot have this
+    one nest inside it — asyncio.run() refuses that — so the work goes to a worker
+    thread, which is free to open its own.
+    """
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(coro)  # no loop running: today's behaviour, unchanged
-    else:
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(asyncio.run, coro).result()
+        return asyncio.run(coro)  # no loop running: the standalone script's case
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
 
 
 async def _fan_out(w4_input, output, runner, catalogue, checkpoint, max_parallel) -> Workshop4Output:
@@ -187,13 +253,17 @@ async def _fan_out(w4_input, output, runner, catalogue, checkpoint, max_parallel
 def run_coherence(
     w4_input: Workshop4Input, output: Workshop4Output, runner: Workshop4AgentRunner
 ) -> Workshop4Output:
-    """One call over the stable, confirmed set. Nothing to decide when nothing is found.
+    """One call over the driving modes, once the set is stable (§18 step 28).
 
-    Under two scenarios there is nothing to compare, so no call is paid for.
+    Only the retained mode of each strategic scenario: the alternative modes of one
+    scenario deliberately share its objective, so comparing them would report a
+    duplicate for every scenario. Under two scenarios there is nothing to compare,
+    so no call is paid for.
     """
-    if len(output.scenarios) < 2:
+    retained = driving_modes(output)
+    if len(retained) < 2:
         return output.model_copy(update={"coherence": CoherenceReview(decision=COHERENCE_SANS_CONSTAT)})
-    findings, ecartes = build_coherence(runner.check_coherence(w4_input, output.scenarios), output.scenarios)
+    findings, ecartes = build_coherence(runner.check_coherence(w4_input, retained), retained)
     return output.model_copy(update={
         "coherence": CoherenceReview(constats=findings, decision="" if findings else COHERENCE_SANS_CONSTAT),
         "elements_ecartes": [*output.elements_ecartes, *ecartes],
