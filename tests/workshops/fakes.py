@@ -12,7 +12,6 @@ from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.mission_context.priority_matrix import FollowUpQuestion
 from ebios_rm.mission_context.questionnaire import Question
 from ebios_rm.mission_context.validation import Contradiction
-from ebios_rm.repositories.reference_repository import BaselineControl
 from ebios_rm.workshops.workshop1_cadrage.agent_runner import LegalImpactAssignment
 from ebios_rm.workshops.workshop1_cadrage.human_interface import SkipRequested
 from ebios_rm.workshops.workshop1_cadrage.models import (

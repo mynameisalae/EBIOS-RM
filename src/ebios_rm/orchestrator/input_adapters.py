@@ -10,12 +10,10 @@ so that whoever implements Workshop 2's own agent/model files never has to touch
 this boundary contract, and the Orchestrator never has to import from a workshop
 package it does not own.
 
-Workshop3Input, the Workshop 4 sub-agent input (SubAgentInput), and Workshop5Input
-are deliberately not defined yet: their constituent domain types (RiskSource,
-StrategicScenario, OperationalScenario) are still docstring-only stubs in
-ebios_rm.domain. Adding a placeholder shape now would just have to be redone once
-each upstream workshop defines its real output — so each adapter is added here
-only once the workshop that produces its input actually exists.
+The inputs of ateliers 3 to 5 live with their workshop instead
+(build_workshop3_input, build_workshop4_input, build_workshop5_input), each built
+from the approved outputs before it; the Orchestrator calls them in
+_build_input_for.
 """
 
 from __future__ import annotations

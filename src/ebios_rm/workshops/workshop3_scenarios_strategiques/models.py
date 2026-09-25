@@ -26,7 +26,7 @@ from ebios_rm.workshops.common import AtelierAlert, ElementEcarteBase
 # The quality report shape is atelier 2's, reused rather than restated. ponytail:
 # one definition, imported across the two workshops; move it to domain/ when a
 # third one needs it.
-from ebios_rm.workshops.workshop2_sources_risque.models import (
+from ebios_rm.workshops.workshop2_sources_risque.models import (  # noqa: F401 — re-exported
     STATUT_AVERTISSEMENT,
     STATUT_ERREUR,
     STATUT_OK,

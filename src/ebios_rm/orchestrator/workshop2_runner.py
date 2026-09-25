@@ -12,7 +12,6 @@ adapter's run() is always a single, complete attempt.
 from __future__ import annotations
 
 from ebios_rm.agent_runtime import StructuredCallFailed
-from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.orchestrator.signals import WorkshopBlocked
 from ebios_rm.plugins.registry import load_ebios_base
 from ebios_rm.workshops.common import AtelierDataError
@@ -65,10 +64,3 @@ class Workshop2Runner:
             f"{len(output.couples_secondaires)} secondaire(s) — "
             f"contrôle qualité : {output.quality_report.statut}."
         )
-
-
-def build_workshop2_input_from_mission(mission_context: MissionContext, w1_output) -> Workshop2Input:
-    """The real narrow input (conception §16), for the Orchestrator's _build_input_for."""
-    from ebios_rm.workshops.workshop2_sources_risque.workshop import build_workshop2_input
-
-    return build_workshop2_input(mission_context, w1_output)

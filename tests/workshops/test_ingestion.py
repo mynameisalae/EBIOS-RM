@@ -1,6 +1,6 @@
 """Document ingestion + answer sanity-check (conception §2, §5, §11)."""
 
-from fakes import FakeIngestionRunner, ScriptedHuman
+from fakes import ScriptedHuman
 
 from ebios_rm.domain.enums import Origin
 from ebios_rm.mission_context.ingestion import (

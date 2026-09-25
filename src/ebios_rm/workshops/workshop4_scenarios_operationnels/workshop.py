@@ -31,7 +31,6 @@ from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Output
 from ebios_rm.workshops.workshop3_scenarios_strategiques.models import Workshop3Output
 from ebios_rm.workshops.workshop4_scenarios_operationnels.agent_runner import Workshop4AgentRunner
 from ebios_rm.workshops.workshop4_scenarios_operationnels.assessment import (
-    MAX_MODES_PER_SCENARIO,
     build_analysis,
     build_coherence,
     build_modes,

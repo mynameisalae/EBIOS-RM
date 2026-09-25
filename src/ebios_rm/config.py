@@ -76,7 +76,6 @@ def fix_openrouter_errors(response):
     if response.status_code == 200:
         response.read()
         try:
-            import json
             data = response.json()
             if 'error' in data and isinstance(data['error'], dict):
                 code = data['error'].get('code')

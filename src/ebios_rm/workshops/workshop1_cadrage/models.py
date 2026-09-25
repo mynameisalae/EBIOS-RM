@@ -13,7 +13,7 @@ import hashlib
 
 from pydantic import BaseModel, Field
 
-from ebios_rm.domain.enums import CategorieImpact, Gravite, Origin
+from ebios_rm.domain.enums import Origin
 from ebios_rm.domain.essential_asset import EssentialAsset, SupportAsset
 from ebios_rm.domain.feared_event import FearedEvent
 

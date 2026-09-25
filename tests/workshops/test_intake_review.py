@@ -3,7 +3,6 @@
 from fakes import ScriptedHuman
 
 from ebios_rm.domain.enums import Origin
-from ebios_rm.domain.fact import Fact
 from ebios_rm.mission_context.ingestion import ExtractedAnswer, questionnaire_answers_to_facts
 from ebios_rm.mission_context.priority_matrix import FollowUpQuestion
 from ebios_rm.domain.enums import PriorityLevel

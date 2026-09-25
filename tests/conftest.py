@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from ebios_rm.db.loader import build_reference_db
-from ebios_rm.repositories.reference_repository import BaselineControl, ReferenceRepository
+from ebios_rm.repositories.reference_repository import ReferenceRepository
 
 DEV_SEED = Path(__file__).resolve().parents[1] / "data" / "dev_seed" / "baseline_controls.dev.json"
 

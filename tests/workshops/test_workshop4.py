@@ -22,7 +22,6 @@ from ebios_rm.domain.operational_scenario import (
     Anomaly,
     AttackStep,
     GapConsideration,
-    NewBaselineGap,
     OperationalScenario,
 )
 from ebios_rm.domain.risk_source import ObjectifVise, RiskSource

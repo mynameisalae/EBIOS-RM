@@ -166,23 +166,3 @@ class StatutSelection(str, Enum):
     RETENU = "retenu"
     SECONDAIRE = "secondaire"
     ECARTE = "ecarte"
-
-
-class Hebergement(str, Enum):
-    """Hosting model declared in the intake form (conception §11.1)."""
-
-    SUR_SITE = "sur_site"
-    CLOUD = "cloud"
-    HYBRIDE = "hybride"
-
-
-class LegalImpactType(str, Enum):
-    """Nature of a purely-legal provision (conception §12.3).
-
-    A control row whose legal_impact_type is set is excluded from the workshop 4
-    relevance filter and instead feeds the workshop 1 legal-impact assessment.
-    """
-
-    FINANCIAL_PENALTY = "financial_penalty"
-    MANDATORY_NOTIFICATION = "mandatory_notification"
-    LIABILITY = "liability"
