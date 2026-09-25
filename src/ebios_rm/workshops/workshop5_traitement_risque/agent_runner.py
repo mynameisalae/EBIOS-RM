@@ -29,6 +29,7 @@ class Workshop5AgentRunner(Protocol):
 
     def formulate_risques(
         self, w5_input: Workshop5Input, risques: list[RiskScenario],
+        revision_notes: list[str] | None = None,
     ) -> list[RiskFormulationProposal]:
         """Write each risk in business words, for the people who will rule on it (5-1)."""
         ...
@@ -40,8 +41,9 @@ class Workshop5AgentRunner(Protocol):
     ) -> list[MeasureProposal]:
         """Propose the measures of the treatment plan for the risks the auditor is treating (5-3).
 
-        ``revision_notes`` carries the auditor's rejection reasons from the plans already
-        refused, so a relaunch corrects them instead of proposing the same plan (§12.6).
+        ``revision_notes``, here and on the two other revisable calls, carries the
+        auditor's reasons — a rejection at the gate, or what they asked to add — so a
+        relaunch corrects them instead of proposing the same thing again (§12.6).
         """
         ...
 
@@ -53,6 +55,7 @@ class Workshop5AgentRunner(Protocol):
 
     def propose_indicateurs(
         self, w5_input: Workshop5Input, output: Workshop5Output,
+        revision_notes: list[str] | None = None,
     ) -> list[IndicatorProposal]:
         """Propose the monitoring indicators of the plan (5-5)."""
         ...

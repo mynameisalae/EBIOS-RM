@@ -196,6 +196,7 @@ class MeasureProposal(BaseModel):
     mitigation_ids_attck: list[str] = Field(default_factory=list)
     origine: str = ""
     freins: str = ""
+    responsable: str = ""      # a role from the session answer, never a name invented
     cout_complexite: str = ""
     charge_estimee: str = ""
     echeance: str = ""

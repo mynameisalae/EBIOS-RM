@@ -112,7 +112,6 @@ class IndicateurSuivi(BaseModel):
     type_valeur: str = ""      # cout | duree | nombre | taux
     cible: str = ""
     frequence: str = ""
-    responsable: str = ""
     mesures_ids: list[str] = Field(default_factory=list)
 
 

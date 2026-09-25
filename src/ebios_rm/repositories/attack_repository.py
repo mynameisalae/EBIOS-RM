@@ -80,9 +80,12 @@ class AttackRepository:
 
     def version(self) -> str:
         """The ingested release, pinned by content hash — the tag alone reads « Latest »."""
-        row = self._conn.execute(
-            "SELECT version_tag, sha256_hash FROM attack_version ORDER BY id DESC LIMIT 1"
-        ).fetchone()
+        try:
+            row = self._conn.execute(
+                "SELECT version_tag, sha256_hash FROM attack_version ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+        except sqlite3.DatabaseError as exc:
+            raise AttackRepositoryError(f"Base ATT&CK illisible : {exc}") from exc
         return f"{row[0]} (sha256 {row[1][:12]})" if row else "inconnue"
 
     def mitigations_for(self, technique_ids: Iterable[str]) -> dict[str, list[AttackMitigation]]:

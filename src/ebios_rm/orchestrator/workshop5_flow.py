@@ -41,7 +41,7 @@ from ebios_rm.domain.risk_scenario import RiskScenario
 from ebios_rm.mission_context.clarification import ClarificationRunner, clarification_repl
 from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.orchestrator import mission_state
-from ebios_rm.orchestrator.approval_cli import ApprovalLoop, ask_choice, ask_ids
+from ebios_rm.orchestrator.approval_cli import ApprovalLoop, ask_choice, ask_ids, prior_rejection_reasons
 from ebios_rm.repositories.attack_repository import AttackMitigation, AttackRepository
 from ebios_rm.repositories.mission_repository import MissionRepository
 from ebios_rm.workshops.common import AtelierDataError
@@ -92,6 +92,14 @@ _OPTION_LABELS: dict[OptionTraitement, str] = {
     OptionTraitement.MAINTIEN: "maintenir : garder le risque en l'état",
     OptionTraitement.PARTAGE: "partager : transférer tout ou partie (assurance, contrat, tiers)",
     OptionTraitement.EVITEMENT: "éviter : renoncer à l'activité ou à l'exposition",
+}
+
+# What a rejection at the approval gate can send back, the rest kept verbatim (§12.6).
+_BLOCKS: dict[str, tuple[str, str]] = {
+    "1": ("formulation", "5-1 la formulation des risques (nouvel appel au modèle)"),
+    "2": ("traitement", "5-2 les options de traitement — redemandées risque par risque, le plan suit"),
+    "3": ("plan", "5-3 et 5-4 le plan, les risques résiduels et leur acceptation"),
+    "4": ("cadre", "5-5 le cadre de suivi"),
 }
 
 
@@ -230,6 +238,24 @@ class Workshop5Flow:
         mission_state.checkpoint_w5_output(self.repo, self.mission_id, output)
         return output
 
+    def notes(self, *extra: str) -> list[str]:
+        """Every rejection reason this atelier was given, read back from the decision log.
+
+        Read from the log rather than kept in memory, so a séance resumed in another
+        process hands the model the whole feedback, as the other ateliers do (§12.6).
+        """
+        return [*prior_rejection_reasons(self.repo, self.mission_id, STAGE), *extra]
+
+    def choose(self, question: str, options: dict[str, str], output: Workshop5Output) -> str:
+        """A decision menu, with '?' to question the agent first whenever one is available."""
+        if self.clarifier is not None:
+            options = {**options, "?": "poser une question à l'agent avant de décider"}
+        while True:
+            choice = ask_choice(question, options, self.io_in, self.io_out)
+            if choice != "?":
+                return choice
+            self.clarify(output)
+
     def mitigations(self) -> dict[str, list[AttackMitigation]]:
         """The ATT&CK mitigations of every technique the modes cite — one query, then cached."""
         if self._mitigations is None:
@@ -268,7 +294,7 @@ class Workshop5Flow:
         """The risk map, worded for the people who will rule on it (activité 5-1)."""
         self.io_out(f"\n=== 5-1 Formulation des risques — {len(output.risques)} risque(s), "
                     "un appel au modèle ===")
-        output = self.checkpoint(formulate(self.w5_input, output, self.runner))
+        output = self.checkpoint(formulate(self.w5_input, output, self.runner, self.notes()))
         print_risques(output, self.w5_input, self.io_out)
         print_carte(output.risques, self.io_out)
         self.clarify(output)
@@ -287,10 +313,10 @@ class Workshop5Flow:
                     f"{', '.join(uncovered)}.")
         self.io_out("La méthode demande d'itérer les ateliers 2 à 4 avant d'écrire le plan : un risque "
                     "majeur non couvert ne sera traité par aucune mesure.")
-        choice = ask_choice("Que faire ?", {
+        choice = self.choose("Que faire ?", {
             "n": "s'arrêter ici et reprendre les ateliers 2 à 4",
             "c": "continuer quand même (motif obligatoire, consigné)",
-        }, self.io_in, self.io_out)
+        }, output)
         if choice == "n":
             raise _Paused
         reason = ask_justification("Motif (obligatoire, §8) : ", self.io_in, self.io_out)
@@ -312,8 +338,8 @@ class Workshop5Flow:
             proposed = option_proposee(risque)
             options = {key: (_OPTION_LABELS[option] + (" — proposé par l'échelle" if option is proposed else ""))
                        for key, option in _OPTION_KEYS.items()}
-            choice = ask_choice(f"{risque.id} — quelle option de traitement ?",
-                               {**options, "q": "s'arrêter ici"}, self.io_in, self.io_out)
+            choice = self.choose(f"{risque.id} — quelle option de traitement ?",
+                                 {**options, "q": "s'arrêter ici"}, output)
             if choice == "q":
                 raise _Paused
             option = _OPTION_KEYS[choice]
@@ -339,8 +365,12 @@ class Workshop5Flow:
         """The risks the plan has to cover: everything the auditor did not simply keep as it is."""
         return [r for r in output.risques if r.option_traitement is not OptionTraitement.MAINTIEN]
 
-    def mesures(self, output: Workshop5Output, revision_notes: list[str] | None = None) -> Workshop5Output:
-        """Ask for the plan, once, over every risk to treat (activité 5-3)."""
+    def mesures(self, output: Workshop5Output, *extra_notes: str) -> Workshop5Output:
+        """Ask for the plan, once, over every risk to treat (activité 5-3).
+
+        ``extra_notes`` is what the auditor just asked to add or reinforce; the rejection
+        reasons of earlier versions travel with it.
+        """
         treat = self.a_traiter(output)
         if not treat:
             self.io_out("\nAucun risque à réduire, partager ou éviter : le plan de traitement est vide.")
@@ -354,20 +384,19 @@ class Workshop5Flow:
                       {"o": "oui", "n": "non, s'arrêter ici"}, self.io_in, self.io_out) == "n":
             raise _Paused
         return self.checkpoint(run_mesures(self.w5_input, output, self.runner, self.mitigations(),
-                                          treat, revision_notes))
+                                          treat, self.notes(*extra_notes)))
 
     def review_plan(self, output: Workshop5Output) -> Workshop5Output:
         """The auditor's review of the plan, measure by measure (activité 5-3, §2)."""
         while True:
             print_plan(output, self.io_out)
-            self.clarify(output)
-            choice = ask_choice("Que faire du plan ?", {
+            choice = self.choose("Que faire du plan ?", {
                 "v": "le valider en l'état",
                 "r": "nommer le responsable, la charge et l'échéance d'une mesure",
                 "e": "écarter une ou plusieurs mesures (motif obligatoire)",
                 "c": "le compléter (nouvel appel au modèle, mesures déjà retenues comprises)",
                 "q": "s'arrêter ici",
-            }, self.io_in, self.io_out)
+            }, output)
             if choice == "q":
                 raise _Paused
             if choice == "v":
@@ -392,7 +421,7 @@ class Workshop5Flow:
                                       self.io_in, self.io_out)
             self.repo.log_decision(self.mission_id, stage=STAGE, action="plan_complete", justification=notes)
             output = self.mesures(output.model_copy(update={
-                "activites_faites": [a for a in output.activites_faites if a != ACTIVITE_MESURES]}), [notes])
+                "activites_faites": [a for a in output.activites_faites if a != ACTIVITE_MESURES]}), notes)
 
     def assign_mesure(self, output: Workshop5Output) -> Workshop5Output:
         """Who carries a measure, for how much work, by when — the auditor's columns of the plan."""
@@ -445,13 +474,11 @@ class Workshop5Flow:
             self.io_out(f"\n/!\\ Risque(s) encore « {Acceptabilite.INACCEPTABLE.value} » après le plan : "
                         f"{', '.join(unacceptable)}. La méthode attend un plan renforcé, ou le refus de tout "
                         "ou partie de l'activité — une acceptation ici est une décision de la direction.")
-        self.clarify(output)
-
-        choice = ask_choice("Que faire des risques résiduels ?", {
+        choice = self.choose("Que faire des risques résiduels ?", {
             "a": "les faire accepter formellement (nom et fonction du décideur)",
             "p": "renforcer le plan d'abord (retour à l'activité 5-3)",
             "q": "s'arrêter ici",
-        }, self.io_in, self.io_out)
+        }, output)
         if choice == "q":
             raise _Paused
         if choice == "p":
@@ -460,7 +487,7 @@ class Workshop5Flow:
             self.repo.log_decision(self.mission_id, stage=STAGE, action="plan_renforce", justification=notes)
             # Reopened state saved first, then the call — so a failure mid-call resumes
             # with the plan reopened, and the model is told what was missing.
-            return self.mesures(self.checkpoint(self.reopen_plan(output, notes)), [notes])
+            return self.mesures(self.checkpoint(self.reopen_plan(output, notes)), notes)
 
         ids = ask_ids(f"Identifiants acceptés ([Entrée] = tous : {', '.join(r.id for r in pending)}) :",
                       {r.id for r in pending}, self.io_in, self.io_out) or [r.id for r in pending]
@@ -500,7 +527,8 @@ class Workshop5Flow:
         cycles = self.io_in("Cadence de révision de l'étude (ex. « 12 mois ») : ").strip()
         prochaine = self.io_in("Prochaine revue (date ou échéance) : ").strip()
         output = self.checkpoint(run_cadre(self.w5_input, output, self.runner, comite=comite,
-                                          cycles=cycles, prochaine_revue=prochaine))
+                                          cycles=cycles, prochaine_revue=prochaine,
+                                          revision_notes=self.notes()))
         print_cadre(output, self.io_out)
         return output
 
@@ -522,7 +550,9 @@ class Workshop5Flow:
             rerun=self.redo,
             save=self.save_edit,
             model_cls=Workshop5Output,
-            edit_examples="mesures.0.responsable        mesures.1.echeance        risques.0.option_traitement",
+            edit_examples=("mesures.0.responsable        mesures.1.cout_complexite        "
+                           "risques.0.vraisemblance_residuelle"),
+            block_labels=_BLOCKS,
             io_in=self.io_in,
             io_out=self.io_out,
         ).run(output)
@@ -532,16 +562,31 @@ class Workshop5Flow:
         self.clarify(output)
 
     def redo(self, notes: list[str], blocks: set[str] | None, previous: Workshop5Output) -> Workshop5Output:
-        """A rejection at the approval gate reopens the plan, as a new version.
+        """A rejection at the approval gate reopens the parts the auditor names, as a new version.
 
-        The risk map and the treatment options are kept: they are the auditor's own
-        decisions, and a rejection is about the plan that follows from them. Their reasons
-        travel to the model, so the new plan answers them instead of repeating itself.
+        Everything else is kept verbatim. New options mean a new plan, so reopening 5-2
+        reopens 5-3 and 5-4 with it. The rejection reasons reach every call the séance
+        then makes again, read back from the decision log (``notes()``).
         """
-        reopened = self.reopen_plan(previous, notes[-1] if notes else "Relance demandée par l'auditeur")
+        chosen = set(blocks) if blocks else {block for block, _ in _BLOCKS.values()}
+        reopened = previous
+        if "formulation" in chosen:
+            reopened = reopened.model_copy(update={
+                "activites_faites": [a for a in reopened.activites_faites if a != ACTIVITE_FORMULATION],
+                "risques": [r.model_copy(update={"libelle": ""}) for r in reopened.risques],
+            })
+        if "traitement" in chosen:
+            chosen.add("plan")
+            reopened = reopened.model_copy(update={"risques": [
+                r.model_copy(update={"option_traitement": None, "justification_traitement": ""})
+                for r in reopened.risques]})
+        if "plan" in chosen:
+            reopened = self.reopen_plan(reopened, notes[-1] if notes else "Relance demandée par l'auditeur")
+        if "cadre" in chosen:
+            reopened = reopened.model_copy(update={"cadre_suivi": None})
         mission_state.save_w5_output(self.repo, self.mission_id, reopened)
         self.repo.set_status(self.mission_id, "w5_in_progress")
-        return self.advance(self.mesures(reopened, notes))
+        return self.advance(reopened)
 
     def save_edit(self, corrected: Workshop5Output) -> Workshop5Output:
         final = assemble_output(self.w5_input, corrected)

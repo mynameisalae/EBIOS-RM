@@ -36,12 +36,13 @@ class AgnoWorkshop5Runner(AgnoRunner):
 
     def formulate_risques(
         self, w5_input: Workshop5Input, risques: list[RiskScenario],
+        revision_notes: list[str] | None = None,
     ) -> list[RiskFormulationProposal]:
         if not risques:
             return []
         return self._run_structured(
             RiskFormulationBatch,
-            prompts.formulations_prompt(w5_input, risques),
+            prompts.formulations_prompt(w5_input, risques, revision_notes),
             what="formulation métier des risques",
         ).formulations
 
@@ -71,11 +72,12 @@ class AgnoWorkshop5Runner(AgnoRunner):
 
     def propose_indicateurs(
         self, w5_input: Workshop5Input, output: Workshop5Output,
+        revision_notes: list[str] | None = None,
     ) -> list[IndicatorProposal]:
         if not output.mesures:
             return []
         return self._run_structured(
             IndicatorBatch,
-            prompts.indicateurs_prompt(w5_input, output),
+            prompts.indicateurs_prompt(w5_input, output, revision_notes),
             what="indicateurs de suivi",
         ).indicateurs

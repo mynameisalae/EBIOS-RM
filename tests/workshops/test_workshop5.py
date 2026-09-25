@@ -48,6 +48,7 @@ from ebios_rm.workshops.workshop5_traitement_risque.assessment import (
     option_proposee,
     priorite_of,
     read_axe,
+    rederive,
     remove_mesures,
     run_quality_checks,
     set_traitement,
@@ -72,7 +73,12 @@ from ebios_rm.workshops.workshop5_traitement_risque.models import (
     Workshop5Input,
     Workshop5Output,
 )
-from ebios_rm.workshops.workshop5_traitement_risque.prompts import mesures_prompt
+from ebios_rm.workshops.workshop5_traitement_risque.prompts import (
+    formulations_prompt,
+    indicateurs_prompt,
+    mesures_prompt,
+    residuel_prompt,
+)
 from ebios_rm.workshops.workshop5_traitement_risque.workshop import (
     assemble_output,
     initial_output,
@@ -237,7 +243,7 @@ def test_validate_atelier4_flags_a_mode_on_an_unknown_strategic_scenario():
     assert any(a.reference == "SO-09" for a in alerts)
 
 
-def test_initial_output_refuses_a_blocking_atelier4(monkeypatch):
+def test_initial_output_refuses_a_blocking_atelier4():
     from ebios_rm.workshops.common import AtelierDataError
     w5_input = _w5_input(modes=[_mode("SO-01", "SS-01", retenu=True, revised=None)],
                          scenarios=[_scenario("SS-01", Gravite.CRITIQUE)])
@@ -472,6 +478,69 @@ def test_mesures_prompt_carries_the_auditor_rejection_reasons_on_a_relaunch():
     prompt = mesures_prompt(w5_input, output, output.risques, _mitigations(),
                             ["Aucune mesure sur la sauvegarde."])
     assert "Aucune mesure sur la sauvegarde." in prompt
+
+
+def test_mesures_prompt_names_support_assets_and_states_the_option_rules():
+    w5_input = _w5_input()
+    output = _output(w5_input)
+    prompt = mesures_prompt(w5_input, output, output.risques, _mitigations())
+    assert "BS-1 — SIH" in prompt                    # a step reads in the dossier's words
+    assert "partage" in prompt and "evitement" in prompt
+    assert "responsables_mesures" in prompt           # the session answer is put to use
+
+
+def test_formulations_prompt_shows_no_decision_before_one_is_taken():
+    w5_input = _w5_input()
+    output = _output(w5_input)
+    prompt = formulations_prompt(w5_input, output.risques, ["Trop technique."])
+    assert "option_de_traitement_decidee" not in prompt
+    assert "chemin_retenu" in prompt and "Mode SO-01" in prompt
+    assert "Trop technique." in prompt
+
+
+def test_residuel_prompt_says_which_measures_count_for_each_risk():
+    _w5, output = _with_plan()
+    prompt = residuel_prompt(_w5, output, [output.risques[0]])
+    assert '"mesures_retenues"' in prompt and "M-01" in prompt
+    assert "mode le plus vraisemblable" in prompt
+
+
+def test_indicateurs_prompt_shows_the_instance_the_indicators_serve():
+    _w5, output = _with_plan()
+    framed = output.model_copy(update={"cadre_suivi": build_cadre(
+        [], output, comite="Comité sécurité semestriel")[0]})
+    prompt = indicateurs_prompt(_w5, framed, ["Pas d'indicateur de coût."])
+    assert "Comité sécurité semestriel" in prompt
+    assert "Pas d'indicateur de coût." in prompt
+
+
+def test_build_mesures_keeps_the_owner_the_session_named():
+    _w5, output = _with_plan(responsable="DSI")
+    assert output.mesures[0].responsable == "DSI"
+
+
+def test_rederive_recomputes_levels_and_priorities_from_edited_inputs():
+    _w5, output = _with_plan(cout_complexite="+")
+    edited = output.model_copy(update={
+        "risques": [output.risques[0].model_copy(update={
+            "vraisemblance_residuelle": VraisemblanceInitiale.V1, "niveau_risque_residuel": None}),
+            output.risques[1]],
+        "mesures": [output.mesures[0].model_copy(update={"cout_complexite": "+++"})],
+    })
+    final = rederive(edited)
+    assert final.risques[0].niveau_risque_residuel is NiveauRisque.MOYEN      # Critique x V1
+    assert final.risques[0].acceptabilite_residuelle is Acceptabilite.TOLERABLE
+    assert final.mesures[0].priorite is Priorite.P2                           # costlier, lower
+
+
+def test_an_unreadable_attack_base_fails_as_attack_repository_error():
+    # The scripts turn this error into « renseignez ATTACK_DB_PATH »; a raw sqlite
+    # error would crash atelier 5 with a traceback instead.
+    import sqlite3
+
+    from ebios_rm.repositories.attack_repository import AttackRepository, AttackRepositoryError
+    with pytest.raises(AttackRepositoryError):
+        AttackRepository(sqlite3.connect(":memory:")).version()
 
 
 def test_techniques_citees_gathers_every_mode_not_only_the_retained_one():

@@ -18,7 +18,7 @@ resume. The orchestrator drives those (orchestrator/workshop5_flow.py).
 
 from __future__ import annotations
 
-from ebios_rm.domain.risk_scenario import RiskScenario
+from ebios_rm.domain.risk_scenario import CadreSuivi, RiskScenario
 from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.repositories.attack_repository import AttackMitigation
 from ebios_rm.workshops.common import AtelierDataError
@@ -36,6 +36,7 @@ from ebios_rm.workshops.workshop5_traitement_risque.assessment import (
     couverture_er,
     keep_initial_residuel,
     link_mesures,
+    rederive,
     run_quality_checks,
     validate_atelier4,
 )
@@ -120,13 +121,15 @@ def initial_output(w5_input: Workshop5Input, attck_version: str) -> Workshop5Out
 
 
 def formulate(
-    w5_input: Workshop5Input, output: Workshop5Output, runner: Workshop5AgentRunner
+    w5_input: Workshop5Input, output: Workshop5Output, runner: Workshop5AgentRunner,
+    revision_notes: list[str] | None = None,
 ) -> Workshop5Output:
     """Ask the agent for the business wording of each risk, and keep only that (atelier 5-1)."""
     unwritten = [r for r in output.risques if not r.libelle.strip()]
     if not unwritten:
         return _done(output, ACTIVITE_FORMULATION)
-    formulated = apply_formulations(output.risques, runner.formulate_risques(w5_input, unwritten))
+    formulated = apply_formulations(
+        output.risques, runner.formulate_risques(w5_input, unwritten, revision_notes))
     return _done(output.model_copy(update={"risques": formulated}), ACTIVITE_FORMULATION)
 
 
@@ -173,10 +176,16 @@ def run_cadre(
     comite: str = "",
     cycles: str = "",
     prochaine_revue: str = "",
+    revision_notes: list[str] | None = None,
 ) -> Workshop5Output:
-    """The monitoring framework: the agent proposes indicators, the organisation sets the cadence."""
+    """The monitoring framework: the agent proposes indicators, the organisation sets the cadence.
+
+    The instance is set before the call, so the indicators are sized to how often it meets.
+    """
+    framed = output.model_copy(update={"cadre_suivi": CadreSuivi(
+        comite=comite.strip(), cycles=cycles.strip(), prochaine_revue=prochaine_revue.strip())})
     cadre, ecartes = build_cadre(
-        runner.propose_indicateurs(w5_input, output), output,
+        runner.propose_indicateurs(w5_input, framed, revision_notes), output,
         comite=comite, cycles=cycles, prochaine_revue=prochaine_revue)
     return output.model_copy(update={
         "cadre_suivi": cadre,
@@ -187,8 +196,13 @@ def run_cadre(
 # --- Fan-in: w5_output as it will be judged ----------------------------------
 
 def assemble_output(w5_input: Workshop5Input, output: Workshop5Output) -> Workshop5Output:
-    """Re-derive what code owns — the coverage matrix, the measure links — and re-check the plan."""
-    linked = link_mesures(output.model_copy(update={
+    """Re-derive what code owns — levels, acceptability, priorities, coverage, links — and re-check.
+
+    Whatever produced the output — the séance, or a hand edit at the approval gate — the
+    numbers the scale computes are recomputed here, so an edited input never leaves a
+    stale level beside it.
+    """
+    linked = link_mesures(rederive(output.model_copy(update={
         "couverture_er": couverture_er(w5_input, output.risques),
-    }))
+    })))
     return linked.model_copy(update={"quality_report": run_quality_checks(w5_input, linked)})

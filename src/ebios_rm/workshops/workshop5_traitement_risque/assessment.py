@@ -47,6 +47,7 @@ from ebios_rm.workshops.workshop5_traitement_risque.models import (
     ORIGINE_ECOSYSTEME,
     ORIGINE_SOCLE,
     ORIGINE_VULNERABILITE,
+    ORIGINES,
     REASON_INDICATEUR_NON_MESURABLE,
     REASON_MESURE_AXE_INCONNU,
     REASON_MESURE_DOUBLON,
@@ -332,7 +333,7 @@ def build_mesures(
         seen[key] = libelle
 
         origine = proposal.origine.strip()
-        if origine not in {ORIGINE_SOCLE, ORIGINE_ECOSYSTEME, ORIGINE_VULNERABILITE}:
+        if origine not in ORIGINES:
             origine = ORIGINE_SOCLE if gap_ids and not modes_ids else (
                 ORIGINE_VULNERABILITE if modes_ids else ORIGINE_ECOSYSTEME)
 
@@ -352,6 +353,7 @@ def build_mesures(
                                   if m.strip().upper() in known_mitigations],
             origine=origine,
             freins=proposal.freins.strip(),
+            responsable=proposal.responsable.strip(),
             cout_complexite=proposal.cout_complexite.strip() if proposal.cout_complexite.strip() in COUTS else "",
             charge_estimee=proposal.charge_estimee.strip(),
             echeance=proposal.echeance.strip(),
@@ -389,6 +391,28 @@ def number_mesures(
         m.model_copy(update={"id": f"M-{n:02d}", "priorite": priorite_of(m, risques)})
         for n, m in enumerate(ordered, start)
     ]
+
+
+def rederive(output: Workshop5Output) -> Workshop5Output:
+    """Recompute what the scale and the priority rule own, from what people may edit.
+
+    An auditor who corrects a likelihood or a measure's cost at the approval gate edits
+    an input; the risk level, its acceptability and the measure's priority follow from
+    it, as they would have if the value had been right the first time (atelier 4's
+    save_edit does the same with its risk level).
+    """
+    risques = []
+    for risque in output.risques:
+        niveau = risk_level(risque.gravite, risque.vraisemblance)
+        residuel = risk_level(risque.gravite, risque.vraisemblance_residuelle)
+        risques.append(risque.model_copy(update={
+            "niveau_risque": niveau, "acceptabilite": acceptabilite_of(niveau),
+            "niveau_risque_residuel": residuel, "acceptabilite_residuelle": acceptabilite_of(residuel),
+        }))
+    return output.model_copy(update={
+        "risques": risques,
+        "mesures": [m.model_copy(update={"priorite": priorite_of(m, risques)}) for m in output.mesures],
+    })
 
 
 def link_mesures(output: Workshop5Output) -> Workshop5Output:

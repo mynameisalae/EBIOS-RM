@@ -30,6 +30,7 @@ from ebios_rm.domain.feared_event import FearedEvent
 from ebios_rm.domain.operational_scenario import AttackStep, OperationalScenario
 from ebios_rm.domain.risk_source import ObjectifVise, RiskSource
 from ebios_rm.domain.strategic_scenario import StrategicScenario
+from ebios_rm.mission_context.clarification import ClarificationAnswer
 from ebios_rm.mission_context.mission_context import MissionContext
 from ebios_rm.orchestrator import mission_state
 from ebios_rm.orchestrator.workshop5_flow import (
@@ -105,15 +106,17 @@ class FakeRunner:
 
     def __init__(self) -> None:
         self.calls: list[str] = []
-        self.notes: list[list[str] | None] = []
+        self.notes: dict[str, list[list[str] | None]] = {"formulate": [], "mesures": [], "indicateurs": []}
+        self.comite_seen: list[str] = []
 
-    def formulate_risques(self, w5_input, risques):
+    def formulate_risques(self, w5_input, risques, revision_notes=None):
         self.calls.append("formulate")
+        self.notes["formulate"].append(revision_notes)
         return [RiskFormulationProposal(risque_id=r.id, libelle=f"Risque métier {r.id}") for r in risques]
 
     def propose_mesures(self, w5_input, output, risques, mitigations, revision_notes=None):
         self.calls.append("mesures")
-        self.notes.append(revision_notes)
+        self.notes["mesures"].append(revision_notes)
         n = len(output.mesures)
         return [
             MeasureProposal(
@@ -121,8 +124,9 @@ class FakeRunner:
                 libelle=f"Déployer la MFA sur les accès distants ({n + 1})",
                 description="MFA sur le VPN.", risques_ids=["R1"], modes_ids=["SO-01", "SO-02"],
                 etapes_visees=["SO-01 étape 1"], gap_ids=[GAP_ID], mitigation_ids_attck=["M1032"],
-                origine="atelier4_vulnerabilite", cout_complexite="+", charge_estimee="20 j/h",
-                echeance="6 mois", justification="Casse l'accès initial.", effet_vraisemblance=1,
+                origine="atelier4_vulnerabilite", freins="Budget.", responsable="DSI",
+                cout_complexite="+", charge_estimee="20 j/h", echeance="6 mois",
+                justification="Casse l'accès initial.", effet_vraisemblance=1,
             ),
         ]
 
@@ -131,10 +135,24 @@ class FakeRunner:
         return [ResidualProposal(risque_id=r.id, vraisemblance_residuelle="V2",
                                  motif="La MFA casse l'étape d'accès initial.") for r in risques]
 
-    def propose_indicateurs(self, w5_input, output):
+    def propose_indicateurs(self, w5_input, output, revision_notes=None):
         self.calls.append("indicateurs")
+        self.notes["indicateurs"].append(revision_notes)
+        self.comite_seen.append(output.cadre_suivi.comite if output.cadre_suivi else "")
         return [IndicatorProposal(libelle="Taux de comptes couverts par la MFA", type_valeur="taux",
                                   cible="100 %", frequence="trimestrielle", mesures_ids=["M-01"])]
+
+
+class FakeClarifier:
+    """Answers every question from the mission context, and remembers it was asked."""
+
+    def __init__(self) -> None:
+        self.questions: list[str] = []
+
+    def answer(self, question, mission_context, workshop_output=None):
+        self.questions.append(question)
+        return ClarificationAnswer(answered=True, answer="R1 porte le mode SO-01, le plus vraisemblable.",
+                                   based_on_facts=["SO-01"])
 
 
 class FakeAttack:
@@ -217,10 +235,10 @@ def _context() -> MissionContext:
                           applicable_frameworks=["ISO27001"])
 
 
-def _flow(repo, io, runner, w5_input=None) -> tuple[str, Workshop5Flow]:
+def _flow(repo, io, runner, w5_input=None, clarifier=None) -> tuple[str, Workshop5Flow]:
     mission_id = repo.create_mission("Clinique Test", ["ISO27001"])
     flow = Workshop5Flow(repo, mission_id, _context(), w5_input or _w5_input(), FakeAttack(), runner,
-                         None, io.ask, io.out)
+                         clarifier, io.ask, io.out)
     return mission_id, flow
 
 
@@ -436,29 +454,112 @@ def test_a_residual_risk_can_send_the_seance_back_to_the_plan(repo):
 
     assert flow.run(None) == 0
     assert runner.calls.count("mesures") == 2
-    assert runner.notes[-1] == ["Rien sur la sauvegarde."]
+    assert runner.notes["mesures"][-1] == ["Rien sur la sauvegarde."]
     saved = mission_state.load_w5_output(repo, mission_id)
     assert len(saved.mesures) == 2                 # the plan was reinforced, not replaced
     assert saved.risques[0].vraisemblance_residuelle is not None
     assert all(r.accepte_par for r in saved.risques)
 
 
-def test_a_rejection_at_the_gate_reopens_only_the_plan_with_its_reasons(repo):
-    io, runner = ScriptedIO([
-        # Refused once, then approved once the plan has been reinforced.
+def _rejected_once(block: str) -> list[tuple[str, str]]:
+    """Refuse at the gate once, send back ``block``, approve the relaunch."""
+    return [
         ("!Approuvez-vous ce résultat", "non"),
         ("Motif du refus", "Aucune mesure sur la sauvegarde."),
         ("relancer l'agent en tenant compte du motif", "r"),
-    ] + HAPPY_RULES), FakeRunner()
+        ("Quelles parties faut-il refaire", block),
+    ] + HAPPY_RULES
+
+
+def test_a_rejection_of_the_plan_reopens_only_the_plan_with_its_reasons(repo):
+    io, runner = ScriptedIO(_rejected_once("3")), FakeRunner()
     mission_id, flow = _flow(repo, io, runner)
 
     assert flow.run(None) == 0
-    assert runner.notes[-1] == ["Aucune mesure sur la sauvegarde."]
+    assert runner.calls == ["formulate", "mesures", "residuel", "indicateurs",
+                            "mesures", "residuel"]
+    assert runner.notes["mesures"][-1] == ["Aucune mesure sur la sauvegarde."]
     saved = mission_state.load_w5_output(repo, mission_id)
     # The treatment decisions are the auditor's own and survive the relaunch.
     assert saved.risques[0].option_traitement is OptionTraitement.REDUCTION
     assert len(saved.mesures) == 2
-    assert runner.calls.count("mesures") == 2
+    # A changed plan is accepted again: the direction ruled on a residual level.
+    assert io.text.count("Acceptation des risques résiduels") == 2
+    # A new version, the refused one kept in the history (§12.6).
+    assert repo.version_count(mission_id, mission_state.WORKSHOP_5) == 2
+
+
+def test_a_rejection_of_the_wording_redoes_the_wording_alone(repo):
+    io, runner = ScriptedIO(_rejected_once("1")), FakeRunner()
+    mission_id, flow = _flow(repo, io, runner)
+
+    assert flow.run(None) == 0
+    assert runner.calls == ["formulate", "mesures", "residuel", "indicateurs", "formulate"]
+    assert runner.notes["formulate"][-1] == ["Aucune mesure sur la sauvegarde."]
+    saved = mission_state.load_w5_output(repo, mission_id)
+    assert len(saved.mesures) == 1 and all(r.accepte_par for r in saved.risques)
+
+
+def test_a_rejection_of_the_options_asks_them_again_and_rebuilds_the_plan(repo):
+    io, runner = ScriptedIO(_rejected_once("2")), FakeRunner()
+    mission_id, flow = _flow(repo, io, runner)
+
+    assert flow.run(None) == 0
+    assert io.text.count("R1 — quelle option de traitement") == 2
+    assert runner.calls.count("mesures") == 2        # new options, new plan
+
+
+def test_a_rejection_of_the_monitoring_redoes_the_indicators_with_the_reasons(repo):
+    io, runner = ScriptedIO(_rejected_once("4")), FakeRunner()
+    _mission_id, flow = _flow(repo, io, runner)
+
+    assert flow.run(None) == 0
+    assert runner.calls == ["formulate", "mesures", "residuel", "indicateurs", "indicateurs"]
+    assert runner.notes["indicateurs"][-1] == ["Aucune mesure sur la sauvegarde."]
+    assert runner.comite_seen == ["Comité sécurité semestriel"] * 2   # the call sees the instance
+
+
+def test_a_hand_edit_at_the_gate_recomputes_the_level_it_implies(repo):
+    io, runner = ScriptedIO([
+        ("!Approuvez-vous ce résultat", "non"),
+        ("Motif du refus", "Le résiduel de R1 est trop optimiste."),
+        ("corriger vous-même", "c"),
+        ("!Chemin", "risques.0.vraisemblance_residuelle"),
+        ("Chemin", ""),
+        ("Nouvelle valeur", "V3"),
+        ("Justification", "La MFA ne couvre pas les comptes de service."),
+    ] + HAPPY_RULES), FakeRunner()
+    mission_id, flow = _flow(repo, io, runner)
+
+    assert flow.run(None) == 0
+    r1 = mission_state.load_w5_output(repo, mission_id).risques[0]
+    assert r1.vraisemblance_residuelle is VraisemblanceInitiale.V3
+    assert r1.niveau_risque_residuel is not None
+    assert r1.niveau_risque_residuel.value == "Critique"      # Critique x V3, recomputed
+    assert r1.acceptabilite_residuelle is Acceptabilite.INACCEPTABLE
+
+
+def test_the_auditor_can_question_the_agent_before_deciding(repo):
+    clarifier = FakeClarifier()
+    io, runner = ScriptedIO([
+        ("!R1 — quelle option de traitement", "?"),
+        ("!Votre question", ""),                       # nothing to ask on the risk map (5-1)
+        ("!Votre question", "Pourquoi SO-01 porte-t-il le risque ?"),   # asked at R1's decision
+        ("Votre question", ""),
+    ] + HAPPY_RULES), FakeRunner()
+    _mission_id, flow = _flow(repo, io, runner, clarifier=clarifier)
+
+    assert flow.run(None) == 0
+    assert clarifier.questions == ["Pourquoi SO-01 porte-t-il le risque ?"]
+    assert "R1 porte le mode SO-01" in io.text
+    assert "poser une question à l'agent" in io.text
+
+
+def test_the_owner_proposed_from_the_session_reaches_the_plan(repo):
+    io, runner = ScriptedIO(HAPPY_RULES), FakeRunner()
+    mission_id, flow = _flow(repo, io, runner)
+    flow.run(None)
+    assert mission_state.load_w5_output(repo, mission_id).mesures[0].responsable == "DSI"
 
 
 # --- The input contract read off the mission state --------------------------
@@ -509,3 +610,43 @@ def test_load_input_gives_atelier5_the_gaps_whole_and_only_its_own_context(repo)
     assert "perimetre_exclus" not in w5_input.contexte
     assert [m.id for m in w5_input.modes_operatoires] == ["SO-01", "SO-02", "SO-03"]
     assert w5_input.alertes_atelier4 == []
+
+
+# --- The Orchestrator's adapter, driving the same séance -------------------
+
+def test_the_orchestrator_adapter_runs_the_seance_up_to_its_own_gate(repo):
+    import asyncio
+
+    from ebios_rm.orchestrator.workshop5_runner import Workshop5Runner
+
+    mission_id = _seed_mission(repo, approve_w4=True)
+    _context_loaded, w5_input = load_input(repo, mission_id)
+    io, runner = ScriptedIO(HAPPY_RULES), FakeRunner()
+    adapter = Workshop5Runner(repo, runner=runner, attack=FakeAttack(), io_in=io.ask, io_out=io.out)
+
+    output = asyncio.run(adapter.run(w5_input, mission_id))
+
+    # The Orchestrator owns the approval: the adapter stops at the assembled plan.
+    assert not any("Approuvez-vous" in prompt for prompt in io.asked)
+    assert runner.calls == ["formulate", "mesures", "residuel", "indicateurs"]
+    assert "2 risque(s) dont 2 résiduel(s) accepté(s), 1 mesure(s)" in adapter.summarize_output(output)
+
+
+def test_the_orchestrator_adapter_turns_a_pause_into_workshop_halted(repo):
+    import asyncio
+
+    from ebios_rm.orchestrator.signals import WorkshopHalted
+    from ebios_rm.orchestrator.workshop5_runner import Workshop5Runner
+
+    mission_id = _seed_mission(repo, approve_w4=True)
+    _context_loaded, w5_input = load_input(repo, mission_id)
+    io = ScriptedIO([("R1 — quelle option de traitement", "q")])
+    adapter = Workshop5Runner(repo, runner=FakeRunner(), attack=FakeAttack(), io_in=io.ask, io_out=io.out)
+
+    with pytest.raises(WorkshopHalted):
+        asyncio.run(adapter.run(w5_input, mission_id))
+    # And the same mission resumes where it stopped, the wording already paid for.
+    io2, runner2 = ScriptedIO(HAPPY_RULES), FakeRunner()
+    resumed = Workshop5Runner(repo, runner=runner2, attack=FakeAttack(), io_in=io2.ask, io_out=io2.out)
+    asyncio.run(resumed.resume(mission_id))
+    assert runner2.calls == ["mesures", "residuel", "indicateurs"]
