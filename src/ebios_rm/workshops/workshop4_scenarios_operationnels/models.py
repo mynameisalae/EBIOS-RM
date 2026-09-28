@@ -194,7 +194,9 @@ class AttackStepProposal(BaseModel):
     description: str = ""
     bien_support_id: str = ""
     justification: str = ""
-
+    probabilite_succes: str = ""
+    difficulte_technique: str = ""
+    motif_cotation: str = ""
 
 class GapConsiderationProposal(BaseModel):
     gap_id: str = ""

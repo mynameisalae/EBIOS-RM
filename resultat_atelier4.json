@@ -1,0 +1,597 @@
+{
+  "scenarios": [
+    {
+      "id": "SO-01",
+      "scenario_strategique_id": "SS-01",
+      "source_risque_id": "SR-01",
+      "objectif_vise_id": "OV-01",
+      "variante": "Via l'interconnexion avec le Ministère de l'Intérieur",
+      "voie": "tiers",
+      "variante_justification": "Ministère de l'Intérieur (France/Allemagne) — L'interconnexion avec le Ministère de l'Intérieur est mentionnée comme critique et permanente, ce qui peut être exploité par une agence étatique pour intercepter les échanges. (interconnexions_tiers, exposition_internet)",
+      "retenu": false,
+      "motif_selection": "Vraisemblance identique à SO-03 (V1) — départagé sur les anomalies, les écarts exploités puis la longueur du chemin.",
+      "retenu_par_auditeur": false,
+      "resume": "L'agence étatique intercepte les interconnexions avec le Ministère de l'Intérieur pour accéder aux données critiques, puis exfiltre les données personnelles sensibles et la liste anti-hooligan, entraînant une divulgation non autorisée.",
+      "attack_path": [
+        {
+          "phase": "Rentrer",
+          "tactic": "initial-access",
+          "technique_id": "T1199",
+          "technique_name": "Trusted Relationship",
+          "description": "Exploiter la relation de confiance établie entre Mondial-Tickets et le Ministère de l'Intérieur pour intercepter les échanges de données.",
+          "bien_support_id": "BS-03",
+          "justification": "L'interconnexion avec le Ministère de l'Intérieur est critique et permanente (contexte_technique).",
+          "probabilite_succes": 3,
+          "difficulte_technique": 2,
+          "motif_cotation": "L'interconnexion est permanente et critique, mais nécessite des compétences techniques pour être interceptée.",
+          "vraisemblance_action": "V2"
+        },
+        {
+          "phase": "Trouver",
+          "tactic": "discovery",
+          "technique_id": "T1046",
+          "technique_name": "Network Service Discovery",
+          "description": "Découvrir les services réseau en interconnexion avec le Ministère de l'Intérieur pour identifier les flux de données critiques.",
+          "bien_support_id": "BS-03",
+          "justification": "Mention de l'interconnexion critique avec le Ministère de l'Intérieur (contexte_technique).",
+          "probabilite_succes": 2,
+          "difficulte_technique": 2,
+          "motif_cotation": "L'interconnexion est un vecteur connu mais la découverte des services nécessite une exploration active.",
+          "vraisemblance_action": "V1"
+        },
+        {
+          "phase": "Exploiter",
+          "tactic": "collection",
+          "technique_id": "T1039",
+          "technique_name": "Data from Network Shared Drive",
+          "description": "Interception des flux de données entre Mondial-Tickets et le Ministère de l'Intérieur concernant les données des spectateurs et la liste anti-hooligan.",
+          "bien_support_id": "BS-03",
+          "justification": "Les données échangées sur l'interconnexion avec le Ministère de l'Intérieur sont sensibles (contexte_technique).",
+          "probabilite_succes": 3,
+          "difficulte_technique": 3,
+          "motif_cotation": "Les agences étatiques ont les capacités d'intercepter ces flux si la connexion n'est pas adéquatement sécurisée.",
+          "vraisemblance_action": "V1"
+        },
+        {
+          "phase": "Exploiter",
+          "tactic": "exfiltration",
+          "technique_id": "T1041",
+          "technique_name": "Exfiltration Over C2 Channel",
+          "description": "Exfiltration des données interceptées vers un serveur contrôlé par l'État attaquant.",
+          "bien_support_id": "",
+          "justification": "Absence de contrôle des flux sortants (contexte_technique).",
+          "probabilite_succes": 3,
+          "difficulte_technique": 2,
+          "motif_cotation": "Les flux sortants ne sont pas surveillés, facilitant l'exfiltration de données.",
+          "vraisemblance_action": "V2"
+        }
+      ],
+      "biens_essentiels_ids": [
+        "BE-02"
+      ],
+      "evenements_redoutes_ids": [
+        "ER-02",
+        "ER-03"
+      ],
+      "gravite": "Critique",
+      "vraisemblance_initiale": "V4",
+      "likelihood_revision_reason": "L'étape discovery est rendue difficile par l'absence de détails sur la sécurisation des interconnexions, bien que les agences étatiques aient des capacités avancées. [Calcul méthode avancée : étape 2 la moins vraisemblable (V1) -> V1]",
+      "revised_likelihood": "V1",
+      "revised_risk_level": "Moyen",
+      "baseline_gaps_considered": [
+        {
+          "gap_id": "BG-4e31ec12",
+          "impact_type": "increases_impact",
+          "impact_on_scenario": "L'absence de mesures pour le RGPD aggrave les conséquences en cas de divulgation."
+        },
+        {
+          "gap_id": "BG-00e1942c",
+          "impact_type": "increases_likelihood",
+          "impact_on_scenario": "L'étape initial-access est facilitée par l'absence de minimisation et pseudonymisation."
+        },
+        {
+          "gap_id": "BG-e118e3a4",
+          "impact_type": "increases_likelihood",
+          "impact_on_scenario": "L'étape initial-access est facilitée par l'absence de garanties des sous-traitants."
+        },
+        {
+          "gap_id": "BG-916f4a24",
+          "impact_type": "increases_impact",
+          "impact_on_scenario": "Les mesures de sécurité insuffisantes aggravent la divulgation et l'altération des données."
+        },
+        {
+          "gap_id": "BG-66ebf939",
+          "impact_type": "increases_impact",
+          "impact_on_scenario": "Aggrave les conséquences de la divulgation des données interconnectées."
+        }
+      ],
+      "new_baseline_gap_identified": null,
+      "anomalies": [
+        {
+          "code": "vraisemblance_divergente",
+          "message": "Le modèle annonce V2, le calcul du chemin donne V1 — valeur calculée retenue.",
+          "bloquante": false
+        },
+        {
+          "code": "revision_forte",
+          "message": "Vraisemblance V4 -> V1 : plus d'un niveau d'écart, à examiner.",
+          "bloquante": false
+        }
+      ],
+      "statut": "confirme",
+      "iterations": 1,
+      "motifs_auditeur": [],
+      "origin": "assessment"
+    },
+    {
+      "id": "SO-02",
+      "scenario_strategique_id": "SS-01",
+      "source_risque_id": "SR-01",
+      "objectif_vise_id": "OV-01",
+      "variante": "Via les accès distants non sécurisés des prestataires",
+      "voie": "acces_distant",
+      "variante_justification": "Prestataires infogérance — Les prestataires de services ont des accès VPN sans authentification multifacteur, ce qui peut être exploité par des acteurs malveillants. (acces_prestataires, authentification_forte)",
+      "retenu": false,
+      "motif_selection": "Vraisemblance identique à SO-03 (V1) — départagé sur les anomalies, les écarts exploités puis la longueur du chemin.",
+      "retenu_par_auditeur": false,
+      "resume": "L'attaquant utilise les accès VPN non sécurisés des prestataires pour s'introduire dans le réseau, puis intercepte les communications avec le Ministère de l'Intérieur pour accéder aux données critiques.",
+      "attack_path": [
+        {
+          "phase": "Rentrer",
+          "tactic": "initial-access",
+          "technique_id": "T1133",
+          "technique_name": "External Remote Services",
+          "description": "Utiliser les accès VPN des prestataires sans authentification multifacteur pour pénétrer le réseau.",
+          "bien_support_id": "",
+          "justification": "Les prestataires infogérance ont des accès VPN sans authentification multifacteur, ce qui constitue une porte d'entrée vulnérable.",
+          "probabilite_succes": 3,
+          "difficulte_technique": 1,
+          "motif_cotation": "L'absence d'authentification multifacteur pour les accès VPN rend l'étape assez probable, surtout pour un acteur étatique capable de cibler les prestataires.",
+          "vraisemblance_action": "V3"
+        },
+        {
+          "phase": "Trouver",
+          "tactic": "discovery",
+          "technique_id": "T1016",
+          "technique_name": "System Network Configuration Discovery",
+          "description": "Cartographier le réseau interne pour identifier les flux vers le Ministère de l'Intérieur.",
+          "bien_support_id": "",
+          "justification": "Le réseau interne est peu segmenté, facilitant la découverte des configurations réseau.",
+          "probabilite_succes": 3,
+          "difficulte_technique": 2,
+          "motif_cotation": "La faible segmentation du réseau facilite la reconnaissance, réduisant la difficulté technique, même si un acteur étatique doit encore investir du temps pour un scan complet.",
+          "vraisemblance_action": "V2"
+        },
+        {
+          "phase": "Trouver",
+          "tactic": "credential-access",
+          "technique_id": "T1040",
+          "technique_name": "Network Sniffing",
+          "description": "Intercepter les paquets contenant des données échangées avec le Ministère de l'Intérieur.",
+          "bien_support_id": "BS-03",
+          "justification": "Absence de segmentation et de protection des flux réseau sortants permettant le sniffing.",
+          "probabilite_succes": 2,
+          "difficulte_technique": 3,
+          "motif_cotation": "Cette étape reste technique, nécessitant des compétences en interception réseau, mais reste faisable pour un acteur étatique avec des ressources avancées.",
+          "vraisemblance_action": "V1"
+        },
+        {
+          "phase": "Exploiter",
+          "tactic": "exfiltration",
+          "technique_id": "T1041",
+          "technique_name": "Exfiltration Over C2 Channel",
+          "description": "Envoyer les données critiques interceptées vers une infrastructure de commande et contrôle.",
+          "bien_support_id": "BS-03",
+          "justification": "Il n'existe aucun outil de DLP ou NDR surveillant les flux sortants volumineux ou inhabituels.",
+          "probabilite_succes": 3,
+          "difficulte_technique": 2,
+          "motif_cotation": "L'absence de DLP ou de contrôle sur les flux sortants rend l'exfiltration matérielle plus probable, bien que toujours technique.",
+          "vraisemblance_action": "V2"
+        }
+      ],
+      "biens_essentiels_ids": [
+        "BE-02"
+      ],
+      "evenements_redoutes_ids": [
+        "ER-02",
+        "ER-03"
+      ],
+      "gravite": "Critique",
+      "vraisemblance_initiale": "V4",
+      "likelihood_revision_reason": "L'étape de collection via Network Sniffing est la plus difficile, due aux compétences techniques nécessaires et bien que faisable par un acteur étatique avec de fortes capacités techniques. [Calcul méthode avancée : étape 3 la moins vraisemblable (V1) -> V1]",
+      "revised_likelihood": "V1",
+      "revised_risk_level": "Moyen",
+      "baseline_gaps_considered": [
+        {
+          "gap_id": "BG-4e31ec12",
+          "impact_type": "no_impact",
+          "impact_on_scenario": "Cet écart concerne la conformité RGPD, sans influence sur les étapes d'intrusion par accès distant."
+        },
+        {
+          "gap_id": "BG-00e1942c",
+          "impact_type": "no_impact",
+          "impact_on_scenario": "Cet écart touche des aspects de minimisation des données, non pertinent pour un accès distant via VPN."
+        },
+        {
+          "gap_id": "BG-e118e3a4",
+          "impact_type": "increases_likelihood",
+          "impact_on_scenario": "Facilite l'accès initial en exploitant les accès VPN non sécurisés via les prestataires."
+        },
+        {
+          "gap_id": "BG-916f4a24",
+          "impact_type": "increases_likelihood",
+          "impact_on_scenario": "La faiblesse générale des mesures de sécurité facilite les étapes de découverte et de collecte."
+        },
+        {
+          "gap_id": "BG-66ebf939",
+          "impact_type": "no_impact",
+          "impact_on_scenario": "Cet écart concerne le traitement illicite, sans impact direct sur les étapes identifiées."
+        }
+      ],
+      "new_baseline_gap_identified": null,
+      "anomalies": [
+        {
+          "code": "tactique_incoherente",
+          "message": "Étape 3 : T1040 (Network Sniffing) relève de credential-access, discovery, pas de collection — tactique corrigée.",
+          "bloquante": false
+        },
+        {
+          "code": "vraisemblance_divergente",
+          "message": "Le modèle annonce V2, le calcul du chemin donne V1 — valeur calculée retenue.",
+          "bloquante": false
+        },
+        {
+          "code": "revision_forte",
+          "message": "Vraisemblance V4 -> V1 : plus d'un niveau d'écart, à examiner.",
+          "bloquante": false
+        }
+      ],
+      "statut": "confirme",
+      "iterations": 1,
+      "motifs_auditeur": [],
+      "origin": "assessment"
+    },
+    {
+      "id": "SO-03",
+      "scenario_strategique_id": "SS-01",
+      "source_risque_id": "SR-01",
+      "objectif_vise_id": "OV-01",
+      "variante": "Par compromission des comptes administrateurs partagés",
+      "voie": "interne_legitime",
+      "variante_justification": "Comptes administrateurs partagés — L'absence de traçabilité et de sécurité renforcée autour des comptes administrateurs permet une exploitation pour accéder aux données de façon légitime. (comptes_privilegies, isolement_sauvegardes)",
+      "retenu": true,
+      "motif_selection": "Mode le plus vraisemblable de SS-01 : V1 contre V1, V1",
+      "retenu_par_auditeur": false,
+      "resume": "Par compromission des comptes administrateurs partagés, une agence étatique accède aux données critiques traitées par la liste anti-hooligan, menant à leur divulgation non autorisée.",
+      "attack_path": [
+        {
+          "phase": "Rentrer",
+          "tactic": "initial-access",
+          "technique_id": "T1078.002",
+          "technique_name": "Domain Accounts",
+          "description": "Utilisation des comptes administrateurs partagés pour accéder aux systèmes critiques via un accès légitime détourné.",
+          "bien_support_id": "",
+          "justification": "L'absence de traçabilité et de sécurité renforcée autour des comptes administrateurs (comptes_privilegies) permet un accès détourné aux systèmes.",
+          "probabilite_succes": 3,
+          "difficulte_technique": 1,
+          "motif_cotation": "L'utilisation de comptes administrateurs partagés sans traçabilité ni MFA facilite l'accès initial pour cette source, malgré l'absence d'informations précises sur la détection.",
+          "vraisemblance_action": "V3"
+        },
+        {
+          "phase": "Trouver",
+          "tactic": "discovery",
+          "technique_id": "T1482",
+          "technique_name": "Domain Trust Discovery",
+          "description": "Découverte des relations de confiance et interconnexions avec le Ministère de l'Intérieur pour identifier le chemin vers les données critiques.",
+          "bien_support_id": "BS-03",
+          "justification": "Les interconnexions et la liste anti-hooligan sont critiques et potentiellement mal surveillés (interconnexions_tiers).",
+          "probabilite_succes": 2,
+          "difficulte_technique": 2,
+          "motif_cotation": "La complexité de découvrir ces relations de confiance pourrait être modérée pour une agence étatique, mais l'absence de réseau segmenté augmente les risques. Les informations disponibles sur la surveillance ne sont pas déterminantes.",
+          "vraisemblance_action": "V1"
+        },
+        {
+          "phase": "Trouver",
+          "tactic": "credential-access",
+          "technique_id": "T1110.002",
+          "technique_name": "Password Cracking",
+          "description": "Accès potentiel aux matériels ou applications sensibles par récupération ou contournement des authentifications faibles.",
+          "bien_support_id": "BS-03",
+          "justification": "L'absence de politique de mots de passe et de MFA facilite le contournement des authentifications (politique_mots_de_passe, authentification_forte).",
+          "probabilite_succes": 3,
+          "difficulte_technique": 1,
+          "motif_cotation": "L'identification et l'exploitation des mêmes faibles mots de passe ou comptes partagés est facilitatée par l'absence de gestion stricte des mots de passe. La complexité technique est faible.",
+          "vraisemblance_action": "V3"
+        },
+        {
+          "phase": "Exploiter",
+          "tactic": "exfiltration",
+          "technique_id": "T1041",
+          "technique_name": "Exfiltration Over C2 Channel",
+          "description": "Exfiltration des données sensibles obtenues, comme la liste anti-hooligan, vers les infrastructures contrôlées par l'État attaquant.",
+          "bien_support_id": "BS-03",
+          "justification": "Le contrôle insuffisant des flux sortants facilite l'exfiltration des données (controle_flux_sortants).",
+          "probabilite_succes": 3,
+          "difficulte_technique": 1,
+          "motif_cotation": "Les flux sortants volumineux ou chiffrés ne sont pas contrôlés, rendant l'exfiltration discrète très probable.",
+          "vraisemblance_action": "V3"
+        }
+      ],
+      "biens_essentiels_ids": [
+        "BE-02"
+      ],
+      "evenements_redoutes_ids": [
+        "ER-02",
+        "ER-03"
+      ],
+      "gravite": "Critique",
+      "vraisemblance_initiale": "V4",
+      "likelihood_revision_reason": "L'étape la plus difficile est \"Domain Trust Discovery\" en raison de la complexité technique à naviguer les relations réseau, même pour une agence étatique. L'absence de supervision segmentée rend cette étape plus accessible, mais l'information sur la surveillance est insuffisante pour une estimation précise. [Calcul méthode avancée : étape 2 la moins vraisemblable (V1) -> V1]",
+      "revised_likelihood": "V1",
+      "revised_risk_level": "Moyen",
+      "baseline_gaps_considered": [
+        {
+          "gap_id": "BG-4e31ec12",
+          "impact_type": "not_relevant",
+          "impact_on_scenario": "Cet écart ne concerne pas l'étape d'accès aux données du Ministère, mais la conformité générale au RGPD."
+        },
+        {
+          "gap_id": "BG-00e1942c",
+          "impact_type": "increases_likelihood",
+          "impact_on_scenario": "L'absence de minimisation des données rend l'accès aux informations sensibles plus probable lors de l'étape d'exfiltration."
+        },
+        {
+          "gap_id": "BG-e118e3a4",
+          "impact_type": "increases_likelihood",
+          "impact_on_scenario": "Le manque de garanties suffisantes de la part des sous-traitants facilite l'accès initial par compromission des comptes."
+        },
+        {
+          "gap_id": "BG-916f4a24",
+          "impact_type": "increases_likelihood",
+          "impact_on_scenario": "Cet écart touche surtout l'accès et la protection intérieure, augmentant les chances de réussite de l'accès aux données."
+        },
+        {
+          "gap_id": "BG-66ebf939",
+          "impact_type": "increases_likelihood",
+          "impact_on_scenario": "L'absence de mesures pour empêcher le traitement illicite facilite l'étape d'exfiltration."
+        }
+      ],
+      "new_baseline_gap_identified": null,
+      "anomalies": [
+        {
+          "code": "vraisemblance_divergente",
+          "message": "Le modèle annonce V2, le calcul du chemin donne V1 — valeur calculée retenue.",
+          "bloquante": false
+        },
+        {
+          "code": "revision_forte",
+          "message": "Vraisemblance V4 -> V1 : plus d'un niveau d'écart, à examiner.",
+          "bloquante": false
+        }
+      ],
+      "statut": "confirme",
+      "iterations": 1,
+      "motifs_auditeur": [],
+      "origin": "assessment"
+    },
+    {
+      "id": "SO-04",
+      "scenario_strategique_id": "SS-02",
+      "source_risque_id": "SR-02",
+      "objectif_vise_id": "OV-02",
+      "variante": "Compromission du serveur web de réservation exposé sur Internet",
+      "voie": "service_expose",
+      "variante_justification": "Plateforme de vente en ligne — Le serveur de réservation est explicitement exposé sur Internet, offrant ainsi une voie d'entrée directe pour un cybercriminel organisé cherchant à accéder ou détourner les données personnelles et bancaires des clients. (exposition_internet)",
+      "retenu": true,
+      "motif_selection": "Mode le plus vraisemblable de SS-02 : V1 (seul mode développé)",
+      "retenu_par_auditeur": false,
+      "resume": "Le groupe cybercriminel organisé exploite des vulnérabilités sur le serveur web de réservation de Mondial-Tickets, exposé sur Internet, pour extraire les données personnelles et bancaires des clients, entraînant une divulgation non autorisée.",
+      "attack_path": [
+        {
+          "phase": "Rentrer",
+          "tactic": "initial-access",
+          "technique_id": "T1190",
+          "technique_name": "Exploit Public-Facing Application",
+          "description": "Exploiter des vulnérabilités dans le serveur web de réservation pour y obtenir un accès non autorisé.",
+          "bien_support_id": "BS-01",
+          "justification": "Le serveur de réservation est explicitement exposé sur Internet (exposition_internet), ce qui en fait une cible pour les attaques depuis l'extérieur.",
+          "probabilite_succes": 3,
+          "difficulte_technique": 1,
+          "motif_cotation": "L'absence de gestion régulière des vulnérabilités (gestion_vulnerabilites) rend probable l'existence de failles exploitables sur le serveur exposé.",
+          "vraisemblance_action": "V3"
+        },
+        {
+          "phase": "Trouver",
+          "tactic": "persistence",
+          "technique_id": "T1505.003",
+          "technique_name": "Web Shell",
+          "description": "Déployer un web shell pour maintenir un accès persistant sur le serveur compromis.",
+          "bien_support_id": "BS-01",
+          "justification": "L'absence de surveillance continue et l'exploitation réussie du serveur rendent probable la possibilité d'y installer un web shell sans détection immédiate.",
+          "probabilite_succes": 3,
+          "difficulte_technique": 1,
+          "motif_cotation": "Aucune EDR ni antivirus n'est déployé (edr_av_deploye), facilitant l'installation d'un web shell.",
+          "vraisemblance_action": "V3"
+        },
+        {
+          "phase": "Trouver",
+          "tactic": "discovery",
+          "technique_id": "T1046",
+          "technique_name": "Network Service Discovery",
+          "description": "Effectuer un scan du réseau de Mondial-Tickets depuis le serveur compromis pour identifier d'autres services et systèmes potentiellement vulnérables.",
+          "bien_support_id": "",
+          "justification": "Le manque de segmentation du réseau interne (cloisonnement_administration) rend possible l'exploration depuis le serveur compromis.",
+          "probabilite_succes": 3,
+          "difficulte_technique": 1,
+          "motif_cotation": "Le réseau interne peu segmenté facilite la reconnaissance à partir d'un point d'accès légitime.",
+          "vraisemblance_action": "V3"
+        },
+        {
+          "phase": "Trouver",
+          "tactic": "credential-access",
+          "technique_id": "T1555.003",
+          "technique_name": "Credentials from Web Browsers",
+          "description": "Extraire les informations d'authentification personnelles stockées dans les navigateurs web des utilisateurs du système compromis.",
+          "bien_support_id": "",
+          "justification": "Les permissions potentiellement faibles sur le système examiné facilitent l'accès aux informations d'identification stockées dans les navigateurs.",
+          "probabilite_succes": 2,
+          "difficulte_technique": 2,
+          "motif_cotation": "L'absence de politique de mots de passe et l'absence de surveillance accrue réduisent la difficulté d'accès aux navigateurs des utilisateurs.",
+          "vraisemblance_action": "V1"
+        },
+        {
+          "phase": "Exploiter",
+          "tactic": "exfiltration",
+          "technique_id": "T1041",
+          "technique_name": "Exfiltration Over C2 Channel",
+          "description": "Transférer les données extraites vers un serveur contrôlé par le groupe cybercriminel.",
+          "bien_support_id": "",
+          "justification": "Aucune mesure de Data Loss Prevention (controle_flux_sortants) ne surveille ou limite les connexions sortantes.",
+          "probabilite_succes": 3,
+          "difficulte_technique": 1,
+          "motif_cotation": "L'absence de surveillance en temps réel des flux sortants facilite l'exfiltration de données sans être détecté.",
+          "vraisemblance_action": "V3"
+        }
+      ],
+      "biens_essentiels_ids": [
+        "BE-02"
+      ],
+      "evenements_redoutes_ids": [
+        "ER-02",
+        "ER-03"
+      ],
+      "gravite": "Critique",
+      "vraisemblance_initiale": "V4",
+      "likelihood_revision_reason": "L'étape d'initial-access via le serveur web de réservation exposé est la plus difficile en raison de l'absence de scans de vulnérabilités et de mises à jour irrégulières, mais elle est facilitée par le manque de gestion des vulnérabilités. [Calcul méthode avancée : étape 4 la moins vraisemblable (V1) -> V1]",
+      "revised_likelihood": "V1",
+      "revised_risk_level": "Moyen",
+      "baseline_gaps_considered": [
+        {
+          "gap_id": "BG-4e31ec12",
+          "impact_type": "no_impact",
+          "impact_on_scenario": "Cet écart concerne la conformité au RGPD, non abordée directement par le scénario de compromission du serveur web."
+        },
+        {
+          "gap_id": "BG-00e1942c",
+          "impact_type": "not_relevant",
+          "impact_on_scenario": "Cet écart porte sur les données minimisées et pseudonymisées, ce qui ne concerne pas les méthodes de compromission du serveur."
+        },
+        {
+          "gap_id": "BG-e118e3a4",
+          "impact_type": "not_relevant",
+          "impact_on_scenario": "Cet écart traite des garanties des sous-traitants, non pertinent à l'exploitation du serveur web."
+        },
+        {
+          "gap_id": "BG-916f4a24",
+          "impact_type": "increases_likelihood",
+          "impact_on_scenario": "L'absence de mesures de sécurité adéquates augmente la probabilité de la compromission à l'étape de persistence du scénario."
+        },
+        {
+          "gap_id": "BG-66ebf939",
+          "impact_type": "increases_likelihood",
+          "impact_on_scenario": "Facilite l'exfiltration des données en l'absence de monitorage des flux sortants."
+        }
+      ],
+      "new_baseline_gap_identified": null,
+      "anomalies": [
+        {
+          "code": "vraisemblance_divergente",
+          "message": "Le modèle annonce V3, le calcul du chemin donne V1 — valeur calculée retenue.",
+          "bloquante": false
+        },
+        {
+          "code": "revision_forte",
+          "message": "Vraisemblance V4 -> V1 : plus d'un niveau d'écart, à examiner.",
+          "bloquante": false
+        }
+      ],
+      "statut": "confirme",
+      "iterations": 1,
+      "motifs_auditeur": [],
+      "origin": "assessment"
+    }
+  ],
+  "coherence": {
+    "constats": [],
+    "decision": "sans_constat",
+    "justification": ""
+  },
+  "elements_ecartes": [],
+  "quality_report": {
+    "checks": [
+      {
+        "controle": "Couverture",
+        "statut": "ok",
+        "message": "4 mode(s) opératoire(s) pour 2 scénario(s) stratégique(s), un mode retenu par scénario."
+      },
+      {
+        "controle": "Sélection du mode retenu",
+        "statut": "ok",
+        "message": "Le mode retenu de chaque scénario est le plus vraisemblable, ou celui que l'auditeur a désigné."
+      },
+      {
+        "controle": "Voies d'entrée explorées",
+        "statut": "avertissement",
+        "message": "aucun mode opératoire n'emprunte : Personne et son poste (message piégé, support amovible, mobile)"
+      },
+      {
+        "controle": "Écarts du socle exploités",
+        "statut": "ok",
+        "message": "Chaque écart du socle pèse sur au moins un mode opératoire."
+      },
+      {
+        "controle": "Revue de l'auditeur",
+        "statut": "ok",
+        "message": "Chaque analyse a été confirmée par l'auditeur."
+      },
+      {
+        "controle": "Techniques ATT&CK",
+        "statut": "ok",
+        "message": "Tous les identifiants existent dans le catalogue ATT&CK-Latest (sha256 bdf1ce86a4e6)."
+      },
+      {
+        "controle": "Modes opératoires",
+        "statut": "ok",
+        "message": "Chaque étape a une tactique connue et une action décrite."
+      },
+      {
+        "controle": "Écarts du socle",
+        "statut": "ok",
+        "message": "Écarts pertinents examinés, chaque impact justifié."
+      },
+      {
+        "controle": "Vraisemblance et niveau de risque",
+        "statut": "ok",
+        "message": "Vraisemblance V1..V4 motivée, niveau lu dans la matrice."
+      },
+      {
+        "controle": "Cotations reprises",
+        "statut": "ok",
+        "message": "Gravité et vraisemblance initiale reprises des ateliers 1 à 3."
+      },
+      {
+        "controle": "Cohérence d'ensemble",
+        "statut": "ok",
+        "message": "Vérification de cohérence effectuée et tranchée."
+      },
+      {
+        "controle": "Anomalies confirmées malgré tout",
+        "statut": "ok",
+        "message": "Aucune analyse confirmée avec une anomalie bloquante."
+      },
+      {
+        "controle": "Nouveaux écarts proposés",
+        "statut": "ok",
+        "message": "Aucun écart nouveau proposé."
+      },
+      {
+        "controle": "Cohérence de la gravité",
+        "statut": "ok",
+        "message": "La gravité des scénarios est cohérente avec les enjeux métiers."
+      }
+    ]
+  },
+  "alertes_atelier3": [],
+  "attck_version": "ATT&CK-Latest (sha256 bdf1ce86a4e6)",
+  "human_edits": []
+}

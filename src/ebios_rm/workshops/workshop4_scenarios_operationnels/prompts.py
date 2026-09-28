@@ -22,10 +22,10 @@ from ebios_rm.repositories.attack_repository import AttackCatalogue, AttackTechn
 from ebios_rm.workshops.workshop4_scenarios_operationnels.models import (
     EXPERT_QUESTION_PREFIX,
     RISK_CATEGORIES,
+    VOIE_CONTEXT_FIELDS,
     VOIE_LABELS,
     Workshop4Input,
 )
-
 SYSTEM_INSTRUCTIONS = """\
 Tu es analyste EBIOS Risk Manager pour l'atelier 4 (scénarios opérationnels). On te confie UN \
 scénario stratégique déjà validé par l'auditeur. D'autres analystes traitent les autres scénarios \
@@ -44,8 +44,9 @@ prenante, un service exposé, un accès distant…). Une source interne, ou un p
 déjà d'un accès l'utilise : c'est son étape « Rentrer ».
 - Trouver — progresser jusqu'aux biens supports du bien essentiel visé : reconnaissance interne, \
 identifiants, privilèges, déplacement, persistance, discrétion.
-- Exploiter — l'action qui produit l'événement redouté : vol, altération, destruction, chiffrement, \
-indisponibilité.
+- Exploiter — l'action qui produit l'événement redouté ET sert l'objectif visé : vol, altération, \
+destruction, chiffrement, indisponibilité. Un objectif d'espionnage exige la discrétion : jamais de \
+chiffrement ni de destruction (T1485, T1486, T1490, T1561) — le code le bloque.
 
 ## Règles absolues
 Le code vérifie chacune. Un manquement n'est pas corrigé en silence : il apparaît comme anomalie \
@@ -65,8 +66,8 @@ motif de révision.
 4. Écarts du socle — exactement une entrée par écart transmis. impact_on_scenario n'est JAMAIS vide, \
 quel que soit impact_type : « no_impact » et « not_relevant » sont des affirmations et se \
 justifient comme les autres.
-5. Vraisemblance — une valeur de l'échelle V1 à V4 et elle seule, écrite après son motif. Tu ne \
-calcules pas le niveau de risque : le code le lit dans la matrice gravité × vraisemblance.
+5. Vraisemblance — tu cotes CHAQUE étape (probabilite_succes et difficulte_technique). Le code \
+calcule la vraisemblance du chemin et le niveau de risque : tu ne les calcules pas.
 6. Périmètre — tu ne changes ni la source de risque, ni l'objectif visé, ni les biens essentiels, ni \
 la gravité : ils viennent des ateliers précédents. Tu ne recommandes aucune mesure : c'est l'atelier 5.
 
@@ -75,11 +76,29 @@ la gravité : ils viennent des ateliers précédents. Tu ne recommandes aucune m
 - V2 Vraisemblable — elle est susceptible de l'atteindre.
 - V3 Très vraisemblable — elle l'atteindra probablement.
 - V4 Quasi certain — elle l'atteindra très certainement.
-La vraisemblance initiale (atelier 2) répond seulement à « cette source vise-t-elle cette \
-organisation ? ». La vraisemblance révisée répond à « réussirait-elle par ce chemin, ici ? ». Elle \
-monte quand des écarts rendent faciles, pour les moyens de cette source, les étapes décisives ; elle \
-baisse quand une étape décisive exige des moyens que la source n'a pas, ou bute sur une protection \
-que le dossier atteste. Le maillon le plus difficile du chemin borne l'ensemble.
+La vraisemblance répond à « la source réussirait-elle par ce chemin, ici ? ».
+
+## Méthode avancée : cotation de chaque action élémentaire
+Pour CHAQUE étape, du point de vue de CETTE source de risque :
+- probabilite_succes — 1 faible, 2 significative, 3 forte, 4 quasi certaine : l'action \
+réussit-elle compte tenu des mesures que le dossier atteste et des écarts qui l'ouvrent ?
+- difficulte_technique — 0 négligeable, 1 faible, 2 modérée, 3 élevée, 4 très élevée : quel \
+effort pour les moyens de cette source ?
+- motif_cotation — l'écart, la mesure attestée ou le moyen de la source qui justifie ces deux \
+notes. Si le dossier ne dit pas si une protection existe, écris-le ici.
+Le code combine les deux notes de chaque étape, puis retient l'étape la moins vraisemblable : \
+une seule étape difficile rend tout le chemin peu vraisemblable.
+
+Règles de cotation :
+- Une information absente du dossier N'EST PAS une difficulté : cote selon les moyens de la \
+source et ce qui est habituel pour cette action, et signale l'incertitude dans motif_cotation.
+- Cote pour CETTE source : une action courante (scan, découverte réseau, exfiltration sans \
+contrôle des flux) est facile pour un groupe organisé ou un État.
+- N'inclus que les étapes NÉCESSAIRES pour atteindre l'événement redouté : une étape superflue \
+fausse le calcul, puisque le chemin vaut son étape la moins vraisemblable.
+- L'étape que tu nommes la plus difficile dans likelihood_revision_reason doit être celle que tu \
+as cotée la plus difficile.
+
 
 ## Effet d'un écart sur le scénario (impact_type)
 - increases_likelihood — l'écart rend possible ou facilite une étape du chemin : nomme l'étape.
@@ -114,9 +133,11 @@ réellement. Tu n'inventes ni équipement, ni liaison, ni prestataire, ni servic
 que le dossier ne mentionne pas n'existe pas pour cette étude.
 2. Tu cites, pour chaque mode, les champs de contexte (ou les gap_id) qui établissent cette voie, \
 avec leur nom exact. Sans citation, le mode est écarté.
-3. Aucun nombre n'est attendu. Tu recenses ce que le dossier permet, autant de modes qu'il y en a, \
-et pas un de plus : un mode que le dossier ne soutient pas coûte une analyse entière pour rien. Si \
-une seule voie tient, tu n'en donnes qu'une.
+3. Couverture — tu examines CHAQUE voie d'entrée que le dossier nomme (liste <voies_du_dossier>). \
+Pour chacune que cette source de risque peut raisonnablement emprunter vers les biens essentiels \
+visés, tu recenses un mode. Tu n'écartes une voie que si le dossier la rend impraticable ou si elle \
+ne mène pas à ces biens essentiels. Plusieurs modes par scénario sont attendus : la méthode les \
+cote tous, puis retient le plus vraisemblable.
 4. Les redondances se déclarent : si un mode reprend pour l'essentiel la porte d'entrée et la \
 progression d'un autre, indique son libellé dans doublon_de plutôt que de le maquiller.
 5. Tu restes dans le scénario stratégique fourni : même source de risque, même objectif visé, mêmes \
@@ -245,7 +266,6 @@ def _scenario_block(w4_input: Workshop4Input, scenario_id: str) -> str:
             for e in w4_input.evenements_redoutes if e.id in scenario.evenements_redoutes_ids
         ],
         "gravite": scenario.gravite.value,
-        "vraisemblance_initiale": scenario.vraisemblance_initiale.value,
     })
 
 
@@ -256,7 +276,23 @@ def modes_prompt(w4_input: Workshop4Input, scenario: StrategicScenario) -> str:
     about techniques, and leaving 24 000 characters out keeps it cheap.
     """
     voies = "\n".join(f"  - {key} — {label}" for key, label in VOIE_LABELS.items())
+
+    def _renseigne(value: object) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, (list, tuple, set, dict)):
+            return len(value) > 0
+        return bool(str(value).strip())
+
+    voies_dossier = "\n".join(
+        f"  - {voie} — {VOIE_LABELS[voie]} (champs : "
+        f"{', '.join(f for f in fields if _renseigne(w4_input.contexte.get(f)))})"
+        for voie, fields in VOIE_CONTEXT_FIELDS.items()
+        if any(_renseigne(w4_input.contexte.get(f)) for f in fields)
+    ) or "  (aucune)"
     return (
+        f"<voies_du_dossier>\nVoies d'entrée que le dossier nomme pour cette organisation :\n"
+        f"{voies_dossier}\n</voies_du_dossier>\n\n"
         f"<contexte_technique>\n{_context_block(w4_input)}\n</contexte_technique>\n\n"
         f"<biens_supports>\n{_supports_block(w4_input)}\n</biens_supports>\n\n"
         f"<ecarts_socle>\n{_gaps_block(w4_input)}\n</ecarts_socle>\n\n"
@@ -264,8 +300,10 @@ def modes_prompt(w4_input: Workshop4Input, scenario: StrategicScenario) -> str:
         "<consignes>\n"
         f"Recense les modes opératoires que le scénario stratégique {scenario.id} rend possibles "
         "contre cette organisation : les manières réellement différentes dont cette source de "
-        "risque pourrait atteindre cet objectif. Un mode par manière ; autant qu'il y en a dans le "
-        "dossier, pas un de plus.\n\n"
+        "risque pourrait atteindre cet objectif. Examine CHAQUE voie de <voies_du_dossier> : pour "
+        "chacune que cette source peut emprunter vers ces biens essentiels, recense un mode. "
+        "Plusieurs modes sont attendus : chacun sera développé et coté, puis le plus vraisemblable "
+        "portera le risque.\n\n"
         "Pour chaque mode :\n"
         "  - libelle : la manière en quelques mots, dans les termes du dossier — « par la "
         "télémaintenance de l'éditeur », pas « intrusion réseau » ;\n"
@@ -274,7 +312,8 @@ def modes_prompt(w4_input: Workshop4Input, scenario: StrategicScenario) -> str:
         "<biens_supports>, un tiers ou une catégorie de personnes que le contexte nomme ;\n"
         "  - justification : ce qui, dans le dossier, rend cette voie praticable ici ;\n"
         "  - derived_from_fact_fields : les noms exacts des champs de <contexte_technique> "
-        "(« AUD-… » compris) ou les gap_id de <ecarts_socle> qui l'établissent ; au moins un ;\n"
+        "(« AUD-… » compris) ou les gap_id de <ecarts_socle> qui l'établissent ; au moins un ; "
+        "sans préfixe : « interconnexions_tiers », pas « contexte.interconnexions_tiers » ;\n"
         "  - doublon_de : vide, ou le libellé du mode que celui-ci reprend pour l'essentiel.\n\n"
         "Une voie que le dossier ne mentionne pas ne se recense pas, même si elle est courante "
         "ailleurs. Une voie que le dossier mentionne mais que le client déclare impossible "
@@ -306,8 +345,10 @@ def _previous_analysis(pending: OperationalScenario) -> dict:
     return {
         "resume": pending.resume,
         "attack_path": [
-            {"tactic": s.tactic, "technique_id": s.technique_id, "technique_name": s.technique_name,
-             "description": s.description, "bien_support_id": s.bien_support_id}
+             {"tactic": s.tactic, "technique_id": s.technique_id, "technique_name": s.technique_name,
+             "description": s.description, "bien_support_id": s.bien_support_id,
+             "probabilite_succes": s.probabilite_succes, "difficulte_technique": s.difficulte_technique,
+             "motif_cotation": s.motif_cotation, "vraisemblance_action": s.vraisemblance_action}
             for s in pending.attack_path
         ],
         "baseline_gaps_considered": [
@@ -395,19 +436,22 @@ def analysis_prompt(w4_input: Workshop4Input, pending: OperationalScenario, cata
         "   - bien_support_id : l'identifiant, pris dans <biens_supports>, du bien support sur lequel "
         "porte l'action ; \"\" si elle ne porte sur aucun d'eux ;\n"
         "   - justification : ce qui rend l'étape réalisable ICI — le champ du contexte, le bien "
-        "support ou le gap_id sur lequel elle s'appuie, et ce qu'il dit.\n\n"
+        "support ou le gap_id sur lequel elle s'appuie, et ce qu'il dit ;\n"
+        "   - probabilite_succes : \"1\", \"2\", \"3\" ou \"4\" ;\n"
+        "   - difficulte_technique : \"0\", \"1\", \"2\", \"3\" ou \"4\" ;\n"
+        "   - motif_cotation : ce qui justifie ces deux notes pour CETTE source.\n\n"
         + gaps
-        + "4. likelihood_revision_reason — pars de la vraisemblance initiale "
-        f"({pending.vraisemblance_initiale.value}). Nomme le maillon le plus difficile du chemin, ce "
-        "qui le rend facile ou difficile pour cette source (écarts, protections attestées, moyens de "
-        "la source) et ce que le dossier ne permet pas de savoir. Dis explicitement si tu maintiens "
-        "le niveau, et pourquoi.\n\n"
-        "5. revised_likelihood — \"V1\", \"V2\", \"V3\" ou \"V4\", cohérent avec ce motif.\n\n"
+        + "4. likelihood_revision_reason — nomme l'étape la plus difficile du chemin pour cette "
+        "source, pourquoi (écarts, protections attestées, moyens de la source), et ce que le "
+        "dossier ne permet pas de savoir.\n\n"
+        "5. revised_likelihood — ton estimation \"V1\" à \"V4\" ; le code la compare à son propre "
+        "calcul (étape la moins vraisemblable) et retient le calcul.\n\n"
         "6. new_baseline_gap_identified — null dans la plupart des cas. Seulement si un fait du "
         "dossier révèle une faiblesse qui compte dans ton chemin ET qu'aucun écart transmis ne couvre, "
         "même en partie : weakness (formulée sans nom de référentiel ni de norme), risk_categories "
         f"(parmi {', '.join(RISK_CATEGORIES)}), justification, derived_from_fact_fields (les noms exacts "
-        "des champs de <contexte_technique> qui l'établissent, « AUD-… » compris).\n"
+        "des champs de <contexte_technique> qui l'établissent, « AUD-… » compris, sans préfixe : "
+        "« interconnexions_tiers », pas « contexte.interconnexions_tiers »).\n"
         "</consignes>"
     )
 

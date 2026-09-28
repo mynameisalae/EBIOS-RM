@@ -184,6 +184,45 @@ def _rank(value: VraisemblanceInitiale) -> int:
     return int(value.value[1])
 
 
+# --- Méthode avancée EBIOS RM ------------------------------------------------
+# 1) Chaque action élémentaire : probabilité de succès (1..4) x difficulté technique (0..4)
+#    -> vraisemblance de l'action, lue dans cette matrice.
+# 2) Actions en série : le chemin vaut son action la MOINS vraisemblable (minimum).
+# 3) Entre modes opératoires : le plus vraisemblable porte le risque (maximum) — déjà
+#    fait par select_driving, inchangé.
+# La matrice est le seul réglage : à valider avec l'encadrant.
+_MATRICE_ACTION = {
+    #     difficulté : 0     1     2     3     4
+    4: ["V4", "V4", "V4", "V3", "V2"],   # Pr4 quasi certaine
+    3: ["V3", "V3", "V3", "V2", "V1"],   # Pr3 forte
+    2: ["V2", "V2", "V2", "V1", "V1"],   # Pr2 significative
+    1: ["V1", "V1", "V1", "V1", "V1"],   # Pr1 faible
+}
+
+
+def read_cotation(raw: object, lo: int, hi: int) -> int | None:
+    """« 3 », 3 ou « 3 (forte) » -> 3 ; plusieurs chiffres, hors bornes ou vide -> None."""
+    found = re.findall(r"\d", str(raw if raw is not None else ""))
+    if len(found) != 1:
+        return None
+    value = int(found[0])
+    return value if lo <= value <= hi else None
+
+
+def action_likelihood(pr: int | None, diff: int | None) -> VraisemblanceInitiale | None:
+    """Vraisemblance d'une action élémentaire, lue dans la matrice."""
+    if pr is None or diff is None:
+        return None
+    return VraisemblanceInitiale(_MATRICE_ACTION[pr][diff])
+
+
+def likelihood_from_path(steps: list[AttackStep]) -> VraisemblanceInitiale | None:
+    """Actions en série : le chemin vaut son action la moins vraisemblable (minimum)."""
+    values = [s.vraisemblance_action for s in steps]
+    if not values or None in values:
+        return None
+    return VraisemblanceInitiale(min(values, key=lambda v: int(v[1])))
+
 _GRAVITE_RANK = {Gravite.MINIMALE: 1, Gravite.SIGNIFICATIVE: 2, Gravite.GRAVE: 3, Gravite.CRITIQUE: 4}
 
 
@@ -284,7 +323,21 @@ def dossier_voies(w4_input: Workshop4Input) -> list[str]:
         voie for voie, fields in VOIE_CONTEXT_FIELDS.items()
         if any(_answered(w4_input.contexte.get(f)) for f in fields)
     ]
+# Préfixes que le modèle recopie depuis la structure du prompt : « contexte.interconnexions_tiers »
+# désigne le champ « interconnexions_tiers ». Lecture tolérante sur la forme, stricte sur le sens.
+_FIELD_PREFIXES = ("contexte_technique.", "contexte.", "questions_expertes.", "ecarts_socle.")
 
+
+def _field_name(raw: str) -> str:
+    """« contexte.interconnexions_tiers » -> « interconnexions_tiers » ; le reste inchangé."""
+    name = (raw or "").strip()
+    changed = True
+    while changed:
+        changed = False
+        for prefix in _FIELD_PREFIXES:
+            if name.startswith(prefix):
+                name, changed = name[len(prefix):], True
+    return name
 
 def build_modes(
     scenario: StrategicScenario,
@@ -314,7 +367,7 @@ def build_modes(
             raison=raison, detail=detail or candidate.justification.strip()))
 
     for candidate in candidates:
-        cited = [f.strip() for f in candidate.derived_from_fact_fields if f.strip() in known]
+        cited = [_field_name(f) for f in candidate.derived_from_fact_fields if _field_name(f) in known]
         if not candidate.libelle.strip() or not is_meaningful(candidate.justification) or not cited:
             reject(candidate, REASON_MODE_SANS_ANCRAGE,
                    f"Champs cités : {candidate.derived_from_fact_fields}")
@@ -398,7 +451,11 @@ def _same_name(cited: str, official: str) -> bool:
     a, b = normalise(cited), normalise(official)
     return a == b or a in b or b in a
 
-
+# Objectif ↔ technique : un espion veut rester discret, il ne chiffre ni ne détruit.
+# Mots repérés dans la description ou la finalité de l'objectif visé (atelier 2).
+_OBJECTIFS_DISCRETS = ("espion", "renseignement")
+# Techniques ATT&CK destructives ou de chiffrement (sous-techniques comprises).
+_TECHNIQUES_DESTRUCTIVES = {"T1485", "T1486", "T1490", "T1561"}
 def build_analysis(
     proposal: ScenarioAnalysisProposal,
     pending: OperationalScenario,
@@ -470,6 +527,18 @@ def build_analysis(
         description = raw.description.strip()
         if not description:
             flag("etape_sans_description", f"Étape {n} : aucune action décrite.")
+
+        # --- méthode avancée : cotation de l'action élémentaire ---
+        pr = read_cotation(raw.probabilite_succes, 1, 4)
+        diff = read_cotation(raw.difficulte_technique, 0, 4)
+        motif_cotation = (raw.motif_cotation or "").strip()
+        if pr is None or diff is None:
+            flag("cotation_absente",
+                 f"Étape {n} : probabilité de succès (1-4) ou difficulté technique (0-4) "
+                 f"absente ou invalide (« {raw.probabilite_succes} », « {raw.difficulte_technique} »).")
+        elif not is_meaningful(motif_cotation):
+            flag("motif_cotation_absent", f"Étape {n} : cotation sans motif.", bloquante=False)
+        v_action = action_likelihood(pr, diff)
         steps.append(AttackStep(
             phase=phase_of(tactic),
             tactic=tactic,
@@ -478,6 +547,10 @@ def build_analysis(
             description=description,
             bien_support_id=support,
             justification=raw.justification.strip(),
+            probabilite_succes=pr,
+            difficulte_technique=diff,
+            motif_cotation=motif_cotation,
+            vraisemblance_action=v_action.value if v_action else None,
         ))
 
     for technique_id in unknown_technique_ids(cited, catalogue.techniques):
@@ -504,6 +577,18 @@ def build_analysis(
     if not proposal.resume.strip():
         flag("resume_absent", "Aucun résumé du mode opératoire.", bloquante=False)
 
+    # --- objectif ↔ technique : un objectif d'espionnage exige la discrétion ---
+    objectif = next((o for o in w4_input.objectifs_vises if o.id == pending.objectif_vise_id), None)
+    objectif_texte = (f"{getattr(objectif, 'description', '') or ''} "
+                      f"{getattr(objectif, 'finalite_libelle', '') or ''}").casefold()
+    if any(k in objectif_texte for k in _OBJECTIFS_DISCRETS):
+        destructives = [f"étape {n} ({s.technique_id} {s.technique_name})"
+                        for n, s in enumerate(steps, 1)
+                        if s.technique_id and s.technique_id.split(".")[0] in _TECHNIQUES_DESTRUCTIVES]
+        if destructives:
+            flag("technique_incompatible_objectif",
+                 f"Objectif d'espionnage (discrétion) mais technique destructive ou de chiffrement : "
+                 f"{', '.join(destructives)}. Retirer l'étape ou revoir l'objectif.")
     # --- the baseline gaps (§18 step 24) ---
     gaps = {g.gap_id: g for g in w4_input.baseline_gaps}
     considered: list[GapConsideration] = []
@@ -544,21 +629,34 @@ def build_analysis(
     reason = proposal.likelihood_revision_reason.strip()
     if not is_meaningful(reason):
         flag("motif_revision_absent", "Aucun motif de révision de la vraisemblance, même pour la maintenir.")
-    revised = read_likelihood(proposal.revised_likelihood)
+    # Méthode avancée : la vraisemblance du chemin est CALCULÉE, pas lue dans la réponse du modèle.
+    declared = read_likelihood(proposal.revised_likelihood)
+    revised = likelihood_from_path(steps)
     if revised is None:
-        flag("vraisemblance_invalide",
-             f"« {proposal.revised_likelihood} » n'est pas une valeur de l'échelle V1 à V4 — niveau de risque non calculé.")
-    elif abs(_rank(revised) - _rank(pending.vraisemblance_initiale)) >= 2:
-        flag("revision_forte",
-             f"Vraisemblance révisée de {pending.vraisemblance_initiale.value} à {revised.value} : "
-             "plus d'un niveau d'écart, à examiner.", bloquante=False)
+        flag("vraisemblance_non_calculable",
+             "Au moins une étape n'est pas cotée : vraisemblance et niveau de risque non calculés.")
+    else:
+        weakest = [str(n) for n, s in enumerate(steps, 1) if s.vraisemblance_action == revised.value]
+        cotations = " · ".join(
+            f"é{n} Pr{s.probabilite_succes}/D{s.difficulte_technique}={s.vraisemblance_action}"
+            for n, s in enumerate(steps, 1))
+        reason = (f"{reason} [Méthode avancée : {cotations} ; minimum {revised.value} "
+                  f"{'à l’étape' if len(weakest) == 1 else 'aux étapes'} {', '.join(weakest)}]").strip()
+        if declared is not None and declared != revised:
+            flag("vraisemblance_divergente",
+                 f"Le modèle annonce {declared.value}, le calcul du chemin donne {revised.value} "
+                 "— valeur calculée retenue.", bloquante=False)
+        if abs(_rank(revised) - _rank(pending.vraisemblance_initiale)) >= 2:
+            flag("revision_forte",
+                 f"Vraisemblance {pending.vraisemblance_initiale.value} -> {revised.value} : "
+                 "plus d'un niveau d'écart, à examiner.", bloquante=False)
 
     # --- a new gap, only when the dossier supports it ---
     new_gap = None
     raw_gap = proposal.new_baseline_gap_identified
     if raw_gap is not None and (raw_gap.weakness.strip() or raw_gap.justification.strip()):
         known = set(w4_input.contexte) | {f.field_name for f in w4_input.faits_contexte}
-        fields = [f.strip() for f in raw_gap.derived_from_fact_fields if f.strip() in known]
+        fields = [_field_name(f) for f in raw_gap.derived_from_fact_fields if _field_name(f) in known]
         if raw_gap.weakness.strip() and fields:
             new_gap = NewBaselineGap(
                 weakness=raw_gap.weakness.strip(),
@@ -704,13 +802,11 @@ def _mode_number(scenario_id: str) -> int:
 
 
 def _selection_key(scenario: OperationalScenario) -> tuple:
-    """Most likely first; ties broken on evidence, never on chance."""
+    """Most likely first. On a tie, the pick is only provisional (fewest blocking
+    anomalies, then list order) and is flagged: the auditor decides (§2)."""
     return (
         _rank(scenario.revised_likelihood) if scenario.revised_likelihood else 0,
         -len(scenario.blocking_anomalies),
-        sum(1 for g in scenario.baseline_gaps_considered
-            if g.impact_type is ImpactType.INCREASES_LIKELIHOOD),
-        -len(scenario.attack_path),
         -_mode_number(scenario.id),
     )
 
@@ -735,15 +831,20 @@ def select_driving(scenarios: list[OperationalScenario]) -> list[OperationalScen
         developed = [m for m in modes
                      if m.revised_likelihood is not None and m.statut not in STATUTS_EN_ATTENTE]
         driving = overridden or (max(developed, key=_selection_key) if developed else None)
-        others = [m.revised_likelihood.value for m in developed
-                  if driving is not None and m.id != driving.id and m.revised_likelihood]
+        tied_ids = [m.id for m in developed
+                    if driving is not None and not overridden
+                    and m.revised_likelihood is driving.revised_likelihood]
         for mode in modes:
             if driving is not None and mode.id == driving.id:
-                motif = mode.motif_selection if overridden else (
-                    f"Mode le plus vraisemblable de {strategic_id} : "
-                    f"{mode.revised_likelihood.value if mode.revised_likelihood else '?'}"
-                    + (f" contre {', '.join(others)}" if others else " (seul mode développé)")
-                )
+                if overridden:
+                    motif = mode.motif_selection
+                elif len(tied_ids) > 1:
+                    motif = (f"Égalité à {mode.revised_likelihood.value} entre {', '.join(tied_ids)} : "
+                             "retenu provisoirement, à trancher par l'auditeur (« d SO-.. » avec motif).")
+                else:
+                    motif = (f"Mode le plus vraisemblable de {strategic_id} : "
+                             f"{mode.revised_likelihood.value if mode.revised_likelihood else '?'}"
+                             + (f" contre {', '.join(others)}" if others else " (seul mode développé)"))
                 decided[mode.id] = mode.model_copy(update={"retenu": True, "motif_selection": motif})
                 continue
             if driving is None:
@@ -751,9 +852,8 @@ def select_driving(scenarios: list[OperationalScenario]) -> list[OperationalScen
             elif mode.statut in STATUTS_EN_ATTENTE or mode.revised_likelihood is None:
                 motif = f"Pas encore développé — {driving.id} mène pour l'instant."
             elif mode.revised_likelihood is driving.revised_likelihood:
-                motif = (f"Vraisemblance identique à {driving.id} "
-                         f"({mode.revised_likelihood.value}) — départagé sur les anomalies, "
-                         "les écarts exploités puis la longueur du chemin.")
+                motif = (f"Égalité à {mode.revised_likelihood.value} avec {driving.id} : "
+                         "à trancher par l'auditeur (« d SO-.. » avec motif).")
             else:
                 motif = (f"Vraisemblance {mode.revised_likelihood.value} contre "
                          f"{driving.revised_likelihood.value if driving.revised_likelihood else '?'} "
@@ -983,4 +1083,30 @@ def run_quality_checks(
         statut=STATUT_ERREUR,
         ok_message="La gravité des scénarios est cohérente avec les enjeux métiers."
     )
+    # 15. Plusieurs modes par scénario — la méthode compare les modes opératoires d'un même
+    #     scénario stratégique avant de retenir le plus vraisemblable.
+    voies_ouvertes = dossier_voies(w4_input)
+    single = [
+        f"{sid} : {len(modes)} mode(s) développé(s) alors que le dossier nomme "
+        f"{len(voies_ouvertes)} voie(s) d'entrée"
+        for sid, modes in developed.items()
+        if len(modes) < 2 and len(voies_ouvertes) >= 2
+    ]
+    check("Plusieurs modes par scénario", single, statut=STATUT_AVERTISSEMENT,
+          ok_message="Chaque scénario stratégique compare au moins deux modes opératoires, "
+                     "ou le dossier n'en permet qu'un.")
+        # 16. Égalité non tranchée — plusieurs modes à la vraisemblance maximale d'un même
+    #     scénario, sans que l'auditeur ait désigné celui qui porte le risque.
+    ties = []
+    for sid, modes in developed.items():
+        rated = [m for m in modes if m.revised_likelihood is not None]
+        if not rated or any(m.retenu_par_auditeur for m in modes):
+            continue
+        top = max(_rank(m.revised_likelihood) for m in rated)
+        tied = [m.id for m in rated if _rank(m.revised_likelihood) == top]
+        if len(tied) > 1:
+            ties.append(f"{sid} : {', '.join(tied)} à égalité (V{top}) — désignez le mode "
+                        "porteur avec « d SO-.. » et un motif")
+    check("Égalité non tranchée", ties, statut=STATUT_AVERTISSEMENT,
+          ok_message="Aucune égalité au maximum, ou l'auditeur a désigné le mode porteur.")
     return QualityReport(checks=checks)

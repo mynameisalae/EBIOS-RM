@@ -41,7 +41,11 @@ class AttackStep(BaseModel):
     description: str                 # the action in this organisation's terms (step description)
     bien_support_id: str = ""        # the atelier 1 support asset acted on, when there is one
     justification: str = ""          # what in the dossier makes this step feasible here
-
+    # --- Méthode avancée EBIOS RM : cotation de l'action élémentaire ---
+    probabilite_succes: int | None = None     # 1..4, cotée par le modèle
+    difficulte_technique: int | None = None   # 0..4, cotée par le modèle
+    motif_cotation: str = ""                  # ce qui justifie les deux notes
+    vraisemblance_action: str | None = None   # "V1".."V4", CALCULÉE par le code
 
 class GapConsideration(BaseModel):
     """How one stripped baseline gap bears on the scenario (§18 baseline_gaps_considered).
