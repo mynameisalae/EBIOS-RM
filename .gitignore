@@ -13,6 +13,9 @@ data/mission/*.db
 !data/reference/.gitkeep
 !data/mission/.gitkeep
 
+# Generated reports hold the client's data — never committed.
+data/reports/
+
 # Secrets
 .env
 *.env.local
@@ -33,6 +36,8 @@ src/ebios_rm/plugins/frameworks/iso27001/controls.json
 # Generated reports (contain client data)
 *.docx
 !docs/**/*.docx
+# The report cover template ships with the code (no client data in it).
+!src/ebios_rm/reporting/templates/*.docx
 
 # Workshop inputs/outputs dumped from a mission (contain client data)
 data/mission/*.json
