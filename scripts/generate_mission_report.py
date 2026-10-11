@@ -2,6 +2,10 @@
 
     python scripts/generate_mission_report.py <mission_id>                   # data/reports/rapport_mission_<id>.docx
     python scripts/generate_mission_report.py <mission_id> chemin/sortie.docx
+    python scripts/generate_mission_report.py <mission_id> --annexe annexe_remplie.docx   # + appréciations de l'auditeur
+
+With --annexe, the cells the auditor filled in the audit annex (« Appréciation de l'auditeur »)
+are written into the report, each one checked like every other statement.
 
 Reads approved atelier outputs only. Every statement the model writes must cite the
 mission fields it rests on; those that do not hold up are left out of the document and
@@ -24,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from ebios_rm.agent_runtime import StructuredCallFailed, set_token_sink  # noqa: E402
 from ebios_rm.config import load_settings  # noqa: E402
 from ebios_rm.repositories.mission_repository import MissionRepository, connect  # noqa: E402
+from ebios_rm.reporting.appraisals import AnnexReadError, read_appraisals  # noqa: E402
 from ebios_rm.reporting.mission_report import (  # noqa: E402
     build_snapshot, write_mission_report, write_mission_report_file,
 )
@@ -33,7 +38,16 @@ REPORTS_DIR = Path("data/reports")
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) < 2:
+    args = argv[1:]
+    annex_path = None
+    if "--annexe" in args:
+        at = args.index("--annexe")
+        if at + 1 >= len(args):
+            print("--annexe attend le chemin de l'annexe remplie.")
+            return 2
+        annex_path = args[at + 1]
+        del args[at:at + 2]
+    if not args:
         print(__doc__)
         return 2
     settings = load_settings()
@@ -41,13 +55,26 @@ def main(argv: list[str]) -> int:
         print("OPENROUTER_API_KEY is not set — put it in .env before running.")
         return 2
 
-    mission_id = argv[1]
+    mission_id = args[0]
     repo = MissionRepository(connect(settings.mission_db_path))
     if repo.get_mission(mission_id) is None:
         print(f"Mission introuvable : {mission_id}")
         return 2
     set_token_sink(lambda inp, out, model: repo.log_tokens(
         mission_id, input_tokens=inp, output_tokens=out, model_used=model))
+
+    appraisals = ()
+    if annex_path:
+        try:
+            reading = read_appraisals(annex_path)
+        except (AnnexReadError, OSError) as exc:
+            print(f"Annexe illisible : {exc}")
+            return 2
+        if reading.mission_id != mission_id:
+            print(f"Cette annexe est celle de la mission {reading.mission_id}, pas de {mission_id}.")
+            return 2
+        appraisals = reading.appraisals
+        print(f"Annexe lue : {len(appraisals)} appréciation(s) de l'auditeur à intégrer.")
 
     snapshot = build_snapshot(repo, mission_id)
     print(f"Modèle : {settings.model_id}  (OpenRouter)")
@@ -56,12 +83,12 @@ def main(argv: list[str]) -> int:
         print(f"   atelier {n} non lu — {reason}")
 
     try:
-        report = write_mission_report(snapshot, AgnoReportRunner())
+        report = write_mission_report(snapshot, AgnoReportRunner(), appraisals=appraisals)
     except StructuredCallFailed as exc:
         print(f"\nLe modèle n'a pas pu rédiger une section : {exc}")
         return 1
 
-    target = Path(argv[2]) if len(argv) > 2 else REPORTS_DIR / f"rapport_mission_{mission_id[:8]}.docx"
+    target = Path(args[1]) if len(args) > 1 else REPORTS_DIR / f"rapport_mission_{mission_id[:8]}.docx"
     path = write_mission_report_file(report, target)
 
     kept = sum(len(s.statements) for s in report.sections)

@@ -25,6 +25,7 @@ from docx.document import Document as DocxDocument
 
 from ebios_rm.domain.operational_scenario import STATUT_CONFIRME
 from ebios_rm.repositories.mission_repository import MissionRepository
+from ebios_rm.reporting.appraisals import Appraisal
 from ebios_rm.reporting.house_style import CREAM, GOLD, Cover, HouseDocument, french_month_year
 from ebios_rm.reporting.report_agent import Refusal, ReportRunner, SectionSpec, Statement
 
@@ -248,14 +249,76 @@ class MissionReport:
     corrected: int = 0  # statements refused once, then kept after the model rewrote their citations
 
 
+APPRAISALS_TITLE = "Appréciations de l'auditeur"
+_APPRAISAL_SOURCE = "auditeur.appreciations."
+
+
+def _draft_section(
+    spec: SectionSpec, subset: dict, runner: ReportRunner,
+    extra_check: Callable[[Statement], str | None] | None = None,
+) -> tuple[list[Statement], list[RejectedStatement], int]:
+    """The model drafts, the gate checks, one correction round, and nothing refused is lost silently."""
+
+    def verdict(statement: Statement) -> str | None:
+        return check_statement(statement, subset) or (extra_check(statement) if extra_check else None)
+
+    kept: list[Statement] = []
+    refused: list[tuple[Statement, str]] = []
+    for statement in runner.write_section(spec, subset).statements:
+        reason = verdict(statement)
+        if reason is None:
+            kept.append(statement)
+        else:
+            refused.append((statement, reason))
+
+    rejected: list[RejectedStatement] = []
+    corrected = 0
+    if refused:  # one correction round: rewrite with proper citations, or give the statement up
+        revised = runner.revise_section(
+            spec, subset, [Refusal(text=s.text, sources=s.sources, reason=r) for s, r in refused],
+        ).statements
+        for index, (original, reason) in enumerate(refused):
+            retry = revised[index] if index < len(revised) else None
+            if retry is None or not retry.text.strip():
+                rejected.append(RejectedStatement(
+                    spec.title, original.text, tuple(original.sources), f"abandonnée après refus — {reason}"))
+                continue
+            new_reason = verdict(retry)
+            if new_reason is None:
+                kept.append(retry)
+                corrected += 1
+            else:
+                rejected.append(RejectedStatement(spec.title, retry.text, tuple(retry.sources), new_reason))
+    return kept, rejected, corrected
+
+
+def _appraisal_spec(appraisals: tuple[Appraisal, ...]) -> SectionSpec:
+    ateliers = sorted({int(m.group(1)) for a in appraisals if (m := re.match(r"Atelier (\d)", a.origin))})
+    return SectionSpec(
+        "appreciations", APPRAISALS_TITLE, tuple(ateliers),
+        "Pour chaque appréciation de l'auditeur (auditeur.appreciations), une affirmation qui la restitue "
+        "fidèlement et l'attribue à l'auditeur (« L'auditeur a apprécié que… »). N'ajoute aucun jugement, ne "
+        "corrige pas l'auditeur, situe l'événement concerné. Cite l'appréciation "
+        "(auditeur.appreciations.N.appreciation) et le champ de l'événement concerné.",
+    )
+
+
+def _cites_the_auditor(statement: Statement) -> str | None:
+    if any(_parts(source)[:2] == ["auditeur", "appreciations"] for source in statement.sources):
+        return None
+    return "ne cite pas l'appréciation de l'auditeur"
+
+
 def write_mission_report(
-    snapshot: MissionSnapshot, runner: ReportRunner, *, generated_at: str | None = None,
+    snapshot: MissionSnapshot, runner: ReportRunner, *, appraisals: tuple[Appraisal, ...] = (),
+    generated_at: str | None = None,
 ) -> MissionReport:
     sections: list[ReportSection] = []
     skipped: list[SkippedSection] = []
     rejected: list[RejectedStatement] = []
     corrected = 0
 
+    plan: list[tuple[SectionSpec, dict, Callable | None]] = []
     for spec in SECTIONS:
         missing = [n for n in spec.ateliers if n not in snapshot.approved]
         if missing:
@@ -263,32 +326,21 @@ def write_mission_report(
             skipped.append(SkippedSection(spec.title, reasons))
             continue
         wanted = {"organisation", "echelles", *(f"w{n}" for n in spec.ateliers)}
-        subset = {k: v for k, v in snapshot.state.items() if k in wanted}
-        kept: list[Statement] = []
-        refused: list[tuple[Statement, str]] = []
-        for statement in runner.write_section(spec, subset).statements:
-            reason = check_statement(statement, subset)
-            if reason is None:
-                kept.append(statement)
-            else:
-                refused.append((statement, reason))
+        plan.append((spec, {k: v for k, v in snapshot.state.items() if k in wanted}, None))
 
-        if refused:  # one correction round: rewrite with proper citations, or give the statement up
-            revised = runner.revise_section(
-                spec, subset, [Refusal(text=s.text, sources=s.sources, reason=r) for s, r in refused],
-            ).statements
-            for index, (original, reason) in enumerate(refused):
-                retry = revised[index] if index < len(revised) else None
-                if retry is None or not retry.text.strip():
-                    rejected.append(RejectedStatement(
-                        spec.title, original.text, tuple(original.sources), f"abandonnée après refus — {reason}"))
-                    continue
-                new_reason = check_statement(retry, subset)
-                if new_reason is None:
-                    kept.append(retry)
-                    corrected += 1
-                else:
-                    rejected.append(RejectedStatement(spec.title, retry.text, tuple(retry.sources), new_reason))
+    if appraisals:  # only the cells the auditor filled in, with only the ateliers they concern
+        spec = _appraisal_spec(appraisals)
+        wanted = {"organisation", "echelles", *(f"w{n}" for n in spec.ateliers)}
+        subset = {k: v for k, v in snapshot.state.items() if k in wanted}
+        subset["auditeur"] = {"appreciations": [
+            {"origine": a.origin, "code": a.code, "message": a.message, "appreciation": a.text} for a in appraisals
+        ]}
+        plan.append((spec, subset, _cites_the_auditor))
+
+    for spec, subset, extra_check in plan:
+        kept, refused, fixed = _draft_section(spec, subset, runner, extra_check)
+        rejected += refused
+        corrected += fixed
         if kept:
             sections.append(ReportSection(spec.key, spec.title, tuple(kept)))
         else:

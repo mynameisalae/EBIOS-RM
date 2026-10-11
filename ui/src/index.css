@@ -1,0 +1,30 @@
+@import '@fontsource-variable/archivo';
+@import '@fontsource-variable/source-sans-3';
+@import '@fontsource-variable/jetbrains-mono';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-font-smoothing: antialiased; }
+  body { @apply bg-paper font-sans text-ink; font-size: 16px; line-height: 1.55; }
+  h1, h2, h3 { @apply font-display; letter-spacing: -0.02em; }
+  ::selection { background: #F3C9CD; }
+  :focus-visible { outline: 2px solid #BE1E2D; outline-offset: 2px; border-radius: 4px; }
+}
+
+@layer components {
+  .eyebrow { @apply font-display text-[11px] font-bold uppercase tracking-[0.14em] text-crimson; }
+  .card { @apply rounded-xl border border-line bg-white shadow-soft; }
+  .chip { @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-0.5 text-[12px] font-semibold text-ink-soft; }
+  .mono { @apply font-mono text-[12.5px]; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[14px] font-semibold transition-colors; }
+  .btn-primary { @apply btn bg-crimson text-white hover:bg-crimson-deep; }
+  .btn-quiet { @apply btn border border-line-strong bg-white text-ink hover:border-ink-mute; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise { animation: rise .5s cubic-bezier(.2,.7,.2,1) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+}
