@@ -28,13 +28,14 @@ def main() -> int:
     parser.add_argument("--db", help="mission database (default: MISSION_DB_PATH)")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--ui", default="ui", help="interface folder to serve: ui (default) or ui-v2")
     args = parser.parse_args()
 
     settings = load_settings()
     db_path = args.db or settings.mission_db_path
-    ui_dir = ROOT / "ui" / "dist"
+    ui_dir = ROOT / args.ui / "dist"
     if not ui_dir.is_dir():
-        print("L'interface n'est pas encore construite : cd ui && npm install && npm run build")
+        print(f"L'interface n'est pas encore construite : cd {args.ui} && npm install && npm run build")
         print("(l'API fonctionne quand même : http://%s:%d/api/docs)\n" % (args.host, args.port))
     print(f"Base des missions : {db_path}")
     print(f"Interface : http://{args.host}:{args.port}")

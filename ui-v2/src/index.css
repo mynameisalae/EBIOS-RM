@@ -1,0 +1,34 @@
+@import '@fontsource-variable/archivo/wdth.css';
+@import '@fontsource-variable/source-sans-3';
+@import '@fontsource-variable/jetbrains-mono';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+  body { @apply bg-ground font-sans text-ink; font-size: 18px; line-height: 1.7; }
+  h1, h2, h3 { @apply font-display; letter-spacing: -0.015em; font-stretch: 108%; }
+  ::selection { background: #F3C9CD; }
+  :focus-visible { outline: 2px solid #BE1E2D; outline-offset: 3px; border-radius: 4px; }
+  summary { list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+}
+
+@layer components {
+  .eyebrow { @apply font-display text-[12px] font-bold uppercase tracking-[0.16em] text-crimson; font-stretch: 112%; }
+  .sheet { @apply rounded-2xl bg-sheet shadow-soft; }
+  .mono { @apply font-mono text-[13px]; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-[15px] font-semibold transition-colors; }
+  .btn-primary { @apply btn bg-crimson text-white hover:bg-crimson-deep; }
+  .btn-quiet { @apply btn border border-line-strong bg-sheet text-ink hover:border-ink-mute; }
+  .figure { @apply font-display font-extrabold leading-none text-ink; font-stretch: 118%; font-variant-numeric: tabular-nums; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise { animation: rise .6s cubic-bezier(.2,.7,.2,1) both; }
+  .rise-2 { animation: rise .6s .08s cubic-bezier(.2,.7,.2,1) both; }
+  .rise-3 { animation: rise .6s .16s cubic-bezier(.2,.7,.2,1) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+}
