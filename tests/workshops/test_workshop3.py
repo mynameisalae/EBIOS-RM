@@ -31,6 +31,7 @@ from ebios_rm.workshops.workshop1_cadrage.models import (
     UnverifiedControl,
     Workshop1Output,
 )
+from ebios_rm.workshops.common import AtelierDataError
 from ebios_rm.workshops.workshop2_sources_risque.models import (
     ElementEcarte as W2ElementEcarte,
 )
@@ -64,7 +65,6 @@ from ebios_rm.workshops.workshop3_scenarios_strategiques.questions import (
     session_questions,
 )
 from ebios_rm.workshops.workshop3_scenarios_strategiques.workshop import (
-    Atelier2DataError,
     build_workshop3_input,
     gate_for,
     run_workshop3,
@@ -214,7 +214,7 @@ def test_input_carries_the_couples_with_both_their_ends():
 def test_invalid_atelier2_reference_alerts_and_blocks():
     w3_input = _input(broken_reference=True)
     assert any("SR-99" in a.probleme for a in w3_input.alertes_atelier2)
-    with pytest.raises(Atelier2DataError):
+    with pytest.raises(AtelierDataError):
         run_workshop3(w3_input, FakeWorkshop3Runner())
 
 

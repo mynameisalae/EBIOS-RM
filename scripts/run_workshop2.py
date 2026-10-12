@@ -48,16 +48,13 @@ from ebios_rm.workshops.workshop2_sources_risque import (  # noqa: E402
     BLOCK_COUPLES,
     BLOCK_OBJECTIFS,
     BLOCK_SOURCES,
-    Atelier1DataError,
     Workshop2Output,
     ask_session_questions,
     build_workshop2_input,
     run_workshop2,
 )
-from ebios_rm.workshops.workshop2_sources_risque.agent import (  # noqa: E402
-    AgnoWorkshop2Runner,
-    Workshop2AgentError,
-)
+from ebios_rm.workshops.common import AtelierDataError  # noqa: E402
+from ebios_rm.workshops.workshop2_sources_risque.agent import AgnoWorkshop2Runner  # noqa: E402
 
 STAGE = "workshop_2"
 
@@ -208,7 +205,7 @@ def main() -> int:
     notes = prior_rejection_reasons(repo, args.mission_id, STAGE)  # carries feedback across a rerun
     try:
         output = _run_workshop(repo, args.mission_id, w2_input, base, notes)
-    except Atelier1DataError as exc:
+    except AtelierDataError as exc:
         print(f"\n{exc}")
         print("Corrigez l'atelier 1 avant de relancer — l'atelier 2 ne répare rien de lui-même (§4).")
         return 1
@@ -222,7 +219,7 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except (KeyboardInterrupt, EOFError):
         raise SystemExit(interrupted("l'atelier 2", _resume)) from None
-    except (Workshop2AgentError, StructuredCallFailed) as exc:
+    except StructuredCallFailed as exc:
         # A failed LLM call is never reinterpreted as a methodology outcome — and it can
         # come from the redo inside the approval loop, not only from the first run.
         print(f"\nAppel au modèle en échec : {exc}")

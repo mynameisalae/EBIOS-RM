@@ -14,8 +14,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel
 
-from ebios_rm.agent_runtime import StructuredCallFailed, facts_as_json, run_structured
-from ebios_rm.config import get_model
+from ebios_rm.agent_runtime import AgnoRunner, StructuredCallFailed, facts_as_json
 from ebios_rm.domain.fact import Fact
 
 
@@ -105,16 +104,14 @@ def _facts_block(facts: list[Fact]) -> str:
     return facts_as_json(facts)
 
 
-class AgnoConversationRunner:
-    def __init__(self, model=None, *, max_attempts: int = 5, base_delay: float = 4.0, progress=print) -> None:
-        self._model = model or get_model()
-        self._max_attempts = max_attempts
-        self._base_delay = base_delay
-        self._progress = progress
+class AgnoConversationRunner(AgnoRunner):
+    # One more attempt than elsewhere, and a longer wait: the auditor is sitting at
+    # the prompt, and a failed turn costs them their answer.
+    INSTRUCTIONS = _SYSTEM
+    MAX_ATTEMPTS = 5
+    BASE_DELAY = 4.0
 
     def handle_turn(self, question, explanation, user_input, facts, history) -> TurnResult:
-        from agno.agent import Agent  # noqa: PLC0415
-
         prompt = (
             f"QUESTION COURANTE : {question}\n"
             f"EXPLICATION DE LA QUESTION : {explanation}\n"
@@ -123,13 +120,7 @@ class AgnoConversationRunner:
             f"L'AUDITEUR ÉCRIT : {user_input}"
         )
         try:
-            return run_structured(
-                lambda: Agent(model=self._model, instructions=_SYSTEM,
-                              output_schema=TurnResult, markdown=False),
-                prompt, TurnResult,
-                what="l'agent réfléchit",
-                max_attempts=self._max_attempts, base_delay=self._base_delay, progress=self._progress,
-            )
+            return self._run_structured(TurnResult, prompt, what="l'agent réfléchit")
         except StructuredCallFailed as exc:
             # Agent unreachable: treat the raw input as the answer rather than block the auditor.
             return TurnResult(intent="answer", answer=user_input,

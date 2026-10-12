@@ -206,7 +206,11 @@ class ApprovalLoop:
         if not changed:
             return output
         corrected = self.model_cls.model_validate(data)
-        self.save(corrected)
+        saved = self.save(corrected)
+        if isinstance(saved, self.model_cls):
+            # A save that re-derives what follows from the edit (atelier 4: the risk
+            # level from a corrected likelihood) hands back what it stored.
+            corrected = saved
         self.repo.set_status(self.mission_id, self._status("awaiting_approval"))
         self.io_out("Version corrigée sauvegardée.")
         return corrected

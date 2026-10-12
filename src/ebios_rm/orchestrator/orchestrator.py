@@ -1,251 +1,312 @@
-"""Orchestrator (conception section 10.2, section 17): atelier 1 -> 2 -> 3 handoffs.
+"""The Orchestrator — coordinates the five workshops (conception §10.2).
 
-Absolute rule: Workshop N -> Mission State -> Orchestrator -> Workshop N+1.
-Never a direct call from one workshop to the next.
+Workshop N -> Mission State -> Orchestrator -> Workshop N+1.
+Never a direct call from one workshop to the next. This is what gives, with
+no extra mechanism: pause/resume at any point, replay of a single workshop,
+version history, and insertion of human validation points without ever
+touching a workshop's code.
 
-Both handoffs below share the same shape: check the previous workshop is really
-approved (via is_approved, not the mission status string - see mission_state.py's
-docstring on why), build the next workshop's narrow input, run it, and hand the
-result to the shared ApprovalLoop from approval_cli.py.
+The Orchestrator does no cybersecurity reasoning itself. It reads the mission's
+status, decides what happens next via state_machine.next_action, builds the
+next workshop's narrow typed input (conception §9), runs it, persists its
+output, and opens the human validation gate. Everything else — how a workshop
+reasons, retries, or converses with the auditor mid-atelier — is internal to
+that workshop and invisible here.
 
-Scope: the straightforward paths. Atelier 3's count gate supports run / run
-anyway / cancel here; merge and choose-subset stay on scripts/run_workshop3.py
-for now, and this code says so explicitly rather than guessing at them.
+Intake (the questionnaire/document phase that produces the Mission Context) is
+not driven by this class yet. It still runs through the existing CLI flow
+(scripts/run_workshop1_from_docs.py) and must have already brought the mission
+to 'context_ready' before run_mission() is called.
 """
 
 from __future__ import annotations
 
-from ebios_rm.orchestrator import mission_state
-from ebios_rm.orchestrator.approval_cli import ApprovalLoop, ask_choice
-from ebios_rm.plugins.registry import load_ebios_base
+from typing import Callable
+
+from pydantic import BaseModel
+
+from ebios_rm.orchestrator import mission_state, state_machine
+from ebios_rm.orchestrator.mission_state import can_redo
+from ebios_rm.orchestrator.signals import WorkshopBlocked, WorkshopHalted
+from ebios_rm.orchestrator.workshop_protocol import WorkshopRunner
 from ebios_rm.repositories.mission_repository import MissionRepository
-from ebios_rm.workshops.workshop1_cadrage.human_interface import ask_justification
-from ebios_rm.workshops.workshop2_sources_risque import (
-    ALL_BLOCKS,
-    BLOCK_COUPLES,
-    BLOCK_OBJECTIFS,
-    BLOCK_SOURCES,
-    Atelier1DataError,
-    Workshop2Output,
-    build_workshop2_input,
-    run_workshop2,
-)
-from ebios_rm.workshops.workshop2_sources_risque.agent import (
-    AgnoWorkshop2Runner,
-    Workshop2AgentError,
-)
-from ebios_rm.workshops.workshop3_scenarios_strategiques import (
-    Atelier2DataError,
-    Workshop3Output,
-    assemble_output,
-    build_workshop3_input,
-    gate_for,
-    run_workshop3,
-)
-from ebios_rm.workshops.workshop3_scenarios_strategiques.agent import (
-    AgnoWorkshop3Runner,
-    Workshop3AgentError,
-)
-from ebios_rm.workshops.workshop3_scenarios_strategiques.models import (
-    ACTION_CANCEL,
-    ACTION_RUN,
-    ACTION_RUN_ANYWAY,
-)
+from ebios_rm.workshops.workshop1_cadrage.human_interface import approve_workshop
+from ebios_rm.workshops.workshop1_cadrage.models import Workshop1Output
+from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Output
+from ebios_rm.workshops.workshop2_sources_risque.workshop import build_workshop2_input
+from ebios_rm.workshops.workshop3_scenarios_strategiques.models import Workshop3Output
+from ebios_rm.workshops.workshop3_scenarios_strategiques.workshop import build_workshop3_input
+from ebios_rm.workshops.workshop4_scenarios_operationnels import Workshop4Output, build_workshop4_input
+from ebios_rm.workshops.workshop5_traitement_risque import Workshop5Output, build_workshop5_input
 
 
-class OrchestratorError(RuntimeError):
-    """Raised when the mission cannot advance from its current status."""
+def _default_reinforced_confirm(label: str, *, io_in: Callable[[str], str] = input, io_out: Callable[[str], None] = print) -> bool:
+    """Rollback cap reached (conception §12.6) — require an explicit typed confirmation to go further."""
+    io_out(f"\nPlafond de {mission_state.ROLLBACK_CAP} versions atteint pour {label} (§12.6).")
+    io_out("Une nouvelle reprise est inhabituelle. Tapez CONFIRMER pour relancer malgré tout,")
+    io_out("ou toute autre saisie pour arrêter et conserver la dernière version.")
+    return io_in("> ").strip() == "CONFIRMER"
 
 
-# ============================================================================
-# Atelier 1 -> Atelier 2
-# ============================================================================
+class Orchestrator:
+    """Runs a mission through however many of the five workshops are registered.
 
-STAGE_W2 = "workshop_2"
-
-_W2_BLOCK_LABELS = {
-    "1": (BLOCK_SOURCES, "sources de risque"),
-    "2": (BLOCK_OBJECTIFS, "objectifs vises"),
-    "3": (BLOCK_COUPLES, "couples SR/OV"),
-}
-
-
-def _print_w2_output(output: Workshop2Output) -> None:
-    print(f"\n=== Atelier 2 - {len(output.sources_risque)} source(s), "
-          f"{len(output.objectifs_vises)} objectif(s), {len(output.couples)} couple(s) ===")
-    for couple in output.couples:
-        print(f"  [{couple.id}] {couple.source_risque_id} -> {couple.objectif_vise_id}")
-    print(f"Controle qualite : {output.quality_report.statut}")
-
-
-def _run_w2(repo, mission_id, w2_input, base, notes=None, blocks=None, previous=None):
-    output = run_workshop2(w2_input, AgnoWorkshop2Runner(), base, notes, blocks, previous)
-    mission_state.save_w2_output(repo, mission_id, output)
-    repo.set_status(mission_id, "w2_awaiting_approval")
-    return output
-
-
-def advance_to_workshop2(repo: MissionRepository, mission_id: str) -> str:
-    """Build atelier 2's input from an approved atelier 1, run it, save it, get a decision.
-
-    Requires atelier 1's latest version to be approved. Returns "w2_approved" or
-    "w2_rejected".
+    workshops maps atelier number -> a WorkshopRunner (workshop_protocol.WorkshopRunner).
+    It does not need to contain all five: once the mission reaches an atelier
+    that has no registered runner, run_mission() returns cleanly (mission stays
+    at its last 'approved' status) instead of raising — an Orchestrator built
+    with only {1: ..., 2: ...} today keeps working unchanged once {3: ...} is
+    added later.
     """
-    mission = repo.get_mission(mission_id)
-    if mission is None:
-        raise OrchestratorError(f"Mission introuvable : {mission_id}")
-    if not mission_state.is_approved(repo, mission_id, mission_state.WORKSHOP_1):
-        raise OrchestratorError(
-            f"Impossible de demarrer l'atelier 2 : l'atelier 1 n'est pas approuve "
-            f"(statut mission : {mission.status})."
+
+    def __init__(
+        self,
+        repo: MissionRepository,
+        workshops: dict[int, WorkshopRunner],
+        *,
+        output_models: dict[int, type[BaseModel]] | None = None,
+        approve: Callable[[str], tuple[bool, str]] = approve_workshop,
+        reinforced_confirm: Callable[[str], bool] = _default_reinforced_confirm,
+    ) -> None:
+        self._repo = repo
+        self._workshops = workshops
+        # Every atelier's output type is known now that the five real workshops exist.
+        self._output_models: dict[int, type[BaseModel]] = {
+            mission_state.WORKSHOP_1: Workshop1Output,
+            mission_state.WORKSHOP_2: Workshop2Output,
+            mission_state.WORKSHOP_3: Workshop3Output,
+            mission_state.WORKSHOP_4: Workshop4Output,
+            mission_state.WORKSHOP_5: Workshop5Output,
+        }
+        if output_models:
+            self._output_models.update(output_models)
+        self._approve = approve
+        self._reinforced_confirm = reinforced_confirm
+        self._halt_requested = False
+        self._active_workshop_number: int | None = None
+
+    # --- public API ---
+
+    def halt(self) -> None:
+        """Signal the active workshop to stop gracefully (e.g. from a Ctrl+C handler).
+
+        Does not kill anything — it asks. The workshop decides how it saves its
+        own state before raising WorkshopHalted (conception §10.2, workshop
+        contract in workshop_protocol.py)."""
+        self._halt_requested = True
+        if self._active_workshop_number is not None:
+            self._workshops[self._active_workshop_number].stop()
+
+    async def run_mission(self, mission_id: str) -> None:
+        """Drive the mission forward until it is paused, blocked, or has nothing left to do."""
+        while True:
+            mission = self._repo.get_mission(mission_id)
+            if mission is None:
+                raise ValueError(f"Unknown mission: {mission_id!r}")
+
+            action = state_machine.next_action(mission.status)
+
+            if action.action in ("done", "generate_report", "blocked"):
+                # 'generate_report' is a deliberate stop here: the reporting agent
+                # is a separate component, not built by this class.
+                return
+
+            if action.action in ("start_intake", "resume_intake"):
+                raise NotImplementedError(
+                    "Intake is not yet driven by the Orchestrator; the mission must "
+                    "already be 'context_ready' before run_mission() is called."
+                )
+
+            if action.action == "await_approval":
+                n = self._require_workshop_number(action)
+                self._open_gate(mission_id, n)
+                continue
+
+            if action.action == "redo_workshop":
+                n = self._require_workshop_number(action)
+                if not can_redo(self._repo, mission_id, n) and not self._reinforced_confirm(self._label(n)):
+                    latest = self._repo.latest_output(mission_id, n)
+                    if latest is not None:
+                        self._repo.set_version_status(mission_id, n, latest.version_number, "approved")
+                    self._repo.log_decision(
+                        mission_id, stage=f"w{n}", action="force_accepted",
+                        justification="Plafond de retours en arrière atteint ; dernière version conservée (§12.6).",
+                    )
+                    self._repo.set_status(mission_id, state_machine.approved(n))
+                    continue
+                if self._halt_requested:
+                    self._pause(mission_id, n)
+                    return
+                if not await self._run_one_workshop(mission_id, n, resume=False):
+                    return  # paused or blocked mid-run — do not loop back and auto-resume
+                continue
+
+            if action.action in ("start_workshop", "resume_workshop"):
+                n = self._require_workshop_number(action)
+                if n not in self._workshops:
+                    # Not implemented yet (e.g. only ateliers 1-2 exist today) — stop
+                    # cleanly. The mission stays at its current 'approved' status,
+                    # ready to continue once this atelier's runner is registered.
+                    return
+                if self._halt_requested:
+                    self._pause(mission_id, n)
+                    return
+                if not await self._run_one_workshop(mission_id, n, resume=(action.action == "resume_workshop")):
+                    return  # paused or blocked mid-run — do not loop back and auto-resume
+                continue
+
+            raise ValueError(f"Unhandled action: {action.action!r}")
+
+    # --- one workshop, start to finish ---
+
+    async def _run_one_workshop(self, mission_id: str, n: int, *, resume: bool) -> bool:
+        """Returns True if run_mission should keep looping (the atelier finished
+        and a decision was recorded); False if it should stop entirely (paused
+        or blocked mid-run) — a bare early return here is not enough, because
+        run_mission's loop would otherwise re-read the now-'paused' status and
+        immediately call resume() again within the same run_mission() call."""
+        workshop = self._workshop_for(n)
+        self._active_workshop_number = n
+        self._repo.set_status(mission_id, state_machine.running(n))
+
+        try:
+            if resume:
+                output = await workshop.resume(mission_id)
+            else:
+                workshop_input = self._build_input_for(mission_id, n)
+                output = await workshop.run(workshop_input, mission_id)
+        except WorkshopHalted:
+            self._pause(mission_id, n)
+            return False
+        except WorkshopBlocked as exc:
+            self._repo.log_decision(mission_id, stage=f"w{n}", action="blocked", justification=exc.reason)
+            self._repo.set_status(mission_id, state_machine.MissionStatus.BLOCKED)
+            return False
+        finally:
+            self._active_workshop_number = None
+
+        version_number = self._save_output(mission_id, n, output)
+        self._repo.set_status(mission_id, state_machine.awaiting_approval(n))
+        self._open_gate(mission_id, n, output=output, version_number=version_number)
+        return True
+
+    def _open_gate(
+        self, mission_id: str, n: int, *, output: BaseModel | None = None, version_number: int | None = None
+    ) -> None:
+        """Show the atelier's output for approval and record the auditor's decision (conception §7, §8).
+
+        Marks both the mission's status AND that specific version's status —
+        the same two-writes pattern the current CLI script uses for atelier 1
+        (workshop_versions.status tracks current/approved/superseded/rejected
+        independently of the mission-level wN_* status)."""
+        if version_number is None:
+            latest = self._repo.latest_output(mission_id, n)
+            if latest is None:
+                raise RuntimeError(f"Mission {mission_id} is awaiting approval for atelier {n} but has no saved output.")
+            version_number = latest.version_number
+        if output is None:
+            output = self._load_output(mission_id, n)
+        if output is None:
+            raise RuntimeError(f"Mission {mission_id} is awaiting approval for atelier {n} but has no saved output.")
+
+        summary = self._workshop_for(n).summarize_output(output)
+        approved_ok, reason = self._approve(f"{self._label(n)}\n{summary}")
+
+        if approved_ok:
+            self._repo.log_decision(mission_id, stage=f"w{n}", action="approved", justification="")
+            self._repo.set_status(mission_id, state_machine.approved(n))
+            self._repo.set_version_status(mission_id, n, version_number, "approved")
+        else:
+            self._repo.log_decision(mission_id, stage=f"w{n}", action="rejected", justification=reason)
+            self._repo.set_status(mission_id, state_machine.rejected(n))
+            self._repo.set_version_status(mission_id, n, version_number, "rejected")
+
+    # --- input construction (conception §9: narrow typed inputs only) ---
+
+    def _build_input_for(self, mission_id: str, n: int) -> BaseModel:
+        if n == mission_state.WORKSHOP_1:
+            context = mission_state.load_mission_context(self._repo, mission_id)
+            if context is None:
+                raise RuntimeError(f"Mission {mission_id} has no Mission Context — intake must run first.")
+            return context
+
+        context = mission_state.load_mission_context(self._repo, mission_id)
+        if context is None:
+            raise RuntimeError(f"Mission {mission_id} has no Mission Context — intake must run first.")
+
+        if n == mission_state.WORKSHOP_2:
+            w1_output = mission_state.load_w1_output(self._repo, mission_id)
+            if w1_output is None:
+                raise RuntimeError(f"Mission {mission_id} has no approved atelier 1 output.")
+            return build_workshop2_input(context, w1_output)
+        if n == mission_state.WORKSHOP_3:
+            w1_output = mission_state.load_w1_output(self._repo, mission_id)
+            w2_output = mission_state.load_w2_output(self._repo, mission_id)
+            if w1_output is None or w2_output is None:
+                raise RuntimeError(f"Mission {mission_id} has no approved atelier 1 or atelier 2 output.")
+            return build_workshop3_input(context, w1_output, w2_output)
+        if n == mission_state.WORKSHOP_4:
+            w1_output = mission_state.load_w1_output(self._repo, mission_id)
+            w2_output = mission_state.load_w2_output(self._repo, mission_id)
+            w3_output = mission_state.load_w3_output(self._repo, mission_id)
+            if w1_output is None or w2_output is None or w3_output is None:
+                raise RuntimeError(f"Mission {mission_id} has no approved atelier 1, 2 or 3 output.")
+            return build_workshop4_input(context, w1_output, w2_output, w3_output)
+        if n == mission_state.WORKSHOP_5:
+            w1_output = mission_state.load_w1_output(self._repo, mission_id)
+            w2_output = mission_state.load_w2_output(self._repo, mission_id)
+            w3_output = mission_state.load_w3_output(self._repo, mission_id)
+            w4_output = mission_state.load_w4_output(self._repo, mission_id)
+            if w1_output is None or w2_output is None or w3_output is None or w4_output is None:
+                raise RuntimeError(f"Mission {mission_id} has no approved atelier 1, 2, 3 or 4 output.")
+            return build_workshop5_input(context, w1_output, w2_output, w3_output, w4_output)
+        raise NotImplementedError(
+            f"No input adapter registered yet for atelier {n} — add build_workshop{n}_input() "
+            f"once atelier {n - 1}'s real output shape exists."
         )
 
-    mission_context = mission_state.load_mission_context(repo, mission_id)
-    w1_output = mission_state.load_w1_output(repo, mission_id)
-    if mission_context is None or w1_output is None:
-        raise OrchestratorError("Mission Context ou atelier 1 introuvable en base.")
+    # --- output persistence ---
 
-    w2_input = build_workshop2_input(mission_context, w1_output)
-    base = load_ebios_base()
+    def _save_output(self, mission_id: str, n: int, output: BaseModel) -> int:
+        if n == mission_state.WORKSHOP_1:
+            return mission_state.save_w1_output(self._repo, mission_id, output)
+        return mission_state.save_workshop_output(self._repo, mission_id, n, output)
 
-    repo.set_status(mission_id, "w2_running")
-    try:
-        output = _run_w2(repo, mission_id, w2_input, base)
-    except Atelier1DataError as exc:
-        repo.set_status(mission_id, "blocked")
-        repo.log_decision(mission_id, stage=STAGE_W2, action="blocked", justification=str(exc))
-        raise OrchestratorError(f"Atelier 1 comporte des anomalies bloquantes : {exc}") from exc
-    except Workshop2AgentError as exc:
-        raise OrchestratorError(f"Appel au modele en echec : {exc}") from exc
+    def _load_output(self, mission_id: str, n: int) -> BaseModel | None:
+        if n == mission_state.WORKSHOP_1:
+            return mission_state.load_w1_output(self._repo, mission_id)
+        return mission_state.load_workshop_output(self._repo, mission_id, n, self._model_for(n))
 
-    exit_code = ApprovalLoop(
-        repo=repo,
-        mission_id=mission_id,
-        stage=STAGE_W2,
-        workshop_number=mission_state.WORKSHOP_2,
-        label="l'atelier 2",
-        print_output=_print_w2_output,
-        rerun=lambda notes, blocks, previous: _run_w2(repo, mission_id, w2_input, base, notes, blocks, previous),
-        save=lambda corrected: mission_state.save_w2_output(repo, mission_id, corrected),
-        model_cls=Workshop2Output,
-        edit_examples="couples.0.pertinence        sources_risque.1.justification",
-        block_labels=_W2_BLOCK_LABELS,
-    ).run(output)
+    def _model_for(self, n: int) -> type[BaseModel]:
+        model_cls = self._output_models.get(n)
+        if model_cls is None:
+            raise NotImplementedError(
+                f"No output model registered for atelier {n} — pass "
+                f"output_models={{{n}: YourOutputType}} to Orchestrator() once it exists."
+            )
+        return model_cls
 
-    return "w2_approved" if exit_code == 0 else "w2_rejected"
+    # --- misc ---
 
-
-# ============================================================================
-# Atelier 2 -> Atelier 3
-# ============================================================================
-
-STAGE_W3 = "workshop_3"
-
-_W3_GATE_LABELS = {
-    ACTION_RUN: "valider cette liste et la transmettre a l'atelier 4",
-    ACTION_RUN_ANYWAY: "lancer tout de meme, malgre le nombre",
-    ACTION_CANCEL: "en rester la (liste conservee, non approuvee)",
-}
-
-
-def _print_w3_output(output: Workshop3Output) -> None:
-    print(f"\n=== Atelier 3 - {len(output.scenarios)} scenario(s) strategique(s) ===")
-    for scenario in output.scenarios:
-        print(f"  [{scenario.id}] {scenario.resume}")
-    gate = output.gate_decision
-    print(f"\nPoint de comptage - N = {gate.n}, decision : {gate.action or 'en attente'}")
-    print(f"Controle qualite : {output.quality_report.statut}")
-
-
-def _run_w3(repo, mission_id, w3_input, notes=None, blocks=None, previous=None):
-    output = run_workshop3(w3_input, AgnoWorkshop3Runner(), notes, previous)
-    mission_state.save_w3_output(repo, mission_id, output)
-    repo.set_status(mission_id, "w3_awaiting_approval")
-    return output
-
-
-def _handle_w3_gate(repo, mission_id, w3_input, output: Workshop3Output) -> Workshop3Output | None:
-    """Run/run-anyway/cancel only (see module docstring). Returns None on cancel."""
-    gate = gate_for(output.scenarios, n_initial=output.gate_decision.n_initial or len(output.scenarios))
-    if not gate.options_offertes:
-        return output
-
-    unsupported = [a for a in gate.options_offertes if a not in _W3_GATE_LABELS]
-    if unsupported:
-        raise OrchestratorError(
-            f"Le point de comptage propose {unsupported}, non gere par cette version de "
-            f"l'orchestrateur. Utilisez python scripts/run_workshop3.py {mission_id} pour "
-            "fusionner ou choisir un sous-ensemble."
+    def _pause(self, mission_id: str, n: int) -> None:
+        self._repo.log_decision(
+            mission_id, stage=f"w{n}", action="paused",
+            justification="Interruption demandée (Ctrl+C ou arrêt externe).",
         )
+        self._repo.set_status(mission_id, state_machine.paused(n))
 
-    keys = {str(i): action for i, action in enumerate(gate.options_offertes, 1)}
-    choice = ask_choice("Que faire de cette liste ?", {k: _W3_GATE_LABELS[a] for k, a in keys.items()})
-    action = keys[choice]
+    def _workshop_for(self, n: int) -> WorkshopRunner:
+        workshop = self._workshops.get(n)
+        if workshop is None:
+            raise KeyError(f"No workshop registered for atelier {n}")
+        return workshop
 
-    if action == ACTION_CANCEL:
-        repo.log_decision(mission_id, stage=STAGE_W3, action="gate_cancelled",
-                           justification=f"{gate.n} scenario(s), liste non transmise")
-        return None
+    @staticmethod
+    def _require_workshop_number(action: state_machine.NextAction) -> int:
+        if action.workshop_number is None:
+            raise ValueError(f"Action {action.action!r} requires a workshop_number")
+        return action.workshop_number
 
-    justification = (
-        ask_justification("Motif pour lancer malgre le nombre (obligatoire) : ")
-        if action == ACTION_RUN_ANYWAY else ""
-    )
-    decided = gate.model_copy(update={"action": action, "justification": justification})
-    final = assemble_output(w3_input, output.scenarios, decided, output.elements_ecartes,
-                             human_edits=output.human_edits)
-    mission_state.save_w3_output(repo, mission_id, final)
-    repo.set_status(mission_id, "w3_awaiting_approval")
-    return final
-
-
-def advance_to_workshop3(repo: MissionRepository, mission_id: str) -> str:
-    """Build atelier 3's input from an approved atelier 2, run it, gate it, get a decision.
-
-    Requires atelier 2's latest version to be approved. Returns "w3_approved",
-    "w3_rejected", or "w3_cancelled".
-    """
-    mission = repo.get_mission(mission_id)
-    if mission is None:
-        raise OrchestratorError(f"Mission introuvable : {mission_id}")
-    if not mission_state.is_approved(repo, mission_id, mission_state.WORKSHOP_2):
-        raise OrchestratorError(
-            f"Impossible de demarrer l'atelier 3 : l'atelier 2 n'est pas approuve "
-            f"(statut mission : {mission.status})."
-        )
-
-    mission_context = mission_state.load_mission_context(repo, mission_id)
-    w1_output = mission_state.load_w1_output(repo, mission_id)
-    w2_output = mission_state.load_w2_output(repo, mission_id)
-    if mission_context is None or w1_output is None or w2_output is None:
-        raise OrchestratorError("Mission Context, atelier 1 ou atelier 2 introuvable en base.")
-
-    w3_input = build_workshop3_input(mission_context, w1_output, w2_output)
-
-    try:
-        output = _run_w3(repo, mission_id, w3_input)
-    except Atelier2DataError as exc:
-        repo.set_status(mission_id, "blocked")
-        repo.log_decision(mission_id, stage=STAGE_W3, action="blocked", justification=str(exc))
-        raise OrchestratorError(f"Atelier 2 comporte des anomalies bloquantes : {exc}") from exc
-    except Workshop3AgentError as exc:
-        raise OrchestratorError(f"Appel au modele en echec : {exc}") from exc
-
-    gated = _handle_w3_gate(repo, mission_id, w3_input, output)
-    if gated is None:
-        return "w3_cancelled"
-
-    exit_code = ApprovalLoop(
-        repo=repo,
-        mission_id=mission_id,
-        stage=STAGE_W3,
-        workshop_number=mission_state.WORKSHOP_3,
-        label="l'atelier 3",
-        print_output=_print_w3_output,
-        rerun=lambda notes, blocks, previous: _run_w3(repo, mission_id, w3_input, notes, blocks, previous),
-        save=lambda corrected: mission_state.save_w3_output(repo, mission_id, corrected),
-        model_cls=Workshop3Output,
-        edit_examples="scenarios.0.resume",
-    ).run(gated)
-
-    return "w3_approved" if exit_code == 0 else "w3_rejected"
+    @staticmethod
+    def _label(n: int) -> str:
+        return f"Atelier {n}"

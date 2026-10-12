@@ -11,12 +11,15 @@ Three families:
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from pydantic import BaseModel, Field
 
 from ebios_rm.domain.essential_asset import EssentialAsset, SupportAsset
 from ebios_rm.domain.fact import Fact
 from ebios_rm.domain.feared_event import FearedEvent
 from ebios_rm.domain.risk_source import CoupleSROV, ObjectifVise, RiskSource
+from ebios_rm.workshops.common import AtelierAlert, ElementEcarteBase
 
 
 # --- Input (white-box §3) ---
@@ -59,18 +62,6 @@ CONTEXT_FIELDS: tuple[str, ...] = (
 )
 
 
-class Atelier1Alert(BaseModel):
-    """A defect found in the atelier 1 output (white-box §4).
-
-    Raised for the auditor, never repaired by the model: « erreur de donnée
-    n'est pas erreur de raisonnement ».
-    """
-
-    reference: str   # the id or field the problem concerns
-    probleme: str
-    bloquant: bool = True
-
-
 class Workshop2Input(BaseModel):
     """Everything atelier 2 may see, and nothing else (white-box §3).
 
@@ -96,10 +87,10 @@ class Workshop2Input(BaseModel):
     faits_contexte: list[Fact] = Field(default_factory=list)
 
     # Defects found in the atelier 1 output while building this input (§4).
-    alertes_atelier1: list[Atelier1Alert] = Field(default_factory=list)
+    alertes_atelier1: list[AtelierAlert] = Field(default_factory=list)
 
     @property
-    def alertes_bloquantes(self) -> list[Atelier1Alert]:
+    def alertes_bloquantes(self) -> list[AtelierAlert]:
         return [a for a in self.alertes_atelier1 if a.bloquant]
 
 
@@ -192,22 +183,16 @@ ECARTE_REASON_LABELS = {
 }
 
 
-class ElementEcarte(BaseModel):
+class ElementEcarte(ElementEcarteBase):
     """A candidate that did not make it, with why (white-box §17, §19, §20).
 
     Deleting a discarded element without recording the reason is a forbidden
     design error: the auditor must be able to see what was considered and rejected.
+    ``type`` is 'source_risque', 'objectif_vise' or 'couple'.
     """
 
-    type: str        # 'source_risque' | 'objectif_vise' | 'couple'
-    reference: str   # id when it had one, otherwise the proposed label
-    libelle: str = ""
+    LABELS: ClassVar[dict[str, str]] = ECARTE_REASON_LABELS
     raison: str = REASON_ECARTE_PAR_AGENT
-    detail: str = ""
-
-    @property
-    def raison_label(self) -> str:
-        return ECARTE_REASON_LABELS.get(self.raison, self.raison)
 
 
 # --- Quality checker (white-box §14) ---
@@ -258,7 +243,7 @@ class Workshop2Output(BaseModel):
     couples_secondaires: list[CoupleSROV] = Field(default_factory=list)
     elements_ecartes: list[ElementEcarte] = Field(default_factory=list)
     quality_report: QualityReport = Field(default_factory=QualityReport)
-    alertes_atelier1: list[Atelier1Alert] = Field(default_factory=list)
+    alertes_atelier1: list[AtelierAlert] = Field(default_factory=list)
     # Corrections the auditor made directly on this output (conception §2, §8) —
     # same shape as workshop 1, carried verbatim across a partial redo.
     human_edits: list[dict] = Field(default_factory=list)

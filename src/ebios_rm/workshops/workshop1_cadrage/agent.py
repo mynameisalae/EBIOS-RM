@@ -15,12 +15,7 @@ evaluation-by-evidence discipline, which is enforced in assessment.py.
 
 from __future__ import annotations
 
-from typing import TypeVar
-
-from pydantic import BaseModel
-
-from ebios_rm.agent_runtime import StructuredCallFailed, run_structured
-from ebios_rm.config import get_model
+from ebios_rm.agent_runtime import AgnoRunner
 from ebios_rm.domain.essential_asset import EssentialAsset
 from ebios_rm.domain.feared_event import FearedEvent
 from ebios_rm.mission_context.mission_context import MissionContext
@@ -37,54 +32,21 @@ from ebios_rm.workshops.workshop1_cadrage.models import (
 )
 
 
-T = TypeVar("T", bound=BaseModel)
-
 # Controls assessed per LLM call. Matches the ingestion's question batch size for the
 # same reason: a structured response covering a whole referential overflows the output
 # budget and degrades recall long before it does.
 CONTROLS_PER_CALL = 12
 
 
-class Workshop1AgentError(RuntimeError):
-    """Raised when the model cannot return the expected structured output.
+class AgnoWorkshop1Runner(AgnoRunner):
+    """Concrete Workshop1AgentRunner backed by Agno + OpenRouter.
 
-    On an API error or an unparseable response, Agno returns the raw string as
-    response.content instead of the schema. Rather than let that surface as an
-    opaque AttributeError downstream, the runner retries with backoff and then
-    fails loudly — a failed LLM call is never silently reinterpreted as a
+    A call that cannot produce its schema after every retry raises
+    StructuredCallFailed (agent_runtime) — never silently reinterpreted as a
     methodology outcome (an empty gap list, a clean verdict...).
     """
 
-
-class AgnoWorkshop1Runner:
-    """Concrete Workshop1AgentRunner backed by Agno + OpenRouter."""
-
-    def __init__(self, model=None, *, max_attempts: int = 4, base_delay: float = 3.0, progress=print) -> None:
-        self._model = model or get_model()
-        self._max_attempts = max_attempts
-        self._base_delay = base_delay
-        self._progress = progress
-
-    def _agent(self, output_schema):
-        from agno.agent import Agent  # noqa: PLC0415 — lazy so tests don't need Agno
-
-        return Agent(
-            model=self._model,
-            instructions=prompts.SYSTEM_INSTRUCTIONS,
-            output_schema=output_schema,
-            markdown=False,
-        )
-
-    def _run_structured(self, output_schema: type[T], prompt: str, *, what: str) -> T:
-        """Run one structured call, retrying transient failures with backoff (conception §3.2 note)."""
-        try:
-            return run_structured(
-                lambda: self._agent(output_schema), prompt, output_schema,
-                what=what,
-                max_attempts=self._max_attempts, base_delay=self._base_delay, progress=self._progress,
-            )
-        except StructuredCallFailed as exc:
-            raise Workshop1AgentError(str(exc)) from exc
+    INSTRUCTIONS = prompts.SYSTEM_INSTRUCTIONS
 
     def propose_cadrage(
         self, mission_context: MissionContext, revision_notes: list[str] | None = None

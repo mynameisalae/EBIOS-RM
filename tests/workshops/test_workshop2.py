@@ -41,6 +41,7 @@ from ebios_rm.workshops.workshop2_sources_risque.assessment import (
     run_quality_checks,  
 
 )
+from ebios_rm.workshops.common import AtelierDataError
 from ebios_rm.workshops.workshop2_sources_risque.models import (
     REASON_BIEN_ESSENTIEL_INCONNU,
     REASON_DOUBLON,
@@ -67,7 +68,6 @@ from ebios_rm.workshops.workshop2_sources_risque.questions import (
 from ebios_rm.workshops.workshop2_sources_risque.workshop import (
     BLOCK_COUPLES,
     BLOCK_SOURCES,
-    Atelier1DataError,
     build_workshop2_input,
     run_workshop2,
 )
@@ -167,7 +167,7 @@ def test_input_carries_context_and_atelier1_but_not_unrelated_facts():
 def test_invalid_atelier1_reference_alerts_and_blocks(base):
     w2_input = build_workshop2_input(_mission_context(), _w1_output(broken_reference=True))
     assert any("BE-9" in a.probleme for a in w2_input.alertes_atelier1)
-    with pytest.raises(Atelier1DataError):
+    with pytest.raises(AtelierDataError):
         run_workshop2(w2_input, FakeWorkshop2Runner(), base)
 
 

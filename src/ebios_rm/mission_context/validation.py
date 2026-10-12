@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ebios_rm.domain.enums import Confidence, FactStatus
+from ebios_rm.domain.enums import Confidence
 from ebios_rm.domain.fact import Fact
 
 

@@ -18,19 +18,27 @@ SYSTEM_INSTRUCTIONS = """\
 Tu es un assistant méthodologique EBIOS Risk Manager pour l'atelier 1 (cadrage et \
 socle de sécurité). Tu es assisté par l'humain, jamais l'inverse.
 
-Règles absolues :
-- Tu n'inventes JAMAIS une information. Toute affirmation sur l'organisation doit \
-s'appuyer sur un fait présent dans le Mission Context fourni.
-- Tu ne supposes JAMAIS une information manquante. Si une information manque, tu \
-le signales, tu ne la complètes pas.
-- Tu ne résous JAMAIS une contradiction toi-même ; ce n'est pas ton rôle ici.
-- Évaluation par la preuve : tout verdict (contrôle conforme, écart, pertinence \
-d'une disposition légale) doit citer le passage précis du Mission Context qui le \
-justifie. Un verdict sans citation est invalide.
-- La gravité d'un événement redouté est exactement l'une de ces quatre valeurs : \
-Minimale, Significative, Grave, Critique.
-- La catégorie d'impact est exactement l'une de ces cinq valeurs : financier, \
+Règles méthodologiques absolues :
+- Définition stricte des Biens Essentiels (BE) : Un bien essentiel est EXCLUSIVEMENT \
+un processus métier critique ou une information sensible ayant de la valeur pour \
+l'organisation. Un serveur, un équipement réseau, un logiciel, un terminal ou un \
+site physique n'est JAMAIS un bien essentiel (ce sont des Biens Supports).
+- Définition des Biens Supports (BS) : Ce sont les composants techniques et \
+organisationnels (serveurs, logiciels, réseaux, postes, prestataires) qui \
+supportent les biens essentiels.
+- Règle de couverture totale des enjeux : CHACUN des biens essentiels identifiés \
+(sans aucune exception) DOIT être ciblé par au moins un événement redouté (ER). \
+Un bien essentiel sans événement redouté n'a pas de sens méthodologique.
+- Règle de dépendance des supports : Tout bien support doit lister dans \
+biens_essentiels_supportes les identifiants exacts des biens essentiels qu'il supporte.
+- Calibrage de la gravité : La gravité d'un événement redouté (Minimale, Significative, \
+Grave, Critique) doit découler strictement des faits d'impact du contexte (impact_arret, \
+impact_divulgation, impact_alteration, seuil_incident_inacceptable).
+- Catégories d'impact : exactement l'une de ces cinq valeurs : financier, \
 fonctionnement, image, juridique, vie_privee_personnes_concernees.
+- Évaluation par la preuve : Tout verdict ou proposition doit s'appuyer sur le Mission \
+Context et citer les champs utilisés dans derived_from_fact_fields.
+- Tu n'inventes AUCUNE information non mentionnée dans le contexte.
 - Tu réponds uniquement au format structuré demandé, sans texte hors schéma.
 """
 
@@ -74,11 +82,15 @@ def _revision_block(revision_notes: list[str] | None) -> str:
 def cadrage_prompt(mc: MissionContext, revision_notes: list[str] | None = None) -> str:
     revision = _revision_block(revision_notes)
     return (
-        "À partir du Mission Context suivant (composé uniquement de faits validés), "
-        "propose les biens essentiels, les biens supports, et les événements redoutés "
-        "avec leur gravité et catégorie d'impact. Pour chaque élément, renseigne "
-        "derived_from_fact_fields avec les field_name des faits utilisés. N'invente aucun "
-        "bien ni événement qui ne découle pas d'un fait."
+        "À partir du Mission Context fourni, propose le cadrage de l'organisation :\n"
+        "1. Biens essentiels (id: BE-01, BE-02...) : Processus métiers et informations "
+        "sensibles uniquement (JAMAIS d'infrastructure, de serveurs ou de logiciels ici).\n"
+        "2. Biens supports (id: BS-01, BS-02...) : Composants informatiques ou humains "
+        "qui supportent ces biens essentiels. Renseigne pour chacun 'biens_essentiels_supportes'.\n"
+        "3. Événements redoutés (id: ER-01, ER-02...) : OBLIGATOIREMENT au moins un événement "
+        "redouté par bien essentiel listé. Indique pour chacun le bien_essentiel_id exact, "
+        "la categorie_impact, et la gravite motivée par les seuils d'impact décrits.\n"
+        "Chaque élément doit citer dans derived_from_fact_fields les noms exacts des faits utilisés."
         + revision
         + f"\n\nMISSION CONTEXT:\n{_mission_context_block(mc)}"
     )
@@ -108,9 +120,6 @@ def legal_impacts_prompt(
     mc: MissionContext, events: list[FearedEvent], provisions: list[BaselineControl],
     revision_notes: list[str] | None = None, assets: list[EssentialAsset] | None = None,
 ) -> str:
-    # The essential asset travels with its event: two events can read alike ("accès non
-    # autorisé...") while concerning entirely different assets, and with only the
-    # description to go on, the evidence of one gets attached to the other.
     by_id = {a.id: a for a in (assets or [])}
     events_block = json.dumps(
         [

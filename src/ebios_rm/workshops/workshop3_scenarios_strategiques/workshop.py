@@ -19,7 +19,8 @@ from __future__ import annotations
 
 from ebios_rm.domain.strategic_scenario import StrategicScenario
 from ebios_rm.mission_context.mission_context import MissionContext
-from ebios_rm.services.cost_estimation_service import estimate_cost_and_time
+from ebios_rm.services.cost_estimation_service import estimate_workshop4
+from ebios_rm.workshops.common import AtelierDataError
 from ebios_rm.workshops.workshop1_cadrage.models import Workshop1Output
 from ebios_rm.workshops.workshop2_sources_risque.models import Workshop2Output
 from ebios_rm.workshops.workshop3_scenarios_strategiques.agent_runner import Workshop3AgentRunner
@@ -37,23 +38,6 @@ from ebios_rm.workshops.workshop3_scenarios_strategiques.models import (
     Workshop3Input,
     Workshop3Output,
 )
-
-
-class Atelier2DataError(RuntimeError):
-    """The atelier 2 output cannot be reasoned on (§17, white-box §4).
-
-    Raised, never worked around: « erreur de donnée n'est pas erreur de
-    raisonnement ». The auditor fixes atelier 2; atelier 3 must not build a
-    scenario on a couple whose source de risque does not exist, because the defect
-    would reach atelier 4 wearing an atelier 3 id.
-    """
-
-    def __init__(self, alerts) -> None:
-        super().__init__(
-            "L'atelier 2 comporte des anomalies bloquantes :\n"
-            + "\n".join(f"  - [{a.reference}] {a.probleme}" for a in alerts)
-        )
-        self.alerts = list(alerts)
 
 
 # --- Mission Context + w1_output + w2_output -> the narrow atelier 3 input ---
@@ -100,13 +84,14 @@ def build_workshop3_input(
 def gate_for(scenarios: list[StrategicScenario], n_initial: int | None = None) -> GateDecision:
     """The count gate as it stands for this list (§17 steps 19-20).
 
-    Fills in the count, the estimate atelier 4 would cost and the options the
+    Fills in the count, the estimate atelier 4 would cost — enumeration of each
+    scenario's modes opératoires plus one analysis per mode (§18) — and the options the
     auditor may choose from. ``action`` is left blank: the count gate is a
     validation point, and even below the soft threshold §17 offers two answers —
     running is the likely one, not the automatic one. The caller fills it from
     ``options_offertes``.
     """
-    estimate = estimate_cost_and_time(len(scenarios))
+    estimate = estimate_workshop4(len(scenarios))
     return GateDecision(
         n=estimate.n,
         n_initial=estimate.n if n_initial is None else n_initial,
@@ -155,9 +140,11 @@ def run_workshop3(
     There is no partial redo here, unlike ateliers 1 and 2: atelier 3 produces one
     artifact, and regenerating "part of" a scenario list means regenerating it.
     """
-    # Étape 0 — the atelier 2 output must hold up before anything is built on it.
+    # Étape 0 — the atelier 2 output must hold up before anything is built on it: a
+    # scenario on a couple whose source de risque does not exist would reach atelier 4
+    # wearing an atelier 3 id.
     if w3_input.alertes_bloquantes:
-        raise Atelier2DataError(w3_input.alertes_bloquantes)
+        raise AtelierDataError(2, w3_input.alertes_bloquantes)
 
     ecartes: list[ElementEcarte] = []
 

@@ -10,8 +10,7 @@ from __future__ import annotations
 
 import json
 
-from ebios_rm.agent_runtime import StructuredCallFailed, facts_as_json, run_structured
-from ebios_rm.config import get_model
+from ebios_rm.agent_runtime import AgnoRunner, StructuredCallFailed, facts_as_json
 from ebios_rm.mission_context.clarification import ClarificationAnswer
 from ebios_rm.mission_context.mission_context import MissionContext
 
@@ -43,14 +42,10 @@ def _facts_block(mc: MissionContext) -> str:
     return f"{header}\nfacts: {facts_as_json(mc.facts, with_origin=True)}"
 
 
-class AgnoClarificationRunner:
+class AgnoClarificationRunner(AgnoRunner):
     """Concrete ClarificationRunner backed by Agno + OpenRouter."""
 
-    def __init__(self, model=None, *, max_attempts: int = 4, base_delay: float = 3.0, progress=print) -> None:
-        self._model = model or get_model()
-        self._max_attempts = max_attempts
-        self._base_delay = base_delay
-        self._progress = progress
+    INSTRUCTIONS = _SYSTEM
 
     def answer(
         self,
@@ -58,8 +53,6 @@ class AgnoClarificationRunner:
         mission_context: MissionContext,
         workshop_output: object | None = None,
     ) -> ClarificationAnswer:
-        from agno.agent import Agent  # noqa: PLC0415
-
         output_block = ""
         if workshop_output is not None:
             dumped = workshop_output.model_dump(mode="json") if hasattr(workshop_output, "model_dump") else workshop_output
@@ -71,13 +64,7 @@ class AgnoClarificationRunner:
         )
 
         try:
-            return run_structured(
-                lambda: Agent(model=self._model, instructions=_SYSTEM,
-                              output_schema=ClarificationAnswer, markdown=False),
-                prompt, ClarificationAnswer,
-                what="recherche dans le contexte",
-                max_attempts=self._max_attempts, base_delay=self._base_delay, progress=self._progress,
-            )
+            return self._run_structured(ClarificationAnswer, prompt, what="recherche dans le contexte")
         except StructuredCallFailed as exc:
             # A failed clarification is not an audit output — degrade to an explicit non-answer.
             return ClarificationAnswer(
