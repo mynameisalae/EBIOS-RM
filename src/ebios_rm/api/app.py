@@ -14,9 +14,11 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from ebios_rm.api import views
 from ebios_rm.api.jobs import JobBusy, JobRegistry, RunnerFactory
+from ebios_rm.api.pilot import PilotBusy, PilotRegistry, Workshops, default_workshops
 from ebios_rm.repositories.mission_repository import MissionRepository, connect
 from ebios_rm.reporting.appraisals import AnnexReadError, read_appraisals
 from ebios_rm.reporting.audit_annex import build_audit_annex, collect_audit_annex_data
@@ -37,14 +39,22 @@ def _require_model_key() -> None:
         raise HTTPException(400, "OPENROUTER_API_KEY n'est pas défini : renseignez-le dans .env pour rédiger le rapport.")
 
 
+class Answer(BaseModel):
+    prompt_id: int
+    text: str = ""
+
+
 def create_app(
     db_path: str, *, attack_db_path: str | None = None, reports_dir: str | Path = "data/reports",
     ui_dir: str | Path | None = None, runner_factory: RunnerFactory | None = None,
+    uploads_dir: str | Path = "data/uploads", workshops: Workshops | None = None, intake=None,
 ) -> FastAPI:
     app = FastAPI(title="EBIOS RM Agent — OGSBC", docs_url="/api/docs", openapi_url="/api/openapi.json")
-    app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173",
+                                                      "http://localhost:5174", "http://127.0.0.1:5174"],
                        allow_methods=["*"], allow_headers=["*"])
     jobs = JobRegistry()
+    pilots = PilotRegistry()
     reports = Path(reports_dir)
     factory = runner_factory or _default_runner_factory
 
@@ -126,6 +136,74 @@ def create_app(
         if found is None or found.file is None:
             raise HTTPException(404, "Aucun fichier pour cette tâche.")
         return FileResponse(found.file, media_type=DOCX, filename=found.file.name)
+
+    # --- piloting a mission from the web (see pilot.py) ---
+
+    def _start_pilot(mission_id: str, **kwargs):
+        try:
+            return pilots.start(db_path, mission_id, workshops=workshops or default_workshops, intake=intake, **kwargs)
+        except PilotBusy as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+    @app.post("/api/missions")
+    async def new_mission(questionnaire: UploadFile = File(...), supporting: list[UploadFile] = File(default=[])):
+        if workshops is None and intake is None:
+            _require_model_key()
+        if not questionnaire.filename:
+            raise HTTPException(400, "Joignez le questionnaire de contexte rempli.")
+        if pilots.busy:                      # refuse before creating a mission nobody will run
+            raise HTTPException(409, "Une mission est déjà en cours de pilotage : interrompez-la ou attendez qu'elle s'arrête.")
+        r = repo()
+        mission_id = r.create_mission(name=Path(questionnaire.filename).stem, frameworks=[])
+        folder = Path(uploads_dir) / mission_id
+        folder.mkdir(parents=True, exist_ok=True)
+        saved: list[Path] = []
+        for upload in [questionnaire, *[s for s in supporting if s.filename]]:
+            target = folder / Path(upload.filename).name
+            target.write_bytes(await upload.read())
+            saved.append(target)
+        session = _start_pilot(mission_id, kind="intake", files=saved)
+        return {"mission_id": mission_id, "session_id": session.id}
+
+    @app.post("/api/missions/{mission_id}/pilote")
+    def start_pilot(mission_id: str):
+        r = known_mission(mission_id)
+        if not views.next_step(r.get_mission(mission_id).status)["can_pilot"]:
+            raise HTTPException(409, "Cette mission n'a rien à lancer pour l'instant.")
+        if workshops is None:
+            _require_model_key()
+        existing = pilots.active_for(mission_id)
+        session = existing or _start_pilot(mission_id, kind="run")
+        return {"session_id": session.id}
+
+    @app.get("/api/missions/{mission_id}/pilote")
+    def current_pilot(mission_id: str):
+        known_mission(mission_id)
+        session = pilots.active_for(mission_id)
+        return {"session_id": session.id if session else None}
+
+    @app.get("/api/pilote/{session_id}")
+    def pilot_state(session_id: str, after: int = 0):
+        session = pilots.get(session_id)
+        if session is None:
+            raise HTTPException(404, "Session introuvable (le serveur a redémarré ?).")
+        return {"id": session.id, "mission_id": session.mission_id, "status": session.status,
+                "error": session.error, "final_status": session.final_status, **session.channel.snapshot(after)}
+
+    @app.post("/api/pilote/{session_id}/reponse")
+    def pilot_answer(session_id: str, answer: Answer):
+        session = pilots.get(session_id)
+        if session is None:
+            raise HTTPException(404, "Session introuvable.")
+        if not session.channel.answer(answer.prompt_id, answer.text):
+            raise HTTPException(409, "Cette question n'est plus en attente.")
+        return {"ok": True}
+
+    @app.post("/api/pilote/{session_id}/arret")
+    def pilot_stop(session_id: str):
+        if not pilots.stop(session_id):
+            raise HTTPException(409, "Cette session n'est plus en cours.")
+        return {"ok": True}
 
     @app.get("/api/projet")
     def project():

@@ -15,6 +15,7 @@ export interface MissionOverview {
   organisation: { nom?: string; secteur?: string; referentiels?: string[] }
   attck_version: string | null; ateliers: AtelierOverview[]
   decisions: number; model_calls: number; can_write_report: boolean
+  next_step: { action: string; workshop?: number; label: string; can_pilot: boolean }
 }
 export interface AtelierDetail {
   n: number; label: string; question: string; state: AtelierState; headline: string
@@ -40,6 +41,14 @@ export interface Job {
   }
 }
 
+export interface PilotPrompt {
+  id: number; text: string; kind: 'text' | 'yesno' | 'choice'; options: { key: string; label: string }[]; confirm: boolean
+}
+export interface PilotState {
+  id: string; mission_id: string; status: 'running' | 'done' | 'stopped' | 'error'; error: string
+  final_status: string; lines: string[]; next: number; prompt: PilotPrompt | null
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
   if (!response.ok) {
@@ -60,6 +69,20 @@ export const api = {
     return request<{ job_id: string; appraisals: number }>(`/api/missions/${id}/rapport`, { method: 'POST', body: form })
   },
   job: (id: string) => request<Job>(`/api/jobs/${id}`),
+  newMission: (questionnaire: File, supporting: File[]) => {
+    const form = new FormData()
+    form.append('questionnaire', questionnaire)
+    supporting.forEach((f) => form.append('supporting', f))
+    return request<{ mission_id: string; session_id: string }>('/api/missions', { method: 'POST', body: form })
+  },
+  startPilot: (id: string) => request<{ session_id: string }>(`/api/missions/${id}/pilote`, { method: 'POST' }),
+  currentPilot: (id: string) => request<{ session_id: string | null }>(`/api/missions/${id}/pilote`),
+  pilot: (sessionId: string, after: number) => request<PilotState>(`/api/pilote/${sessionId}?after=${after}`),
+  answer: (sessionId: string, promptId: number, text: string) =>
+    request<{ ok: boolean }>(`/api/pilote/${sessionId}/reponse`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt_id: promptId, text }),
+    }),
+  stopPilot: (sessionId: string) => request<{ ok: boolean }>(`/api/pilote/${sessionId}/arret`, { method: 'POST' }),
   annexUrl: (id: string) => `/api/missions/${id}/annexe`,
   jobFileUrl: (jobId: string) => `/api/jobs/${jobId}/fichier`,
 }

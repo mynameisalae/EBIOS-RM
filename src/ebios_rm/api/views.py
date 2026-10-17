@@ -14,10 +14,12 @@ from collections import Counter
 from datetime import date
 from pathlib import Path
 
+from ebios_rm.orchestrator import state_machine
 from ebios_rm.plugins.registry import discover_frameworks
 from ebios_rm.repositories.attack_repository import AttackRepositoryError, connect_readonly
 from ebios_rm.repositories.mission_repository import MissionRepository
 from ebios_rm.reporting.audit_annex import WORKSHOP_LABELS
+from ebios_rm.reporting.history import all_versions
 
 APPROVED = "approved"
 
@@ -124,13 +126,35 @@ def list_missions(repo: MissionRepository) -> list[dict]:
     return missions
 
 
+def next_step(status: str) -> dict:
+    """What the Orchestrator would do next from this status, said for a person."""
+    try:
+        action = state_machine.next_action(status)
+    except ValueError:
+        return {"action": "unknown", "label": "La collecte du contexte n’est pas terminée", "can_pilot": False}
+    n = action.workshop_number
+    labels = {
+        "start_workshop": f"Lancer l’atelier {n}",
+        "resume_workshop": f"Reprendre l’atelier {n}",
+        "await_approval": f"Valider l’atelier {n}",
+        "redo_workshop": f"Refaire l’atelier {n}",
+        "generate_report": "Les 5 ateliers sont approuvés : les rapports peuvent être produits",
+        "done": "Mission terminée",
+        "blocked": "Mission bloquée",
+        "start_intake": "Collecter le contexte",
+        "resume_intake": "La collecte du contexte n’est pas terminée",
+    }
+    can_pilot = action.action in ("start_workshop", "resume_workshop", "await_approval", "redo_workshop")
+    return {"action": action.action, "workshop": n, "label": labels.get(action.action, action.action), "can_pilot": can_pilot}
+
+
 def mission_overview(repo: MissionRepository, mission_id: str) -> dict | None:
     mission = repo.get_mission(mission_id)
     if mission is None:
         return None
     ateliers = []
     for n in range(1, 6):
-        versions = repo.all_versions(mission_id, n)
+        versions = all_versions(repo, mission_id, n)
         latest = versions[-1] if versions else None
         headline, metrics = atelier_metrics(n, latest.output) if latest else ("", [])
         ateliers.append({
@@ -148,13 +172,14 @@ def mission_overview(repo: MissionRepository, mission_id: str) -> dict | None:
         "decisions": len(repo.decisions(mission_id)),
         "model_calls": totals["llm_calls"],
         "can_write_report": any(a["state"] == "approved" for a in ateliers),
+        "next_step": next_step(mission.status),
     }
 
 
 def atelier_detail(repo: MissionRepository, mission_id: str, n: int) -> dict | None:
     if repo.get_mission(mission_id) is None or n not in WORKSHOP_LABELS or n == 0:
         return None
-    versions = repo.all_versions(mission_id, n)
+    versions = all_versions(repo, mission_id, n)
     latest = versions[-1] if versions else None
     headline, metrics = atelier_metrics(n, latest.output) if latest else ("", [])
     return {

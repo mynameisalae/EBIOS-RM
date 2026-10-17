@@ -94,6 +94,16 @@ export default function Overview() {
         </div>
       </div>
 
+      <Link to={`/missions/${id}/pilote`} className="rise-3 sheet group mt-6 flex flex-wrap items-center justify-between gap-4 px-10 py-7 transition-shadow hover:shadow-sheet">
+        <div>
+          <p className="eyebrow">Prochaine étape</p>
+          <p className="mt-1 font-display text-[24px] font-extrabold leading-tight group-hover:text-crimson [font-stretch:106%]">{data.next_step.label}</p>
+        </div>
+        <span className="btn-primary">
+          {data.next_step.can_pilot ? 'Piloter la mission' : 'Ouvrir le pilotage'} <ArrowRight className="h-4 w-4" />
+        </span>
+      </Link>
+
       <Section title="La chaîne d’analyse" aside="Un atelier ne démarre qu’une fois le précédent approuvé">
         <ol>
           {data.ateliers.map((a, i) => (

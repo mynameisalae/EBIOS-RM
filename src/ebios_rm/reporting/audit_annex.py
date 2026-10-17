@@ -19,6 +19,7 @@ from docx.document import Document as DocxDocument
 
 from ebios_rm.plugins.registry import discover_frameworks
 from ebios_rm.repositories.mission_repository import DecisionRow, MissionRepository
+from ebios_rm.reporting.history import all_versions
 from ebios_rm.reporting.house_style import (
     CREAM, GOLD, GREEN, LABEL, ORANGE, Cover, HouseDocument, french_month_year,
 )
@@ -151,10 +152,10 @@ def collect_audit_annex_data(
     unverified: list[UnverifiedRow] = []
 
     for n in range(0, 6):
-        all_versions = repo.all_versions(mission_id, n)
-        versions += [VersionRow(n, v.version_number, v.status, v.created_at) for v in all_versions]
-        if all_versions and n >= 1:
-            events += _events_from_output(n, all_versions[-1].output)
+        history = all_versions(repo, mission_id, n)
+        versions += [VersionRow(n, v.version_number, v.status, v.created_at) for v in history]
+        if history and n >= 1:
+            events += _events_from_output(n, history[-1].output)
 
     w1 = repo.latest_output(mission_id, 1)
     if w1 is not None:

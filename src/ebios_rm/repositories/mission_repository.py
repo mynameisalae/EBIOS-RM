@@ -177,29 +177,18 @@ class MissionRepository:
         self._conn.commit()
         return version_number
 
-    @staticmethod
-    def _to_version(row: sqlite3.Row) -> WorkshopVersion:
-        return WorkshopVersion(
-            version_number=row["version_number"], output=json.loads(row["output"]),
-            status=row["status"], created_at=row["created_at"],
-        )
-
     def latest_output(self, mission_id: str, workshop_number: int) -> WorkshopVersion | None:
         row = self._conn.execute(
             "SELECT * FROM workshop_versions WHERE mission_id = ? AND workshop_number = ? "
             "ORDER BY version_number DESC LIMIT 1",
             (mission_id, workshop_number),
         ).fetchone()
-        return self._to_version(row) if row else None
-
-    def all_versions(self, mission_id: str, workshop_number: int) -> list[WorkshopVersion]:
-        """Every version of one workshop, oldest first — the audit annex shows the whole history (§20.3)."""
-        rows = self._conn.execute(
-            "SELECT * FROM workshop_versions WHERE mission_id = ? AND workshop_number = ? "
-            "ORDER BY version_number",
-            (mission_id, workshop_number),
-        ).fetchall()
-        return [self._to_version(r) for r in rows]
+        if not row:
+            return None
+        return WorkshopVersion(
+            version_number=row["version_number"], output=json.loads(row["output"]),
+            status=row["status"], created_at=row["created_at"],
+        )
 
     def set_version_status(self, mission_id: str, workshop_number: int, version_number: int, status: str) -> None:
         self._conn.execute(

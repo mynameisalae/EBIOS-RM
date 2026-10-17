@@ -35,6 +35,9 @@ function MissionBar({ id }: { id: string }) {
             </div>
           ))}
         </nav>
+        <NavLink to={`/missions/${id}/pilote`} className={top}>
+          Piloter
+        </NavLink>
         <NavLink to={`/missions/${id}/rapports`} className={top}>
           Rapports
         </NavLink>

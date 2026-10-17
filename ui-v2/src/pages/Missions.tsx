@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, Plus } from 'lucide-react'
 import { api, useAsync, type MissionSummary } from '../lib/api'
 import { longDate } from '../lib/format'
 import { Failure, Loading, PageHead } from '../components/kit'
@@ -50,6 +50,10 @@ export default function Missions() {
         title="Vos missions"
         lead="De la collecte du contexte jusqu’au plan de traitement, cinq ateliers qui s’enchaînent. L’IA propose, le code vérifie, l’auditeur décide."
       />
+
+      <Link to="/nouvelle" className="btn-primary -mt-4 mb-10">
+        <Plus className="h-4 w-4" /> Nouvelle mission
+      </Link>
 
       <div className="space-y-5">
         {worked.map((m) => (
