@@ -94,6 +94,11 @@ class Channel:
             self._interrupted = True
             self._cond.notify_all()
 
+    def raise_if_interrupted(self) -> None:
+        """Called after every model call (through the token sink): « Interrompre » then takes effect within seconds."""
+        if self._interrupted:
+            raise Interrupted
+
     def snapshot(self, after: int = 0) -> dict:
         with self._cond:
             prompt = None
@@ -132,6 +137,7 @@ class Session:
     status: str = "running"                     # running | done | stopped | error
     error: str = ""
     final_status: str = ""
+    files: dict[str, Path] = field(default_factory=dict)   # the two reports, once the five ateliers are approved
 
 
 Workshops = Callable[[MissionRepository, Channel], dict]
@@ -180,20 +186,57 @@ class WebWorkshop1Runner(Workshop1Runner):
         return output
 
 
-def default_workshops(repo: MissionRepository, channel: Channel) -> dict:
-    """The five real ateliers, wired to the channel instead of the keyboard."""
+def default_workshops(repo: MissionRepository, channel: Channel, seance: bool = False) -> dict:
+    """The five real ateliers, wired to the channel instead of the keyboard.
+
+    ``seance`` adds the client session of ateliers 4 and 5 (the questions the terminal asks unless
+    ``--no-session``): the auditor answers, asks what a question means, or forces an answer with « ! ».
+    """
     from ebios_rm.orchestrator.workshop2_runner import Workshop2Runner  # noqa: PLC0415
     from ebios_rm.orchestrator.workshop3_runner import Workshop3Runner  # noqa: PLC0415
     from ebios_rm.orchestrator.workshop4_runner import Workshop4Runner  # noqa: PLC0415
     from ebios_rm.orchestrator.workshop5_runner import Workshop5Runner  # noqa: PLC0415
 
+    human = clarifier = None
+    if seance:
+        from ebios_rm.mission_context.clarification_agent import AgnoClarificationRunner  # noqa: PLC0415
+        from ebios_rm.mission_context.conversation import AgnoConversationRunner  # noqa: PLC0415
+        from ebios_rm.workshops.workshop1_cadrage.human_interface import ConversationalHumanInterface  # noqa: PLC0415
+
+        human = ConversationalHumanInterface(AgnoConversationRunner(), io_in=channel.ask, io_out=channel.say)
+        clarifier = AgnoClarificationRunner()
     return {
         1: WebWorkshop1Runner(_reference_repo(), repo, channel),
         2: Workshop2Runner(),
         3: Workshop3Runner(io_in=channel.ask, io_out=channel.say),
-        4: Workshop4Runner(repo, io_in=channel.ask, io_out=channel.say),
-        5: Workshop5Runner(repo, io_in=channel.ask, io_out=channel.say),
+        4: Workshop4Runner(repo, io_in=channel.ask, io_out=channel.say, human=human, clarifier=clarifier),
+        5: Workshop5Runner(repo, io_in=channel.ask, io_out=channel.say, human=human, clarifier=clarifier),
     }
+
+
+def produce_reports(repo: MissionRepository, mission_id: str, channel: Channel, session: Session,
+                    reports_dir: Path, report_factory) -> None:
+    """The mission ends with its two documents: the annex (no model) and the mission report (checked)."""
+    from ebios_rm.reporting.audit_annex import build_audit_annex, collect_audit_annex_data  # noqa: PLC0415
+    from ebios_rm.reporting.mission_report import build_snapshot, write_mission_report, write_mission_report_file  # noqa: PLC0415
+
+    channel.say("=== Production des rapports ===")
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    annex = reports_dir / f"annexe_audit_{mission_id[:8]}.docx"
+    build_audit_annex(collect_audit_annex_data(repo, mission_id)).save(str(annex))
+    session.files["annexe"] = annex
+    channel.say("Annexe d'audit produite (sans modèle).")
+    try:
+        runner = report_factory(lambda line: channel.say(line.strip()))
+        report = write_mission_report(build_snapshot(repo, mission_id), runner)
+        target = write_mission_report_file(report, reports_dir / f"rapport_mission_{mission_id[:8]}.docx")
+    except Exception as exc:  # noqa: BLE001 — the annex stands; say why the report did not
+        channel.say(f"Rapport de mission non produit : {type(exc).__name__} : {exc}")
+        return
+    session.files["rapport"] = target
+    statements = sum(len(s.statements) for s in report.sections)
+    channel.say(f"Rapport de mission produit : {len(report.sections)} section(s), {statements} affirmation(s) retenue(s), "
+                f"{report.corrected} corrigée(s), {len(report.rejected)} écartée(s).")
 
 
 def default_intake(repo: MissionRepository, mission_id: str, channel: Channel, files: list[Path]) -> None:
@@ -275,14 +318,16 @@ class PilotRegistry:
         return None
 
     def start(self, db_path: str, mission_id: str, *, kind: str, workshops: Workshops = default_workshops,
-              intake: Callable[..., None] | None = None, files: list[Path] | None = None) -> Session:
+              intake: Callable[..., None] | None = None, files: list[Path] | None = None, seance: bool = False,
+              reports_dir: Path | None = None, report_factory=None) -> Session:
         with self._lock:
             if self._active is not None:
                 raise PilotBusy("Une mission est déjà en cours de pilotage : interrompez-la ou attendez qu'elle s'arrête.")
             session = Session(id=uuid.uuid4().hex, mission_id=mission_id, kind=kind)
             self._sessions[session.id] = session
             self._active = session.id
-        threading.Thread(target=self._run, args=(session, db_path, workshops, intake, files or []), daemon=True).start()
+        threading.Thread(target=self._run, args=(session, db_path, workshops, intake, files or [], seance,
+                                                 reports_dir, report_factory), daemon=True).start()
         return session
 
     def stop(self, session_id: str) -> bool:
@@ -293,7 +338,8 @@ class PilotRegistry:
         return True
 
     @staticmethod
-    def _drive(repo: MissionRepository, mission_id: str, channel: Channel, workshops: Workshops) -> None:
+    def _drive(repo: MissionRepository, mission_id: str, channel: Channel, workshops: Workshops,
+               seance: bool = False) -> None:
         """Hand the mission to the Orchestrator, from whatever status it is in."""
         from ebios_rm.orchestrator.orchestrator import Orchestrator  # noqa: PLC0415
 
@@ -307,7 +353,7 @@ class PilotRegistry:
                         "n'est pas terminée, ou la mission est bloquée.")
             return
 
-        ateliers = workshops(repo, channel)
+        ateliers = workshops(repo, channel, seance=True) if seance else workshops(repo, channel)
         first = ateliers.get(1)
         if status == state_machine.MissionStatus.CONTEXT_READY and hasattr(first, "check_controls_available"):
             context = mission_state.load_mission_context(repo, mission_id)
@@ -319,16 +365,24 @@ class PilotRegistry:
         orchestrator = Orchestrator(repo, ateliers, approve=_approve(channel), reinforced_confirm=_confirm(channel))
         asyncio.run(orchestrator.run_mission(mission_id))
 
-    def _run(self, session: Session, db_path: str, workshops: Workshops, intake, files: list[Path]) -> None:
+    def _run(self, session: Session, db_path: str, workshops: Workshops, intake, files: list[Path], seance: bool,
+             reports_dir: Path | None, report_factory) -> None:
         channel = session.channel
         repo = MissionRepository(connect(db_path))
         mission_id = session.mission_id
-        set_token_sink(lambda i, o, model: repo.log_tokens(mission_id, input_tokens=i, output_tokens=o, model_used=model))
+
+        def sink(input_tokens: int, output_tokens: int, model: str) -> None:
+            repo.log_tokens(mission_id, input_tokens=input_tokens, output_tokens=output_tokens, model_used=model)
+            channel.raise_if_interrupted()      # a model call just ended: this is the moment to stop
+
+        set_token_sink(sink)
         try:
             if session.kind == "intake":
                 (intake or default_intake)(repo, mission_id, channel, files)
             _unstick(repo, mission_id)
-            self._drive(repo, mission_id, channel, workshops)
+            self._drive(repo, mission_id, channel, workshops, seance)
+            if _status(repo, mission_id) in (state_machine.approved(5), state_machine.MissionStatus.ALL_APPROVED)                     and reports_dir is not None and report_factory is not None:
+                produce_reports(repo, mission_id, channel, session, reports_dir, report_factory)
             session.final_status = _status(repo, mission_id)
             session.status = "done"
             channel.say(f"=== Fin de la session — statut de la mission : {session.final_status} ===")

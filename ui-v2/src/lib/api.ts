@@ -46,7 +46,7 @@ export interface PilotPrompt {
 }
 export interface PilotState {
   id: string; mission_id: string; status: 'running' | 'done' | 'stopped' | 'error'; error: string
-  final_status: string; lines: string[]; next: number; prompt: PilotPrompt | null
+  final_status: string; files: string[]; lines: string[]; next: number; prompt: PilotPrompt | null
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -69,13 +69,17 @@ export const api = {
     return request<{ job_id: string; appraisals: number }>(`/api/missions/${id}/rapport`, { method: 'POST', body: form })
   },
   job: (id: string) => request<Job>(`/api/jobs/${id}`),
-  newMission: (questionnaire: File, supporting: File[]) => {
+  newMission: (questionnaire: File, supporting: File[], seance = false) => {
     const form = new FormData()
     form.append('questionnaire', questionnaire)
+    form.append('seance', String(seance))
     supporting.forEach((f) => form.append('supporting', f))
     return request<{ mission_id: string; session_id: string }>('/api/missions', { method: 'POST', body: form })
   },
-  startPilot: (id: string) => request<{ session_id: string }>(`/api/missions/${id}/pilote`, { method: 'POST' }),
+  startPilot: (id: string, seance = false) =>
+    request<{ session_id: string }>(`/api/missions/${id}/pilote`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seance }),
+    }),
   currentPilot: (id: string) => request<{ session_id: string | null }>(`/api/missions/${id}/pilote`),
   pilot: (sessionId: string, after: number) => request<PilotState>(`/api/pilote/${sessionId}?after=${after}`),
   answer: (sessionId: string, promptId: number, text: string) =>
@@ -83,8 +87,9 @@ export const api = {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt_id: promptId, text }),
     }),
   stopPilot: (sessionId: string) => request<{ ok: boolean }>(`/api/pilote/${sessionId}/arret`, { method: 'POST' }),
-  annexUrl: (id: string) => `/api/missions/${id}/annexe`,
-  jobFileUrl: (jobId: string) => `/api/jobs/${jobId}/fichier`,
+  annexUrl: (id: string, format: 'docx' | 'pdf' = 'docx') => `/api/missions/${id}/annexe?format=${format}`,
+  pilotFileUrl: (sessionId: string, kind: string, format: 'docx' | 'pdf' = 'docx') => `/api/pilote/${sessionId}/fichier/${kind}?format=${format}`,
+  jobFileUrl: (jobId: string, format: 'docx' | 'pdf' = 'docx') => `/api/jobs/${jobId}/fichier?format=${format}`,
 }
 
 export function useAsync<T>(load: () => Promise<T>, deps: unknown[]): { data: T | null; error: string; loading: boolean } {

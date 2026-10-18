@@ -38,6 +38,7 @@ export default function NewMission() {
   const navigate = useNavigate()
   const [questionnaire, setQuestionnaire] = useState<File[]>([])
   const [supporting, setSupporting] = useState<File[]>([])
+  const [seance, setSeance] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -45,7 +46,7 @@ export default function NewMission() {
     setBusy(true)
     setError('')
     try {
-      const started = await api.newMission(questionnaire[0], supporting)
+      const started = await api.newMission(questionnaire[0], supporting, seance)
       navigate(`/missions/${started.mission_id}/pilote`)
     } catch (e) {
       setError((e as Error).message)
@@ -64,6 +65,16 @@ export default function NewMission() {
         <Drop title="Questionnaire de contexte rempli" hint="Le document Word, Markdown, texte ou PDF renvoyé par l’organisation." files={questionnaire} onFiles={setQuestionnaire} required />
         <Drop title="Documents complémentaires" hint="Politique de sécurité, schéma d’architecture, rapport d’audit précédent… L’agent y cherche les réponses manquantes." multiple files={supporting} onFiles={setSupporting} />
       </div>
+
+      <label className="sheet mt-6 flex cursor-pointer items-start gap-4 px-8 py-6">
+        <input type="checkbox" checked={seance} onChange={(e) => setSeance(e.target.checked)} className="mt-1.5 h-5 w-5 accent-[#BE1E2D]" />
+        <span>
+          <span className="block font-display text-[18px] font-extrabold">Séance avec le client (ateliers 4 et 5)</span>
+          <span className="mt-1 block text-[15px] text-ink-soft">
+            L’agent vous pose les questions que seul le client peut éclairer avant ces deux ateliers. Sans cette case, il travaille avec le contexte déjà collecté.
+          </span>
+        </span>
+      </label>
 
       <div className="mt-10 flex items-center gap-5">
         <button className="btn-primary disabled:opacity-50" disabled={questionnaire.length === 0 || busy} onClick={launch}>

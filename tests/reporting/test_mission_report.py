@@ -296,7 +296,7 @@ def test_the_document_numbers_each_statement_and_lists_its_sources_at_the_end(re
     assert "1. Synthèse" in lines and "2. Périmètre et enjeux" in lines and "3. Traitement du risque" in lines
     assert "Un risque est retenu : R1. [1]" in lines                      # the reference sits right after the sentence
     assert "Le bien essentiel BE-1 est le dossier patient. [2]" in lines
-    assert "4. Références des sources" in lines
+    assert any(line.endswith(". Références des sources") for line in lines)   # numbered after the method's deliverables
     assert "[1]  w5.risques.0.id" in lines                                # … and is resolved in the reference list
     assert "[3]  w5.risques.0.vraisemblance_residuelle, echelles.vraisemblance" in lines
     assert not any(line.startswith("Sources :") for line in lines)        # no clutter under each sentence
@@ -353,3 +353,43 @@ def test_a_refused_statement_never_reaches_the_document(repo, mission):
 def test_unknown_mission_is_refused(repo):
     with pytest.raises(ValueError):
         build_snapshot(repo, "n-existe-pas")
+
+
+# --- levels claimed in a sentence --------------------------------------------------------
+
+LEVEL_STATE = {"w5": {"risques": [{"id": "R1", "niveau_risque": "Critique", "niveau_risque_residuel": "Moyen", "gravite": "Grave"}]}}
+
+
+@pytest.mark.parametrize("text", [
+    "Le risque R1 est au niveau critique avant traitement.",
+    "Le niveau de risque de R1 est critique, puis moyen après traitement.",
+    "La gravité de R1 est grave.",
+])
+def test_a_level_present_in_the_cited_object_passes(text):
+    assert check_statement(_s(text, "w5.risques.0"), LEVEL_STATE) is None
+
+
+@pytest.mark.parametrize("text, level", [
+    ("Le risque R1 est au niveau faible.", "faible"),
+    ("Le niveau de risque de R1 est élevé.", "élevé"),
+    ("La gravité de R1 est minimale.", "minimale"),
+])
+def test_a_level_the_cited_data_never_states_is_refused(text, level):
+    reason = check_statement(_s(text, "w5.risques.0"), LEVEL_STATE)
+    assert reason == f"niveau « {level} » absent des champs cités"
+
+
+def test_ordinary_words_that_are_not_level_claims_are_left_alone():
+    # « moyen » here is a means, not a level: no « niveau » or « gravité » announces it.
+    assert check_statement(_s("R1 passe par un moyen discret.", "w5.risques.0"), LEVEL_STATE) is None
+
+
+def test_when_the_level_field_itself_is_cited_the_sentence_must_say_what_it_says():
+    # niveau_risque is Critique, niveau_risque_residuel is Moyen: swapping them is caught when the exact field is cited…
+    swapped = _s("Le risque R1 est au niveau moyen avant traitement.", "w5.risques.0.niveau_risque")
+    assert check_statement(swapped, LEVEL_STATE) == "niveau « moyen » différent du champ cité"
+    both = _s("Le risque R1 passe du niveau critique au niveau moyen.",
+              "w5.risques.0.niveau_risque", "w5.risques.0.niveau_risque_residuel")
+    assert check_statement(both, LEVEL_STATE) is None
+    # …and stays a known limit when only the whole object is cited (both levels are in it).
+    assert check_statement(_s("Le risque R1 est au niveau moyen avant traitement.", "w5.risques.0"), LEVEL_STATE) is None

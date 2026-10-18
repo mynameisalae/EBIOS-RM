@@ -233,3 +233,62 @@ def test_only_one_report_is_written_at_a_time(db, tmp_path):
 
     assert first.status_code == 200 and second.status_code == 409
     assert _wait(client, first.json()["job_id"])["status"] == "done"
+
+
+# --- PDF -------------------------------------------------------------------------------------
+
+def test_the_annex_can_be_downloaded_as_a_pdf(client, db, tmp_path, monkeypatch):
+    _, mid = db
+    seen = {}
+
+    def fake_pdf(path):
+        seen["source"] = path
+        pdf = path.with_suffix(".pdf")
+        pdf.write_bytes(b"%PDF-1.4 fake")
+        return pdf
+
+    monkeypatch.setattr("ebios_rm.api.app.convert_to_pdf", fake_pdf)
+    response = client.get(f"/api/missions/{mid}/annexe?format=pdf")
+
+    assert response.status_code == 200 and response.headers["content-type"] == "application/pdf"
+    assert response.content.startswith(b"%PDF") and seen["source"].suffix == ".docx"
+
+
+def test_a_machine_with_no_office_suite_says_so_plainly(client, db, monkeypatch):
+    from ebios_rm.reporting.pdf import PdfUnavailable
+
+    def none(path):
+        raise PdfUnavailable("Pour produire un PDF, installez LibreOffice.")
+
+    monkeypatch.setattr("ebios_rm.api.app.convert_to_pdf", none)
+    _, mid = db
+    response = client.get(f"/api/missions/{mid}/annexe?format=pdf")
+    assert response.status_code == 501 and "LibreOffice" in response.json()["detail"]
+    # the Word file is still there, whatever happens to the PDF
+    assert client.get(f"/api/missions/{mid}/annexe").status_code == 200
+
+
+def test_the_written_report_can_also_be_downloaded_as_a_pdf(client, db, monkeypatch):
+    _, mid = db
+    job = client.post(f"/api/missions/{mid}/rapport").json()["job_id"]
+    assert _wait(client, job)["status"] == "done"
+    monkeypatch.setattr("ebios_rm.api.app.convert_to_pdf", lambda path: _fake_pdf(path))
+    response = client.get(f"/api/jobs/{job}/fichier?format=pdf")
+    assert response.status_code == 200 and response.headers["content-type"] == "application/pdf"
+
+
+def _fake_pdf(path):
+    pdf = path.with_suffix(".pdf")
+    pdf.write_bytes(b"%PDF-1.4 fake")
+    return pdf
+
+
+def test_the_report_carries_the_methods_deliverables(client, db, tmp_path):
+    _, mid = db
+    job = client.post(f"/api/missions/{mid}/rapport").json()["job_id"]
+    assert _wait(client, job)["status"] == "done"
+    document = Document(str(tmp_path / "reports" / f"rapport_mission_{mid[:8]}.docx"))
+    text = "\n".join(p.text for p in document.paragraphs)
+    assert "Cartographie des risques" in text
+    assert "Plan d'amélioration continue de la sécurité (PACS)" in text
+    assert "Chemins d'attaque retenus" not in text          # this fixture's atelier 4 retains no mode: nothing to show

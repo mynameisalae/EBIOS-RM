@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -26,6 +26,7 @@ from docx.document import Document as DocxDocument
 from ebios_rm.domain.operational_scenario import STATUT_CONFIRME
 from ebios_rm.repositories.mission_repository import MissionRepository
 from ebios_rm.reporting.appraisals import Appraisal
+from ebios_rm.reporting import livrables
 from ebios_rm.reporting.house_style import CREAM, GOLD, Cover, HouseDocument, french_month_year
 from ebios_rm.reporting.report_agent import Refusal, ReportRunner, SectionSpec, Statement
 
@@ -155,6 +156,16 @@ _IDENTIFIER = re.compile(
 )
 
 
+# A level claimed in a sentence (« au niveau critique », « gravité grave ») must exist in what is cited.
+_LEVEL_CLAIM = re.compile(
+    r"\b(?:niveau|gravité)\b(?:\s+[\wÀ-ÿ'’-]+){0,6}?\s+(minimale|significative|grave|critique|faible|moyen|élevé)\b",
+    re.IGNORECASE,
+)
+
+
+_LEVELS = {"minimale", "significative", "grave", "critique", "faible", "moyen", "élevé"}
+
+
 def _parts(path: str) -> list[str]:
     return [p for p in re.sub(r"\[(\d+)\]", r".\1", path.strip()).split(".") if p]
 
@@ -191,15 +202,17 @@ def check_statement(statement: Statement, state: dict) -> str | None:
     """None if the statement stands; otherwise why it is refused.
 
     Every citation must point at a real field or object inside an atelier, and every
-    identifier the text names (R1, SO-02, M-03, T1078, V3...) must appear in what the
-    citations cover. This catches invented fields and invented identifiers; it does not
-    judge whether the sentence reads the data faithfully, which stays the auditor's call.
+    identifier the text names (R1, SO-02, M-03, T1078, V3...) and every level it claims
+    (« niveau critique », « gravité grave ») must appear in what the citations cover. This
+    catches invented fields, identifiers and levels; it does not judge whether the sentence
+    reads the data faithfully (e.g. before vs after treatment), which stays the auditor's call.
     """
     if not statement.text.strip():
         return "texte vide"
     if not statement.sources:
         return "aucune source citée"
     scopes = []
+    cited_levels: set[str] = set()      # level values of the exact fields cited (« …niveau_risque » and the like)
     for raw in statement.sources:
         parts = _parts(raw)
         if len(parts) < 2:
@@ -207,11 +220,19 @@ def check_statement(statement: Statement, state: dict) -> str | None:
         found, value = _resolve(state, parts)
         if not found:
             return f"source introuvable : {raw}"
+        if isinstance(value, str) and value.casefold() in _LEVELS:
+            cited_levels.add(value.casefold())
         scopes += _scopes(state, parts, value)
     attested = json.dumps(scopes, ensure_ascii=False)
     for token in dict.fromkeys(_IDENTIFIER.findall(statement.text)):
         if token not in attested:
             return f"« {token} » ne figure pas dans les champs cités"
+    for level in dict.fromkeys(m.casefold() for m in _LEVEL_CLAIM.findall(statement.text)):
+        if cited_levels:                 # the sentence cites a level field itself: it must say what that field says
+            if level not in cited_levels:
+                return f"niveau « {level} » différent du champ cité"
+        elif not re.search(rf"\b{re.escape(level)}\b", attested.casefold()):
+            return f"niveau « {level} » absent des champs cités"
     return None
 
 
@@ -247,6 +268,7 @@ class MissionReport:
     skipped: tuple[SkippedSection, ...]
     rejected: tuple[RejectedStatement, ...]
     corrected: int = 0  # statements refused once, then kept after the model rewrote their citations
+    evidence: dict = field(default_factory=dict)  # approved atelier 4 / 5 data the deliverables are drawn from
 
 
 APPRAISALS_TITLE = "Appréciations de l'auditeur"
@@ -351,10 +373,66 @@ def write_mission_report(
         organisation=snapshot.state["organisation"].get("nom") or snapshot.mission_name,
         generated_at=generated_at or datetime.now(timezone.utc).isoformat(timespec="seconds"),
         sections=tuple(sections), skipped=tuple(skipped), rejected=tuple(rejected), corrected=corrected,
+        evidence={k: snapshot.state[k] for k in ("w4", "w5") if k in snapshot.state},
     )
 
 
 # --- rendering -------------------------------------------------------------------
+
+RISK_MAP_TITLE = "Cartographie des risques"
+ATTACK_PATHS_TITLE = "Chemins d'attaque retenus"
+PACS_TITLE = "Plan d'amélioration continue de la sécurité (PACS)"
+_PHASE_TEXT = {"Connaître": "8A6508", "Rentrer": "B15C00", "Trouver": "B15C00", "Exploiter": "BE1E2D"}
+
+
+def _render_risk_map(doc: HouseDocument, w5: dict) -> None:
+    risks = w5.get("risques", [])
+    png = livrables.risk_map_png(risks)
+    if png:
+        doc.picture(png)
+    doc.note("Chaque pastille est un risque, placé selon sa gravité et sa vraisemblance ; sa couleur est son niveau de risque. "
+             "Le traitement réduit la vraisemblance, pas la gravité.")
+    doc.table(["Risque", "Gravité", "Avant traitement", "Après traitement", "Stratégie", "Acceptabilité résiduelle"],
+              livrables.risk_rows(risks), widths=[9, 14, 19, 19, 14, 25], size=8.5)
+
+
+def _render_attack_paths(doc: HouseDocument, w4: dict) -> None:
+    doc.note("Pour chaque scénario stratégique, le mode opératoire le plus vraisemblable, qui porte le risque, avec ses étapes.")
+    for block in livrables.attack_path_blocks(w4):
+        doc.heading(block["title"], level=2)
+        if block["summary"]:
+            doc.paragraph(block["summary"])
+        rows = []
+        for number, phase, technique, description in block["steps"]:
+            rows.append([number, {"text": phase, "bold": True, "color": _PHASE_TEXT.get(phase, "34373B")}, technique, description])
+        doc.table(["#", "Phase", "Technique ATT&CK", "Description"], rows, widths=[5, 13, 27, 55], size=8.5)
+
+
+def _render_pacs(doc: HouseDocument, w5: dict) -> None:
+    doc.note("Les mesures, regroupées par axe, avec leur priorité, leur échéance, leur responsable et les risques qu'elles traitent.")
+    doc.table(["Mesure", "Libellé", "Axe", "Prio.", "Échéance", "Responsable", "Risques"],
+              livrables.pacs_rows(w5.get("mesures", [])), widths=[8, 30, 13, 6, 10, 21, 12], size=8)
+    follow = livrables.follow_up_rows(w5)
+    if follow:
+        doc.heading("Cadre de suivi", level=2)
+        committee = (w5.get("cadre_suivi") or {}).get("comite")
+        if committee:
+            doc.paragraph(committee)
+        doc.table(["Indicateur", "Libellé", "Cible", "Fréquence"], follow, widths=[10, 48, 24, 18], size=8.5)
+
+
+def _deliverables(report: MissionReport) -> list[tuple[str, Callable[[HouseDocument], None]]]:
+    """The method's own products, drawn from the approved data: only those whose atelier is approved."""
+    w4, w5 = report.evidence.get("w4"), report.evidence.get("w5")
+    found: list[tuple[str, Callable[[HouseDocument], None]]] = []
+    if w5 and w5.get("risques"):
+        found.append((RISK_MAP_TITLE, lambda doc: _render_risk_map(doc, w5)))
+    if w4 and livrables.attack_path_blocks(w4):
+        found.append((ATTACK_PATHS_TITLE, lambda doc: _render_attack_paths(doc, w4)))
+    if w5 and w5.get("mesures"):
+        found.append((PACS_TITLE, lambda doc: _render_pacs(doc, w5)))
+    return found
+
 
 def build_mission_report(report: MissionReport) -> DocxDocument:
     doc = HouseDocument(Cover(
@@ -369,8 +447,11 @@ def build_mission_report(report: MissionReport) -> DocxDocument:
     doc.heading("Table des matières", size=18)
     for number, section in enumerate(report.sections, 1):
         doc.toc_line(f"{number}.", section.title.upper())
+    deliverables = _deliverables(report)
+    for offset, (title, _) in enumerate(deliverables, 1):
+        doc.toc_line(f"{len(report.sections) + offset}.", title.upper())
     if report.sections:
-        doc.toc_line(f"{len(report.sections) + 1}.", REFERENCES_TITLE.upper())
+        doc.toc_line(f"{len(report.sections) + len(deliverables) + 1}.", REFERENCES_TITLE.upper())
     doc.page_break()
 
     doc.callout(
@@ -397,9 +478,13 @@ def build_mission_report(report: MissionReport) -> DocxDocument:
             reference = len(references) + 1
             doc.statement(statement.text, reference)
             references.append((reference, ", ".join(statement.sources)))
+    for offset, (title, render) in enumerate(deliverables, 1):
+        doc.page_break()
+        doc.heading(f"{len(report.sections) + offset}. {title}")
+        render(doc)
     if references:
         doc.page_break()
-        doc.heading(f"{len(report.sections) + 1}. {REFERENCES_TITLE}")
+        doc.heading(f"{len(report.sections) + len(deliverables) + 1}. {REFERENCES_TITLE}")
         doc.note("Chaque numéro renvoie aux champs de l'étude sur lesquels l'affirmation repose.")
         for reference, sources in references:
             doc.reference_line(reference, sources)

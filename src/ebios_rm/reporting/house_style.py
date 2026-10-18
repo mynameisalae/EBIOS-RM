@@ -180,6 +180,14 @@ class HouseDocument:
         brk.set(qn("w:type"), "page")
         run._element.append(brk)
 
+    def picture(self, png: bytes, width_inches: float = 6.4) -> None:
+        from io import BytesIO  # noqa: PLC0415
+
+        paragraph = self.document.add_paragraph()
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        paragraph.paragraph_format.space_before, paragraph.paragraph_format.space_after = Pt(4), Pt(6)
+        paragraph.add_run().add_picture(BytesIO(png), width=Inches(width_inches))
+
     def toc_line(self, number: str, title: str) -> None:
         paragraph = self.document.add_paragraph()
         paragraph.paragraph_format.space_before, paragraph.paragraph_format.space_after = Pt(6), Pt(2)

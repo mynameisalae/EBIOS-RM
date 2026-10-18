@@ -10,7 +10,7 @@ import tempfile
 from io import BytesIO
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -22,8 +22,10 @@ from ebios_rm.api.pilot import PilotBusy, PilotRegistry, Workshops, default_work
 from ebios_rm.repositories.mission_repository import MissionRepository, connect
 from ebios_rm.reporting.appraisals import AnnexReadError, read_appraisals
 from ebios_rm.reporting.audit_annex import build_audit_annex, collect_audit_annex_data
+from ebios_rm.reporting.pdf import PdfUnavailable, convert_to_pdf
 
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+PDF = "application/pdf"
 
 
 def _default_runner_factory(progress):
@@ -42,6 +44,17 @@ def _require_model_key() -> None:
 class Answer(BaseModel):
     prompt_id: int
     text: str = ""
+
+
+class PilotStart(BaseModel):
+    seance: bool = False        # run the client session of ateliers 4 and 5
+
+
+def _pdf_of(path: Path) -> Path:
+    try:
+        return convert_to_pdf(path)
+    except PdfUnavailable as exc:
+        raise HTTPException(501, str(exc)) from exc
 
 
 def create_app(
@@ -86,10 +99,17 @@ def create_app(
         return detail
 
     @app.get("/api/missions/{mission_id}/annexe")
-    def annexe(mission_id: str):
+    def annexe(mission_id: str, format: str = "docx"):
         r = known_mission(mission_id)
+        document = build_audit_annex(collect_audit_annex_data(r, mission_id))
+        if format == "pdf":
+            target = reports / f"annexe_audit_{mission_id[:8]}.docx"
+            target.parent.mkdir(parents=True, exist_ok=True)
+            document.save(str(target))
+            pdf = _pdf_of(target)
+            return FileResponse(pdf, media_type=PDF, filename=pdf.name)
         buffer = BytesIO()
-        build_audit_annex(collect_audit_annex_data(r, mission_id)).save(buffer)
+        document.save(buffer)
         return Response(buffer.getvalue(), media_type=DOCX,
                         headers={"Content-Disposition": f'attachment; filename="annexe_audit_{mission_id[:8]}.docx"'})
 
@@ -131,22 +151,27 @@ def create_app(
                 "summary": found.summary, "error": found.error}
 
     @app.get("/api/jobs/{job_id}/fichier")
-    def job_file(job_id: str):
+    def job_file(job_id: str, format: str = "docx"):
         found = jobs.get(job_id)
         if found is None or found.file is None:
             raise HTTPException(404, "Aucun fichier pour cette tâche.")
+        if format == "pdf":
+            pdf = _pdf_of(found.file)
+            return FileResponse(pdf, media_type=PDF, filename=pdf.name)
         return FileResponse(found.file, media_type=DOCX, filename=found.file.name)
 
     # --- piloting a mission from the web (see pilot.py) ---
 
     def _start_pilot(mission_id: str, **kwargs):
         try:
-            return pilots.start(db_path, mission_id, workshops=workshops or default_workshops, intake=intake, **kwargs)
+            return pilots.start(db_path, mission_id, workshops=workshops or default_workshops, intake=intake,
+                                reports_dir=reports, report_factory=factory, **kwargs)
         except PilotBusy as exc:
             raise HTTPException(409, str(exc)) from exc
 
     @app.post("/api/missions")
-    async def new_mission(questionnaire: UploadFile = File(...), supporting: list[UploadFile] = File(default=[])):
+    async def new_mission(questionnaire: UploadFile = File(...), supporting: list[UploadFile] = File(default=[]),
+                          seance: bool = Form(False)):
         if workshops is None and intake is None:
             _require_model_key()
         if not questionnaire.filename:
@@ -162,18 +187,18 @@ def create_app(
             target = folder / Path(upload.filename).name
             target.write_bytes(await upload.read())
             saved.append(target)
-        session = _start_pilot(mission_id, kind="intake", files=saved)
+        session = _start_pilot(mission_id, kind="intake", files=saved, seance=seance)
         return {"mission_id": mission_id, "session_id": session.id}
 
     @app.post("/api/missions/{mission_id}/pilote")
-    def start_pilot(mission_id: str):
+    def start_pilot(mission_id: str, body: PilotStart | None = None):
         r = known_mission(mission_id)
         if not views.next_step(r.get_mission(mission_id).status)["can_pilot"]:
             raise HTTPException(409, "Cette mission n'a rien à lancer pour l'instant.")
         if workshops is None:
             _require_model_key()
         existing = pilots.active_for(mission_id)
-        session = existing or _start_pilot(mission_id, kind="run")
+        session = existing or _start_pilot(mission_id, kind="run", seance=bool(body and body.seance))
         return {"session_id": session.id}
 
     @app.get("/api/missions/{mission_id}/pilote")
@@ -188,7 +213,19 @@ def create_app(
         if session is None:
             raise HTTPException(404, "Session introuvable (le serveur a redémarré ?).")
         return {"id": session.id, "mission_id": session.mission_id, "status": session.status,
-                "error": session.error, "final_status": session.final_status, **session.channel.snapshot(after)}
+                "error": session.error, "final_status": session.final_status, "files": sorted(session.files),
+                **session.channel.snapshot(after)}
+
+    @app.get("/api/pilote/{session_id}/fichier/{kind}")
+    def pilot_file(session_id: str, kind: str, format: str = "docx"):
+        session = pilots.get(session_id)
+        path = session.files.get(kind) if session else None
+        if path is None:
+            raise HTTPException(404, "Ce document n'a pas (encore) été produit par cette session.")
+        if format == "pdf":
+            pdf = _pdf_of(path)
+            return FileResponse(pdf, media_type=PDF, filename=pdf.name)
+        return FileResponse(path, media_type=DOCX, filename=path.name)
 
     @app.post("/api/pilote/{session_id}/reponse")
     def pilot_answer(session_id: str, answer: Answer):

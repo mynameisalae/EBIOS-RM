@@ -87,9 +87,14 @@ export default function Reports() {
               <p className="eyebrow">Pour l’auditeur · sans IA</p>
               <h2 className="mt-2 text-[30px] font-extrabold leading-tight">Annexe d’audit</h2>
               <p className="mt-3 max-w-[52ch] text-[17px] text-ink-soft">Pur rendu des données de la mission : chaque valeur est lue telle quelle, rien n’est rédigé par un modèle.</p>
-              <a className="btn-quiet mt-8 self-start" href={api.annexUrl(id)} download>
-                <Download className="h-4 w-4" /> Télécharger l’annexe (.docx)
-              </a>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <a className="btn-quiet" href={api.annexUrl(id)} download>
+                  <Download className="h-4 w-4" /> Télécharger l’annexe (.docx)
+                </a>
+                <a className="btn-quiet" href={api.annexUrl(id, 'pdf')} download title="Demande à Word ou LibreOffice : quelques secondes">
+                  <Download className="h-4 w-4" /> PDF
+                </a>
+              </div>
             </div>
           </section>
 
@@ -179,9 +184,14 @@ export default function Reports() {
                   </ul>
                 </details>
               )}
-              <a className="btn-primary mt-7" href={api.jobFileUrl(job.id)} download>
-                <Download className="h-4 w-4" /> Télécharger le rapport (.docx)
-              </a>
+              <div className="mt-7 flex flex-wrap gap-3">
+                <a className="btn-primary" href={api.jobFileUrl(job.id)} download>
+                  <Download className="h-4 w-4" /> Télécharger le rapport (.docx)
+                </a>
+                <a className="btn-quiet" href={api.jobFileUrl(job.id, 'pdf')} download title="Demande à Word ou LibreOffice : quelques secondes">
+                  <Download className="h-4 w-4" /> PDF
+                </a>
+              </div>
             </>
           )}
         </section>

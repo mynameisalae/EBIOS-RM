@@ -2,6 +2,7 @@
 
     python scripts/generate_audit_annex.py <mission_id>                   # data/reports/annexe_audit_<id>.docx
     python scripts/generate_audit_annex.py <mission_id> chemin/sortie.docx
+    python scripts/generate_audit_annex.py <mission_id> --pdf             # + a PDF next to the Word file
 
 List the missions and their ids with:  python scripts/run_workshop1_from_docs.py --list
 """
@@ -22,11 +23,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from ebios_rm.config import load_settings  # noqa: E402
 from ebios_rm.repositories.mission_repository import MissionRepository, connect  # noqa: E402
 from ebios_rm.reporting.audit_annex import collect_audit_annex_data, write_audit_annex  # noqa: E402
+from ebios_rm.reporting.pdf import PdfUnavailable, convert_to_pdf  # noqa: E402
 
 REPORTS_DIR = Path("data/reports")
 
 
 def main(argv: list[str]) -> int:
+    want_pdf = "--pdf" in argv
+    argv = [a for a in argv if a != "--pdf"]
     if len(argv) < 2:
         print(__doc__)
         return 2
@@ -41,6 +45,11 @@ def main(argv: list[str]) -> int:
     path = write_audit_annex(data, target)
 
     print(f"Annexe d'audit écrite : {path}")
+    if want_pdf:
+        try:
+            print(f"PDF écrit : {convert_to_pdf(path)}")
+        except PdfUnavailable as exc:
+            print(f"PDF non produit : {exc}")
     print(f"  {len(data.versions)} version(s) d'atelier · {len(data.decisions)} décision(s) · "
           f"{len(data.gaps)} lien(s) écart/contrôle · {len(data.abnormal_events)} événement(s) anormal(aux)")
     return 0

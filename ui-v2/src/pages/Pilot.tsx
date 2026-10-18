@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowRight, Check, Loader2, Square } from 'lucide-react'
+import { ArrowRight, Check, Download, Loader2, Square } from 'lucide-react'
 import { api, useAsync, type PilotPrompt, type PilotState } from '../lib/api'
 import { Failure, Kicker, Loading, PageHead } from '../components/kit'
 
@@ -163,11 +163,11 @@ function usePilot(missionId: string) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, state?.status])
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (seance = false) => {
     setError('')
     try {
       setState(null)
-      setSessionId((await api.startPilot(missionId)).session_id)
+      setSessionId((await api.startPilot(missionId, seance)).session_id)
     } catch (e) {
       setError((e as Error).message)
     }
@@ -180,6 +180,7 @@ export default function Pilot() {
   const { id = '' } = useParams()
   const mission = useAsync(() => api.mission(id), [id])
   const pilot = usePilot(id)
+  const [seance, setSeance] = useState(false)
   const { state, sessionId } = pilot
 
   if (mission.loading) return <Loading />
@@ -216,9 +217,17 @@ export default function Pilot() {
           <Kicker>Prochaine étape</Kicker>
           <p className="mt-2 font-display text-[30px] font-bold leading-tight [font-stretch:104%]">{step.label}</p>
           {step.can_pilot ? (
-            <button className="btn-primary mt-8" onClick={pilot.start}>
-              Continuer la mission <ArrowRight className="h-4 w-4" />
-            </button>
+            <>
+              <label className="mt-6 flex cursor-pointer items-start gap-3 text-[16px] text-ink-soft">
+                <input type="checkbox" checked={seance} onChange={(e) => setSeance(e.target.checked)} className="mt-1 h-5 w-5 accent-[#BE1E2D]" />
+                <span>
+                  <b className="font-semibold text-ink">Séance avec le client</b> (ateliers 4 et 5) : l’agent vous pose les questions que seul le client peut éclairer.
+                </span>
+              </label>
+              <button className="btn-primary mt-6" onClick={() => pilot.start(seance)}>
+                Continuer la mission <ArrowRight className="h-4 w-4" />
+              </button>
+            </>
           ) : (
             <p className="mt-4 max-w-[56ch] text-[17px] text-ink-soft">
               {step.action === 'generate_report' || step.action === 'done' ? (
@@ -255,13 +264,35 @@ export default function Pilot() {
           <Journal lines={pilot.lines} choicePending={waiting && state?.prompt?.kind === 'choice'} />
           {waiting && state?.prompt && <PromptCard prompt={state.prompt} missionId={id} lines={pilot.lines} onAnswer={answer} />}
 
+          {state && state.files.length > 0 && sessionId && (
+            <section className="sheet rise mt-6 px-8 py-7">
+              <Kicker>Les cinq ateliers sont approuvés</Kicker>
+              <p className="mt-1 font-display text-[22px] font-extrabold">Les rapports sont prêts</p>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                {[['rapport', 'Rapport de mission'], ['annexe', 'Annexe d’audit']].filter(([k]) => state.files.includes(k)).map(([kind, label]) => (
+                  <div key={kind}>
+                    <p className="text-[15px] font-semibold">{label}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <a className="btn-primary !py-2" href={api.pilotFileUrl(sessionId, kind)} download>
+                        <Download className="h-4 w-4" /> Word
+                      </a>
+                      <a className="btn-quiet !py-2" href={api.pilotFileUrl(sessionId, kind, 'pdf')} download title="Demande à Word ou LibreOffice : quelques secondes">
+                        <Download className="h-4 w-4" /> PDF
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {state && state.status !== 'running' && (
             <div className="mt-6 flex flex-wrap gap-3">
               <Link className="btn-primary" to={`/missions/${id}`}>
                 Voir la mission
               </Link>
               {state.status !== 'done' || state.final_status !== 'all_approved' ? (
-                <button className="btn-quiet" onClick={pilot.start}>
+                <button className="btn-quiet" onClick={() => pilot.start(seance)}>
                   Continuer la mission
                 </button>
               ) : null}

@@ -301,3 +301,136 @@ async def test_atelier_1_shows_the_unverified_review_on_the_page_not_on_stdin(mo
 
     assert isinstance(output, Workshop1Output)
     assert seen == [(channel.ask, channel.say)]
+
+
+# --- the mission ends with its two documents -----------------------------------------------------
+
+class ScriptedReport:
+    def write_section(self, spec, state):
+        from ebios_rm.reporting.report_agent import SectionDraft, Statement
+
+        return SectionDraft(statements=[Statement(text="Voir l'échelle de gravité.", sources=["echelles.gravite"])])
+
+    def revise_section(self, spec, state, refused):
+        from ebios_rm.reporting.report_agent import SectionDraft
+
+        return SectionDraft(statements=[])
+
+
+def _finished_mission(path: str) -> str:
+    repo = MissionRepository(connect(path))
+    mission_id = repo.list_missions()[0].mission_id
+    for n in range(1, 6):
+        version = repo.save_output(mission_id, n, {"note": f"atelier {n}"})
+        repo.set_version_status(mission_id, n, version, "approved")
+    return mission_id
+
+
+def test_when_the_fifth_atelier_is_approved_the_session_produces_both_reports(db, tmp_path, monkeypatch):
+    from ebios_rm.api.pilot import PilotRegistry
+
+    path, mission_id = db
+    _finished_mission(path)
+    monkeypatch.setattr(PilotRegistry, "_drive", staticmethod(
+        lambda repo, mid, channel, workshops, seance=False: repo.set_status(mid, state_machine.approved(5))))
+    app = create_app(path, uploads_dir=tmp_path / "up", reports_dir=tmp_path / "reports", workshops=fake_workshops,
+                     runner_factory=lambda progress: ScriptedReport())
+    client = TestClient(app)
+    repo = MissionRepository(connect(path))
+    repo.set_status(mission_id, state_machine.approved(4))            # something to launch
+
+    session = client.post(f"/api/missions/{mission_id}/pilote").json()["session_id"]
+    done = wait_for(client, session, lambda s: s["status"] == "done")
+
+    assert done["files"] == ["annexe", "rapport"]
+    text = "\n".join(done["lines"])
+    assert "Annexe d'audit produite" in text and "Rapport de mission produit" in text
+    for kind in ("annexe", "rapport"):
+        response = client.get(f"/api/pilote/{session}/fichier/{kind}")
+        assert response.status_code == 200 and response.content[:2] == b"PK"      # a real .docx
+    assert client.get(f"/api/pilote/{session}/fichier/inconnu").status_code == 404
+
+
+def test_a_failing_report_leaves_the_annex_and_says_why(db, tmp_path, monkeypatch):
+    from ebios_rm.api.pilot import PilotRegistry
+
+    path, mission_id = db
+    _finished_mission(path)
+    monkeypatch.setattr(PilotRegistry, "_drive", staticmethod(
+        lambda repo, mid, channel, workshops, seance=False: repo.set_status(mid, state_machine.approved(5))))
+
+    def no_model(progress):
+        raise RuntimeError("OPENROUTER_API_KEY absente")
+
+    client = TestClient(create_app(path, uploads_dir=tmp_path / "up", reports_dir=tmp_path / "reports",
+                                   workshops=fake_workshops, runner_factory=no_model))
+    MissionRepository(connect(path)).set_status(mission_id, state_machine.approved(4))
+    session = client.post(f"/api/missions/{mission_id}/pilote").json()["session_id"]
+    done = wait_for(client, session, lambda s: s["status"] == "done")
+    assert done["files"] == ["annexe"]
+    assert any("Rapport de mission non produit" in line and "OPENROUTER_API_KEY" in line for line in done["lines"])
+
+
+def test_a_mission_that_stops_before_the_fifth_atelier_produces_no_report(client, db):
+    _, mission_id = db
+    session = client.post(f"/api/missions/{mission_id}/pilote").json()["session_id"]
+    gate = wait_for(client, session, asks("Approuvez-vous"))
+    answer(client, session, gate, "oui")
+    gate = wait_for(client, session, lambda s: asks("Approuvez-vous")(s) and s["prompt"]["id"] != gate["prompt"]["id"])
+    answer(client, session, gate, "oui")
+    done = wait_for(client, session, lambda s: s["status"] == "done")
+    assert done["files"] == []
+
+
+# --- « Interrompre » now bites during a model call, not only at the next question -------------------
+
+def test_interrupting_stops_the_session_right_after_the_model_call_in_flight(db, tmp_path):
+    import types
+
+    from ebios_rm import agent_runtime
+
+    class Busy:
+        workshop_number = 1
+
+        async def run(self, input, mission_id):
+            response = types.SimpleNamespace(metrics=types.SimpleNamespace(input_tokens=1, output_tokens=1),
+                                             model=types.SimpleNamespace(id="fake"))
+            for _ in range(400):                       # ~8 s of « model calls », never asking the auditor anything
+                time.sleep(0.02)
+                agent_runtime._record_tokens(response)
+            return Workshop1Output()
+
+        def stop(self): pass
+        async def resume(self, mission_id): return Workshop1Output()
+        def summarize_output(self, output): return "résumé"
+
+    path, mission_id = db
+    client = TestClient(create_app(path, uploads_dir=tmp_path / "up", workshops=lambda repo, channel: {1: Busy()}))
+    session = client.post(f"/api/missions/{mission_id}/pilote").json()["session_id"]
+    time.sleep(0.3)
+    started = time.time()
+    assert client.post(f"/api/pilote/{session}/arret").status_code == 200
+    stopped = wait_for(client, session, lambda s: s["status"] == "stopped", seconds=3)
+    assert time.time() - started < 2 and stopped["prompt"] is None
+
+
+# --- the client session of ateliers 4 and 5 is an option of the launch ---------------------------
+
+def test_the_client_session_is_asked_for_at_launch_and_off_by_default(db, tmp_path):
+    asked: list[bool] = []
+
+    def workshops(repo, channel, seance=False):
+        asked.append(seance)
+        return fake_workshops(repo, channel)
+
+    path, mission_id = db
+    client = TestClient(create_app(path, uploads_dir=tmp_path / "up", workshops=workshops))
+    session = client.post(f"/api/missions/{mission_id}/pilote", json={"seance": True}).json()["session_id"]
+    wait_for(client, session, asks("Approuvez-vous"))
+    client.post(f"/api/pilote/{session}/arret")
+    wait_for(client, session, lambda s: s["status"] == "stopped")
+    session = client.post(f"/api/missions/{mission_id}/pilote").json()["session_id"]
+    wait_for(client, session, asks("Approuvez-vous"))
+    client.post(f"/api/pilote/{session}/arret")
+    wait_for(client, session, lambda s: s["status"] == "stopped")
+    assert asked == [True, False]

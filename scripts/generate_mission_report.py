@@ -2,6 +2,7 @@
 
     python scripts/generate_mission_report.py <mission_id>                   # data/reports/rapport_mission_<id>.docx
     python scripts/generate_mission_report.py <mission_id> chemin/sortie.docx
+    python scripts/generate_mission_report.py <mission_id> --pdf          # + a PDF next to the Word file
     python scripts/generate_mission_report.py <mission_id> --annexe annexe_remplie.docx   # + appréciations de l'auditeur
 
 With --annexe, the cells the auditor filled in the audit annex (« Appréciation de l'auditeur »)
@@ -32,6 +33,7 @@ from ebios_rm.reporting.appraisals import AnnexReadError, read_appraisals  # noq
 from ebios_rm.reporting.mission_report import (  # noqa: E402
     build_snapshot, write_mission_report, write_mission_report_file,
 )
+from ebios_rm.reporting.pdf import PdfUnavailable, convert_to_pdf  # noqa: E402
 from ebios_rm.reporting.report_agent import AgnoReportRunner  # noqa: E402
 
 REPORTS_DIR = Path("data/reports")
@@ -39,6 +41,8 @@ REPORTS_DIR = Path("data/reports")
 
 def main(argv: list[str]) -> int:
     args = argv[1:]
+    want_pdf = "--pdf" in args
+    args = [a for a in args if a != "--pdf"]
     annex_path = None
     if "--annexe" in args:
         at = args.index("--annexe")
@@ -93,6 +97,11 @@ def main(argv: list[str]) -> int:
 
     kept = sum(len(s.statements) for s in report.sections)
     print(f"\nRapport de mission écrit : {path}")
+    if want_pdf:
+        try:
+            print(f"PDF écrit : {convert_to_pdf(path)}")
+        except PdfUnavailable as exc:
+            print(f"PDF non produit : {exc}")
     print(f"  {len(report.sections)} section(s) · {kept} affirmation(s) retenue(s) "
           f"(dont {report.corrected} après correction) · {len(report.rejected)} écartée(s) · "
           f"{len(report.skipped)} section(s) non incluse(s)")
